@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Online Ordering - Kenji's Kitchen</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Serif:wght@400;500;600;700&family=Old+Standard+TT:wght@700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="../../assets/css/online-ordering.css">
+</head>
+<body>
+    <header class="customer-header">
+        <a class="brand" href="#">
+            <span class="brand-mark">K</span>
+            <span>
+                <strong>Kenji's Kitchen</strong>
+                <small>Online Ordering</small>
+            </span>
+        </a>
+
+        <nav class="customer-nav">
+            <a href="#menuSection">Menu</a>
+            <a href="#trackingSection">Track</a>
+            <a href="#historySection">History</a>
+        </nav>
+
+        <button class="cart-toggle" id="cartToggle" aria-label="Open cart">
+            <i class="bi bi-bag"></i>
+            <span id="cartBadge">0</span>
+        </button>
+    </header>
+
+    <main>
+        <section class="customer-hero">
+            <div>
+                <p class="eyebrow">Fresh meals, ready when you are</p>
+                <h1>Kenji's Kitchen</h1>
+                <p>Browse the menu, customize your favorites, and place an order for pickup or delivery.</p>
+            </div>
+        </section>
+
+        <section class="order-shell" id="menuSection">
+            <div class="menu-panel">
+                <div class="section-head">
+                    <div>
+                        <h2>Menu</h2>
+                        <p>Choose from rice meals, noodles, drinks, desserts, and sides.</p>
+                    </div>
+                    <button class="filter-btn" id="mobileCartBtn"><i class="bi bi-bag"></i>View Cart</button>
+                </div>
+
+                <div class="filters">
+                    <label class="search-box">
+                        <i class="bi bi-search"></i>
+                        <input type="search" id="searchInput" placeholder="Search food or drink">
+                    </label>
+                    <label class="price-filter">
+                        <span>Max Price</span>
+                        <input type="range" id="priceRange" min="50" max="250" value="250">
+                        <strong id="priceLabel">PHP 250</strong>
+                    </label>
+                </div>
+
+                <div class="category-tabs" id="categoryTabs"></div>
+
+                <div class="food-grid" id="foodGrid"></div>
+            </div>
+
+            <aside class="cart-panel" id="cartPanel">
+                <div class="cart-head">
+                    <div>
+                        <h2>My Order</h2>
+                        <p id="cartCountText">No items yet</p>
+                    </div>
+                    <button class="icon-btn close-cart" id="closeCart" aria-label="Close cart"><i class="bi bi-x-lg"></i></button>
+                </div>
+
+                <div class="cart-items" id="cartItems"></div>
+
+                <div class="cost-card">
+                    <div><span>Subtotal</span><strong id="subtotalText">PHP 0.00</strong></div>
+                    <div><span>Estimated Tax</span><strong id="taxText">PHP 0.00</strong></div>
+                    <div><span>Delivery Fee</span><strong id="deliveryText">PHP 0.00</strong></div>
+                    <div class="grand-total"><span>Total</span><strong id="totalText">PHP 0.00</strong></div>
+                </div>
+
+                <button class="primary-btn" id="checkoutToggle"><i class="bi bi-credit-card"></i>Proceed to Checkout</button>
+            </aside>
+        </section>
+
+        <section class="checkout-section" id="checkoutSection">
+            <div class="section-head">
+                <div>
+                    <h2>Checkout</h2>
+                    <p>Complete your details and choose a payment method.</p>
+                </div>
+                <div class="checkout-steps">
+                    <span class="active" id="stepOneLabel">1 Details</span>
+                    <span id="stepTwoLabel">2 Payment</span>
+                </div>
+            </div>
+
+            <form class="checkout-card" id="checkoutForm">
+                <div class="checkout-step" id="stepOne">
+                    <div class="form-grid">
+                        <label>
+                            <span>Full Name</span>
+                            <input type="text" id="customerName" placeholder="Juan Dela Cruz">
+                            <small class="field-error" id="nameError"></small>
+                        </label>
+                        <label>
+                            <span>Phone Number</span>
+                            <input type="tel" id="phoneNumber" placeholder="09XXXXXXXXX">
+                            <small class="field-error" id="phoneError"></small>
+                        </label>
+                    </div>
+
+                    <div class="option-row">
+                        <label class="choice-card">
+                            <input type="radio" name="fulfillment" value="Delivery" checked>
+                            <span><i class="bi bi-scooter"></i>Delivery</span>
+                        </label>
+                        <label class="choice-card">
+                            <input type="radio" name="fulfillment" value="Pickup">
+                            <span><i class="bi bi-shop"></i>Pickup</span>
+                        </label>
+                    </div>
+
+                    <label id="addressWrap">
+                        <span>Delivery Address</span>
+                        <textarea id="deliveryAddress" placeholder="Street, barangay, city"></textarea>
+                        <small class="field-error" id="addressError"></small>
+                    </label>
+
+                    <button class="primary-btn" type="button" id="continuePayment">Continue to Payment</button>
+                </div>
+
+                <div class="checkout-step" id="stepTwo" hidden>
+                    <div class="payment-grid" id="paymentOptions">
+                        <label class="payment-card">
+                            <input type="radio" name="payment" value="Card" checked>
+                            <span><i class="bi bi-credit-card-2-front"></i>Credit / Debit Card</span>
+                        </label>
+                        <label class="payment-card">
+                            <input type="radio" name="payment" value="E-Wallet">
+                            <span><i class="bi bi-phone"></i>Mock E-Wallet</span>
+                        </label>
+                        <label class="payment-card">
+                            <input type="radio" name="payment" value="Cash on Delivery">
+                            <span><i class="bi bi-cash-stack"></i>Cash on Delivery</span>
+                        </label>
+                    </div>
+
+                    <div class="checkout-actions">
+                        <button class="secondary-btn" type="button" id="backDetails">Back</button>
+                        <button class="primary-btn" type="submit" id="placeOrderBtn">
+                            <span class="btn-text">Place Order</span>
+                            <span class="btn-loader" hidden></span>
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </section>
+
+        <section class="tracking-section" id="trackingSection">
+            <div class="section-head">
+                <div>
+                    <h2>Order Tracking</h2>
+                    <p>Sample tracking view for the latest customer order.</p>
+                </div>
+                <span class="timer-badge" id="timerBadge">ETA 25 min</span>
+            </div>
+
+            <div class="tracking-card">
+                <div class="stepper" id="trackingStepper"></div>
+                <div class="receipt-view" id="receiptView"></div>
+            </div>
+        </section>
+
+        <section class="history-section" id="historySection">
+            <div class="section-head">
+                <div>
+                    <h2>Order History</h2>
+                    <p>Past customer orders can be reviewed and reordered.</p>
+                </div>
+            </div>
+            <div class="history-grid" id="historyGrid"></div>
+        </section>
+    </main>
+
+    <div class="modal-backdrop" id="itemModal" hidden>
+        <section class="item-modal">
+            <button class="icon-btn modal-close" id="closeModal" aria-label="Close item modal"><i class="bi bi-x-lg"></i></button>
+            <img id="modalImage" alt="">
+            <div class="modal-body">
+                <span class="badge" id="modalCategory"></span>
+                <h2 id="modalTitle"></h2>
+                <p id="modalDescription"></p>
+
+                <fieldset>
+                    <legend>Portion Size</legend>
+                    <div class="option-list" id="portionOptions"></div>
+                </fieldset>
+
+                <fieldset>
+                    <legend>Extras</legend>
+                    <div class="option-list" id="extraOptions"></div>
+                </fieldset>
+
+                <div class="modal-bottom">
+                    <div class="quantity-control">
+                        <button id="modalMinus" type="button">-</button>
+                        <strong id="modalQty">1</strong>
+                        <button id="modalPlus" type="button">+</button>
+                    </div>
+                    <button class="primary-btn" id="addToCartBtn">Add to Order - <span id="modalPrice">PHP 0.00</span></button>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script src="../../assets/js/online-data.js"></script>
+    <script src="../../assets/js/online-ordering.js"></script>
+</body>
+</html>
