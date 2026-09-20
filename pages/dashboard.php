@@ -39,11 +39,21 @@ include ROOT_PATH . '/includes/header.php';
             <thead><tr><th>Order No.</th><th>Type</th><th>Total</th><th>Status</th><th>Date</th></tr></thead>
             <tbody>
                 <?php foreach ($recent as $row): ?>
+                <?php
+                    $status = $row['status'] ?: 'Pending';
+                    $badgeClass = match($status) {
+                        'Served', 'Completed' => 'badge-success',
+                        'Ready' => 'badge-primary',
+                        'Preparing' => 'badge-info',
+                        'Cancelled' => 'badge-danger',
+                        default => 'badge-warning',
+                    };
+                ?>
                 <tr>
                     <td><?= e($row['order_no']) ?></td>
                     <td><?= e($row['order_type']) ?></td>
                     <td><?= money($row['total']) ?></td>
-                    <td><span class="badge badge-info"><?= e($row['status']) ?></span></td>
+                    <td><span class="badge <?= $badgeClass ?>"><?= e($status) ?></span></td>
                     <td><?= e(date('M d, Y h:i A', strtotime($row['created_at']))) ?></td>
                 </tr>
                 <?php endforeach; ?>

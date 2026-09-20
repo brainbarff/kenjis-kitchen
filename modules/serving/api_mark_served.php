@@ -26,8 +26,7 @@ try {
         exit;
     }
 
-    // Dine-in orders are served at the table, while take-out and online orders are picked up.
-    $next = $order['order_type'] === 'DINE-IN' ? 'Served' : 'Picked Up';
+    $next = 'Served';
 
     $stmt = $conn->prepare("
         UPDATE orders
