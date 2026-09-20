@@ -10,6 +10,7 @@ const printArea = document.getElementById('printArea');
 let readyOrders = [];
 let isLoading = false;
 
+// API calls are separated from UI rendering so the module is easier to explain and maintain.
 const servingApi = {
     async getReadyOrders() {
         const res = await fetch('api_ready_orders.php');
@@ -42,7 +43,6 @@ function minutesSince(dateValue) {
 }
 
 function showError(message) {
-    if (!serveError) return;
     serveError.textContent = message;
     serveError.hidden = false;
     setTimeout(() => serveError.hidden = true, 4000);
@@ -53,13 +53,12 @@ function orderTypeClass(type) {
 }
 
 function updateSummary() {
-    if (readyCount) readyCount.textContent = readyOrders.length;
-    if (dineInCount) dineInCount.textContent = readyOrders.filter(order => order.order_type === 'DINE-IN').length;
-    if (pickupCount) pickupCount.textContent = readyOrders.filter(order => order.order_type !== 'DINE-IN').length;
+    readyCount.textContent = readyOrders.length;
+    dineInCount.textContent = readyOrders.filter(order => order.order_type === 'DINE-IN').length;
+    pickupCount.textContent = readyOrders.filter(order => order.order_type !== 'DINE-IN').length;
 }
 
 function renderEmptyState() {
-    if (!servingGrid) return;
     servingGrid.innerHTML = `
         <article class="card empty-state">
             <i class="bi bi-check2-circle"></i>
@@ -77,11 +76,9 @@ function renderOrders() {
         return;
     }
 
-    if (!servingGrid) return;
-
     servingGrid.innerHTML = readyOrders.map(order => {
         const elapsed = minutesSince(order.ready_at || order.created_at);
-        const items = (order.items || []).map(item => `
+        const items = order.items.map(item => `
             <li>
                 <strong>${escapeHtml(item.quantity)}x</strong> ${escapeHtml(item.item_name)}
                 ${item.notes ? `<br><span class="muted">${escapeHtml(item.notes)}</span>` : ''}
@@ -122,7 +119,7 @@ async function loadReadyOrders() {
     try {
         const data = await servingApi.getReadyOrders();
         if (!data.ok) throw new Error(data.msg);
-        readyOrders = data.orders || [];
+        readyOrders = data.orders;
         renderOrders();
     } catch (error) {
         showError(error.message || 'Unable to refresh ready orders.');
@@ -132,9 +129,10 @@ async function loadReadyOrders() {
 }
 
 async function bumpOrder(orderId) {
-    const card = servingGrid?.querySelector(`[data-order-id="${orderId}"]`);
+    const card = servingGrid.querySelector(`[data-order-id="${orderId}"]`);
     const oldOrders = [...readyOrders];
 
+    // Optimistic update: remove the card immediately so the server sees quick feedback.
     readyOrders = readyOrders.filter(order => String(order.id) !== String(orderId));
     renderOrders();
 
@@ -150,8 +148,7 @@ async function bumpOrder(orderId) {
 }
 
 function buildSlip(order) {
-    if (!printArea) return;
-    const items = (order.items || []).map(item => `
+    const items = order.items.map(item => `
         <tr>
             <td>${escapeHtml(item.quantity)}x ${escapeHtml(item.item_name)}</td>
         </tr>
@@ -175,51 +172,26 @@ function buildSlip(order) {
     `;
 }
 
-function hideSlipModal() {
-    if (!slipModal) return;
-    slipModal.setAttribute('hidden', '');
-    slipModal.classList.remove('active', 'show', 'open');
-    slipModal.style.setProperty('display', 'none', 'important');
-}
+servingGrid.addEventListener('click', event => {
+    const serveBtn = event.target.closest('[data-serve]');
+    const slipBtn = event.target.closest('[data-slip]');
 
-function showSlipModal() {
-    if (!slipModal) return;
-    slipModal.removeAttribute('hidden');
-    slipModal.classList.add('active', 'show', 'open');
-    slipModal.style.setProperty('display', 'flex', 'important');
-}
+    if (serveBtn) {
+        bumpOrder(serveBtn.dataset.serve);
+    }
 
-if (servingGrid) {
-    servingGrid.addEventListener('click', event => {
-        const serveBtn = event.target.closest('[data-serve]');
-        const slipBtn = event.target.closest('[data-slip]');
-
-        if (serveBtn) {
-            bumpOrder(serveBtn.dataset.serve);
-        }
-
-        if (slipBtn) {
-            const order = readyOrders.find(row => String(row.id) === String(slipBtn.dataset.slip));
-            if (!order) return;
-            buildSlip(order);
-            showSlipModal();
-        }
-    });
-}
-
-document.addEventListener('click', event => {
-    if (
-        event.target.closest('#closeSlip') ||
-        event.target.closest('#cancelSlip') ||
-        event.target === slipModal
-    ) {
-        hideSlipModal();
+    if (slipBtn) {
+        const order = readyOrders.find(row => String(row.id) === String(slipBtn.dataset.slip));
+        if (!order) return;
+        buildSlip(order);
+        slipModal.hidden = false;
     }
 });
 
-document.getElementById('printSlip')?.addEventListener('click', () => window.print());
-if (refreshServing) refreshServing.addEventListener('click', loadReadyOrders);
+document.getElementById('closeSlip').addEventListener('click', () => slipModal.hidden = true);
+document.getElementById('cancelSlip').addEventListener('click', () => slipModal.hidden = true);
+document.getElementById('printSlip').addEventListener('click', () => window.print());
+refreshServing.addEventListener('click', loadReadyOrders);
 
-hideSlipModal();
 loadReadyOrders();
 setInterval(loadReadyOrders, 5000);

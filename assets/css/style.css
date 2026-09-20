@@ -548,6 +548,31 @@ tbody tr:hover {
     top: 96px;
 }
 
+.receipt-brand {
+    text-align: center;
+    border-bottom: 1px dashed var(--border);
+    padding-bottom: 16px;
+    margin-bottom: 18px;
+}
+
+.receipt-brand .brand-mark {
+    margin: 0 auto 8px;
+}
+
+.receipt-brand h2 {
+    margin: 0;
+    font-family: "Old Standard TT", serif;
+}
+
+.receipt-brand p {
+    margin: 6px 0;
+    font-style: italic;
+}
+
+.receipt-brand small {
+    color: var(--muted);
+}
+
 .cart-items {
     display: grid;
     gap: 12px;

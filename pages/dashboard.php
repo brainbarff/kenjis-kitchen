@@ -1,7 +1,7 @@
 <?php
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/config/db.php';
-require_role('admin');
+require_role(['admin', 'manager']);
 
 $page = 'dashboard';
 $title = 'Dashboard';

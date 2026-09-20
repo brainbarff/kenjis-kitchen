@@ -37,7 +37,7 @@ document.querySelectorAll('.food-card').forEach(card => {
 function totals() {
     const subtotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
     const discount = Number(discountInput.value || 0);
-    const tax = Math.max(subtotal - discount, 0) * 0.12;
+    const tax = 0;
     const total = Math.max(subtotal - discount + tax, 0);
     const cash = Number(cashInput.value || 0);
 

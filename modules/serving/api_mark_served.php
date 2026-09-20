@@ -26,15 +26,15 @@ try {
         exit;
     }
 
+    // Dine-in orders are served at the table, while take-out and online orders are picked up.
     $next = $order['order_type'] === 'DINE-IN' ? 'Served' : 'Picked Up';
-    $userId = $_SESSION['u_id'] ?? $_SESSION['user_id'] ?? $_SESSION['id'] ?? null;
 
     $stmt = $conn->prepare("
         UPDATE orders
         SET status = ?, served_at = NOW(), served_by = ?
         WHERE id = ? AND status = 'Ready'
     ");
-    $stmt->execute([$next, $userId, $id]);
+    $stmt->execute([$next, $_SESSION['u_id'], $id]);
 
     $conn->commit();
 
@@ -50,7 +50,7 @@ try {
 
     echo json_encode([
         'ok' => false,
-        'msg' => $e->getMessage() ?: 'Unable to update the order right now.'
+        'msg' => 'Unable to update the order right now.'
     ]);
 }
 ?>

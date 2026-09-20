@@ -3,52 +3,30 @@ session_start();
 require_once __DIR__ . '/config/db.php';
 require_once __DIR__ . '/includes/auth.php';
 
-$database = $conn ?? $pdo ?? null;
 $msg = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = trim($_POST['username'] ?? '');
     $password = $_POST['password'] ?? '';
 
-    if ($database) {
-        try {
-            $stmt = $database->prepare("
-                SELECT users.*, roles.role_name 
-                FROM users 
-                LEFT JOIN roles ON roles.id = users.role_id
-                WHERE users.username = ?
-                LIMIT 1
-            ");
-            $stmt->execute([$username]);
-            $user = $stmt->fetch();
+    $stmt = $conn->prepare("
+        SELECT users.*, roles.role_name
+        FROM users
+        JOIN roles ON roles.id = users.role_id
+        WHERE users.username = ? AND users.status = 'Active'
+        LIMIT 1
+    ");
+    $stmt->execute([$username]);
+    $user = $stmt->fetch();
 
-            if ($user) {
-                $isPasswordValid = password_verify($password, $user['password']) 
-                                   || ($password === $user['password'])
-                                   || ($password === 'password')
-                                   || (md5($password) === $user['password']);
-
-                if ($isPasswordValid) {
-                    $role = $user['role_name'] ?? 'Admin';
-                    $_SESSION['u_id'] = $user['id'] ?? $user['user_id'] ?? 1;
-                    $_SESSION['user_id'] = $_SESSION['u_id'];
-                    $_SESSION['username'] = $user['username'];
-                    $_SESSION['role'] = $role;
-                    $_SESSION['login_time'] = date('Y-m-d H:i:s');
-
-                    redirect(role_home($role));
-                    exit;
-                } else {
-                    $msg = 'Invalid username or password.';
-                }
-            } else {
-                $msg = 'Invalid username or password.';
-            }
-        } catch (PDOException $e) {
-            $msg = 'Database error: ' . $e->getMessage();
-        }
+    if ($user && password_verify($password, $user['password'])) {
+        $_SESSION['u_id'] = $user['id'];
+        $_SESSION['username'] = $user['username'];
+        $_SESSION['role'] = $user['role_name'];
+        $_SESSION['login_time'] = date('Y-m-d H:i:s');
+        redirect(role_home($user['role_name']));
     } else {
-        $msg = 'Database connection failed.';
+        $msg = 'Invalid username or password.';
     }
 }
 ?>

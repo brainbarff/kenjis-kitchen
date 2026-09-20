@@ -1,7 +1,7 @@
 const state = {
     activeCategory: 'all',
     search: '',
-    maxPrice: 250,
+    maxPrice: 1600,
     cart: JSON.parse(localStorage.getItem('kenji_online_cart') || '[]'),
     selectedItem: null,
     modalQty: 1,
@@ -60,7 +60,7 @@ function currentModalUnitPrice() {
 
 function cartTotals() {
     const subtotal = state.cart.reduce((sum, item) => sum + (item.unitPrice * item.qty), 0);
-    const tax = subtotal * 0.12;
+    const tax = 0;
     const fulfillment = document.querySelector('[name="fulfillment"]:checked')?.value || 'Delivery';
     const delivery = fulfillment === 'Delivery' && subtotal > 0 ? 45 : 0;
 
@@ -161,7 +161,7 @@ function renderCart() {
 
     const totals = cartTotals();
     document.getElementById('subtotalText').textContent = money.format(totals.subtotal);
-    document.getElementById('taxText').textContent = money.format(totals.tax);
+    document.getElementById('taxText').textContent = 'Tax-Free';
     document.getElementById('deliveryText').textContent = money.format(totals.delivery);
     document.getElementById('totalText').textContent = money.format(totals.total);
 }

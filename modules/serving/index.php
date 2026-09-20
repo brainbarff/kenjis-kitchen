@@ -36,31 +36,18 @@ include ROOT_PATH . '/includes/header.php';
     </article>
 </section>
 
-<div class="modal-backdrop" id="slipModal" style="display: none !important;">
+<div class="modal-backdrop" id="slipModal" hidden>
     <section class="modal-card slip-preview">
         <div class="modal-head no-print">
             <h2>Order Slip</h2>
-            <button type="button" class="icon-btn" id="closeSlip" onclick="document.getElementById('slipModal').style.setProperty('display', 'none', 'important')"><i class="bi bi-x-lg"></i></button>
+            <button class="icon-btn" id="closeSlip"><i class="bi bi-x-lg"></i></button>
         </div>
         <div id="printArea"></div>
         <div class="serve-actions no-print">
-            <button type="button" class="btn btn-primary" id="printSlip"><i class="bi bi-printer"></i>Print Slip</button>
-            <button type="button" class="btn btn-secondary" id="cancelSlip" onclick="document.getElementById('slipModal').style.setProperty('display', 'none', 'important')">Close</button>
+            <button class="btn btn-primary" id="printSlip"><i class="bi bi-printer"></i>Print Slip</button>
+            <button class="btn btn-secondary" id="cancelSlip">Close</button>
         </div>
     </section>
 </div>
 
-<script>
-window.addEventListener('DOMContentLoaded', () => {
-    const modal = document.getElementById('slipModal');
-    if (modal) {
-        modal.style.setProperty('display', 'none', 'important');
-        modal.hidden = true;
-    }
-});
-</script>
-
-<?php 
-$script = 'serving.js?v=' . time(); 
-include ROOT_PATH . '/includes/footer.php'; 
-?>
+<?php $script = 'serving.js'; include ROOT_PATH . '/includes/footer.php'; ?>

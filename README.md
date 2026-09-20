@@ -1,209 +1,319 @@
-# Kenji's Kitchen
+# Online Ordering, Sales and Inventory Management System for Kenji's Kitchen
 
-Online Ordering, Sales and Inventory Management System
-for Kenji's Kitchen
+## Kenji's Kitchen Remake
 
-## Included Modules
+This is the remade version of the **Online Ordering, Sales and Inventory Management System for Kenji's Kitchen**, based on the updated system module specification.
 
-1. User Management
-2. Menu Management
-3. Inventory Management
-4. Point of Sale
-5. Kitchen Display System
-6. Order Serving and Display
-7. Online Ordering
-8. Reports
-9. Transaction Approval
-10. Notification and System Monitoring
+The remake expands the original system to support **cross-platform access, role-based user management, Kenji's Kitchen preset menu items, Philippine Peso pricing, tax-free transactions, branded receipts, inventory tracking, Point of Sale (POS), Kitchen Display System (KDS), order serving, online ordering, reports, bills management, transaction approvals, notifications, and system monitoring.**
 
-## Setup
-
-1. Open XAMPP folder.
-2. Paste the `kenjis-kitchen` folder inside `htdocs`.
-3. Open XAMPP app and start **Apache** and **MySQL**.
-4. Open phpMyAdmin.
-5. Import `database/kenjis_kitchen.sql` in MySQL.
-6. If the database already exists, run:
-   - `database/rbac_update.sql`
-   - `database/operational_update.sql`
-7. Check the database credentials in `config/db.php`.
-8. Open the system:
+The project uses:
 
 ```text
-http://localhost/kenjis-kitchen/login.php
+HTML
+CSS
+Vanilla JavaScript
+PHP
+MySQL
+PDO
 ```
-
-For the Online Ordering:
-
-```text
-http://localhost/kenjis-kitchen/modules/online/index.html
-```
-## Demo Accounts
-
-All demo accounts use this password:
-
-password
-
-Usernames:
-
-admin
-cashier
-kitchen
-inventory
-server
-
-## Role Access
-
-- Admin: Full access to all modules
-- Cashier: POS and Serving
-- Kitchen Staff: Kitchen Display System only
-- Inventory Staff: Inventory Management only
-- Server: Serving module only
-
-If a user tries to open a module that is not allowed for their role, the system will redirect them to the Access Denied page.
-
-Run database/rbac_update.sql if you need to reset the demo account roles.
-
-## NOTE
-
-- Mag sabi kay Erika if may error na ma-encounter.
-- Double check lagi yung folder kung saan ilalagay yung files.
-- Make sure na naka-start ang Apache and MySQL before opening the system.
-- If may na-add or nabago sa system, sabihin agad.
-- If may module na gusto i-fix or baguhin, sabihin agad.
-- Module 7 is currently frontend only and gumagamit pa ng mock data and `localStorage`.
-- Make sure na na-import yung database bago mag-test ng system.
-- Lalagay ko rin to sa Git para easy access sa lahat ng members
-
-## All Module and its Features
-
-## System Modules
-
-### Module 1 – User Management
-**Users:** Admin  
-**Functions:**
-* Login and Logout
-* Manage User Accounts
-* Assign User Roles and Permissions
-
-### Module 2 – Menu Management
-**Users:** Admin  
-**Functions:**
-* Add, Edit, and Delete Menu Items
-* Manage Menu Categories
-* Set Item Prices
-* Update Item Availability
-* Manage Promotions
-
-### Module 3 – Inventory Management
-**Users:** Inventory Staff, Admin  
-**Functions:**
-* Manage Ingredients and Supplies
-* Record Stock In and Stock Out
-* Update Inventory Levels
-* Record Deliveries
-* Monitor Low Stock Items
-
-### Module 4 – Point of Sale (POS)
-**Users:** Cashier  
-**Functions:**
-* Create Orders
-* Customize Orders
-* Process Payments
-* Apply Discounts
-* Print Receipts
-
-### Module 5 – Kitchen Order Management
-**Users:** Kitchen Staff  
-**Functions:**
-* View Incoming Orders
-* Update Order Status (Preparing, Ready)
-* View Order Details
-
-**KDS Feature Requirements:**
-* **Order Type Visibility:** Display whether an order is Dine-In or To-Go.
-* **Online Orders Integration:** Online orders automatically sync and appear on the KDS once payment is successful.
-* **Order Queueing:** Strict First-In, First-Out (FIFO) queueing system.
-
-### Module 6 – Order Serving and Display
-**Users:** Server  
-**Functions:**
-* View Ready Orders
-* Mark Orders as Served (Bump Order)
-* Display Order Number
-* Print Order Slip
-* Update Serving Status
-* Bump Order from the Serving Display
-
-### Module 7 – Online Ordering
-**Users:** Customer  
-**Functions:**
-* Browse Menu
-* Customize Orders
-* Add Items to Cart
-* Checkout
-* Make Online Payments
-* Track Order Status
-* View Order History
-
-### Module 8 – Reports & Dashboard
-**Users:** Admin, Manager (Optional)  
-**Functions:**
-* Generate Sales and Inventory Reports
-* View Transaction Reports & Monitor Staff Activity
-* View Sales Graphs and Charts
-* Filter Reports by Year or Month
-* Compare Sales Performance Across Periods
-
-**Dashboard Requirements:**
-* Sales Overview Dashboard
-* Sales Graphs and Charts
-* Monthly & Yearly Sales Summaries
-* Transaction and Inventory Summaries
-
-### Module 9 – Transaction Approval
-**Users:** Admin, Manager (Optional)  
-**Functions:**
-* Approve Refund Requests
-* Approve Void Transactions
-* View Transaction History & Details
-* Monitor Approved and Rejected Transactions
-
-### Module 10 – Notification and System Monitoring
-**Users:** Admin, Manager (Optional), Customer  
-**Functions:**
-* Receive Low Stock Alerts
-* Receive Order Status Notifications
-* Receive System Error Notifications
-* Display System Outage Messages
 
 ---
 
-## Additional Features
+# All System Modules and Features
 
-### Bills Management
-**Functions:**
-* View, Create, and Manage Bills
-* View Bill Details & Track Bill Status
-* View Payment Status & Manage Outstanding Bills
+The system follows this workflow:
 
-### Bills Dashboard
-**Functions:**
-* Display Total, Paid, Unpaid, and Pending Bills
-* Display Total Amount Collected & Outstanding Balance
-* View Recent Transactions
+```text
+User Management
+       ↓
+Menu Management
+       ↓
+Inventory Management
+       ↓
+Point of Sale (POS)
+       ↓
+Kitchen Order Management / KDS
+       ↓
+Order Serving and Display
+       ↓
+Online Ordering
+       ↓
+Reports / Financials / Bills
+       ↓
+Transaction Approval
+       ↓
+Notification and System Monitoring
+```
 
-### Reports with Graphs and Analytics
-**Functions:**
-* View Sales Reports (Yearly, Monthly, Daily)
-* View Sales and Monthly/Yearly Trends
-* Display Sales and Transaction Graphs
-* Filter Reports by Date Range
-* Compare Sales Performance
+---
 
-## Order Status Flow
+## Module 1 – Cross-Platform System Compatibility
 
-.The current order flow is:
+This module documents the supported devices and planned hardware integrations.
+
+### Supported Devices
+
+```text
+Android phones and tablets
+iOS phones and tablets
+Windows PCs and POS terminals
+macOS laptops and desktops
+Smart displays for KDS
+```
+
+### Planned Hardware Integrations
+
+```text
+Bluetooth thermal printer
+USB thermal printer
+Wi-Fi thermal printer
+Wireless barcode reader
+Kitchen display screen
+```
+
+### System Functions
+
+* Universal device login and session syncing
+* Responsive access across supported devices
+* POS terminal compatibility
+* KDS/smart display compatibility
+* Support planning for Bluetooth, USB, and Wi-Fi devices
+
+### Page
+
+```text
+modules/compatibility/index.php
+```
+
+> **Note:** Hardware integrations are currently represented as planned integration workflows. Actual Bluetooth printers, USB printers, Wi-Fi printers, and barcode readers require the physical hardware and appropriate drivers for testing.
+
+---
+
+# Module 2 – User Management
+
+This module handles employee accounts, authentication, roles, and permissions.
+
+### Users / Roles
+
+```text
+Admin
+Cashier
+Kitchen Staff
+Inventory Staff
+Server
+Manager
+```
+
+### Functions
+
+* Login and Logout
+* Manage User Accounts
+* Create employee accounts
+* Assign user roles
+* Assign permissions
+* Restrict module access based on role
+* Manage account status
+
+### Role Access
+
+**Admin**
+
+* Dashboard
+* User Management
+* Menu Management
+* Inventory Management
+* POS
+* Kitchen
+* Reports
+* Bills
+* Transaction Approval
+* System Monitoring
+
+**Manager**
+
+* Dashboard
+* Reports
+* Bills
+* Transaction Approval
+* System Monitoring
+
+**Cashier**
+
+* POS
+
+**Inventory Staff**
+
+* Inventory Management
+
+**Kitchen Staff**
+
+* Kitchen Display System / Kitchen Order Management
+
+**Server**
+
+* Order Serving and Display
+
+**Customer**
+
+* Online Ordering
+
+---
+
+# Module 3 – Menu Management and Preset Catalog
+
+This module manages the restaurant's menu and preset catalog.
+
+### Main Categories
+
+```text
+Student Meals
+Add-Ons
+Pulutan & Pares
+Silog Meals
+Silog Set Meals
+Bilao Favorites
+```
+
+### Functions
+
+* Add menu items
+* Edit menu items
+* Delete menu items
+* Manage menu categories
+* Set item prices
+* Update item availability
+* Manage promotions
+* Upload/manage menu images
+* Manage dynamic pricing
+* Display menu items in Philippine Peso (₱)
+
+The menu uses **tax-free Philippine Peso pricing** based on the current project specification.
+
+---
+
+# Module 4 – Inventory Management
+
+This module manages ingredients, supplies, stock movement, and inventory monitoring.
+
+### Users
+
+```text
+Inventory Staff
+Admin
+```
+
+### Functions
+
+* Manage ingredients and supplies
+* Record Stock In
+* Record Stock Out
+* Record deliveries
+* Record waste/spoilage
+* Record inventory adjustments
+* Deduct inventory based on orders
+* Update inventory levels
+* Monitor low-stock items
+* Track per-serving inventory
+* Track inventory used by menu items
+
+### Inventory Transactions
+
+```text
+Stock In
+Stock Out
+Delivery
+Waste / Spoilage
+Adjustment
+Order Deduction
+```
+
+---
+
+# Module 5 – Point of Sale (POS)
+
+The POS handles restaurant orders, payments, discounts, and receipts.
+
+### User
+
+```text
+Cashier
+```
+
+### Functions
+
+* Create orders
+* Customize orders
+* Process payments
+* Apply discounts
+* Select payment method
+* Print receipts
+* View order details
+* Calculate order totals
+* Connect orders to kitchen processing
+
+### Payment Structure
+
+```text
+Cash
+Card
+E-Wallet
+```
+
+### POS Requirements
+
+```text
+Tax-free pricing
+Philippine Peso currency
+Discount support
+Branded receipt
+Order number generation
+Payment recording
+```
+
+### Receipt Branding
+
+```text
+KENJI'S kitchen
+
+From Silog to Sulit Meals, Busog Ka Dito!
+
+Florante At Laura St.
+
+09687430373
+```
+
+---
+
+# Module 6 – Kitchen Display System (KDS) / Kitchen Order Management
+
+The KDS manages incoming restaurant orders and displays them to kitchen staff.
+
+### User
+
+```text
+Kitchen Staff
+```
+
+### Functions
+
+* View incoming orders
+* View order details
+* Display order number
+* Display order type
+* Update order status
+* Organize orders using FIFO
+* Display online and POS orders
+* Monitor active kitchen orders
+
+### Order Types
+
+```text
+DINE-IN
+TAKE-OUT
+ONLINE
+```
+
+### Order Status
 
 ```text
 Pending
@@ -211,177 +321,487 @@ Pending
 Preparing
    ↓
 Ready
-   ↓
+```
+
+### KDS Requirements
+
+**Order Type Visibility**
+
+The KDS must clearly display whether an order is:
+
+```text
+DINE-IN
+TAKE-OUT
+ONLINE
+```
+
+**Online Order Integration**
+
+Online orders should appear on the KDS after successful payment.
+
+```text
+Online Order
+     ↓
+Payment Successful
+     ↓
+KDS
+```
+
+**FIFO Order Queue**
+
+The KDS follows a strict **First-In, First-Out (FIFO)** system so kitchen staff can prepare orders based on the order they were received.
+
+---
+
+# Module 7 – Order Serving and Display
+
+This module manages the process of delivering completed orders to customers.
+
+### User
+
+```text
+Server
+```
+
+### Functions
+
+* View ready orders
+* Display order number
+* Mark orders as served
+* Bump orders
+* Print order slips
+* Update serving status
+* Monitor completed/picked-up orders
+
+### Serving Workflow
+
+```text
+Online / POS Order
+        ↓
+     Kitchen
+        ↓
+      Ready
+        ↓
+      Server
+        ↓
 Served / Picked Up
 ```
 
-Other status values are also prepared for future improvements:
+---
+
+# Module 8 – Online Ordering
+
+This module provides the customer-facing online ordering interface.
+
+### User
 
 ```text
-Cancelled
-Refunded
-Voided
+Customer
 ```
-## Order Lifecycle
 
-The system also records different timestamps for the order:
+### Page
 
 ```text
-paid_at
-kitchen_queued_at
-preparing_at
-ready_at
-served_at
-served_by
-cancelled_at
-cancel_reason
+modules/online/index.html
 ```
 
-This is used to track when the order was paid, entered the kitchen, started preparing, became ready, and was finally served or picked up.
+### Functions
 
-## Inventory Movement
+* Browse menu
+* Browse categories
+* Search menu items
+* Filter by price
+* Customize orders
+* Add items to cart
+* Checkout
+* Select payment method
+* Make online payment
+* Track order status
+* View order history
+* Reorder previous orders
 
-The inventory module supports these movement types:
+### Current Implementation
+
+The online ordering frontend currently uses:
 
 ```text
-Stock In
-Stock Out
-Adjustment
-Order Deduction
-Delivery
-Waste/Spoilage
+Mock Data
+localStorage
+Frontend UI
 ```
 
-This makes it easier to track where the ingredients are coming from and where the stock is being used.
+The current version is primarily frontend-based. Full backend payment processing and production online-order integration can be added in future development.
 
+---
 
-## Database Files
+# Module 9 – Reports, Financial Dashboard and Bills Management
 
-For fresh installation, import:
+This module provides financial and operational information for administrators and managers.
+
+### Users
+
+```text
+Admin
+Manager
+```
+
+### Page
+
+```text
+modules/bills/index.php
+```
+
+### Functions
+
+* Generate sales reports
+* Generate inventory reports
+* View transaction reports
+* Monitor staff activity
+* View total sales
+* View paid bills
+* View active bills
+* View best-selling items
+* View financial summaries
+* Generate printable reports
+
+### Dashboard Information
+
+```text
+Total Sales
+Paid Bills
+Active Bills
+Best-Selling Items
+Inventory Information
+Transaction Information
+```
+
+---
+
+# Module 10 – Transaction Approval, Notification and System Monitoring
+
+This module handles transaction approvals, alerts, and system monitoring.
+
+### Users
+
+```text
+Admin
+Manager
+Customer
+```
+
+### Transaction Approval Functions
+
+* Approve refund requests
+* Approve void transactions
+* View transaction history
+* Authorize void transactions
+* Review refund requests
+
+### Notification Functions
+
+* Low-stock alerts
+* Order status notifications
+* System error notifications
+* System outage messages
+
+### System Monitoring
+
+The system prepares workflows for:
+
+```text
+Void Authorization
+Refund Approval
+Low Inventory Alerts
+Order Status Monitoring
+System Outage / Error Alerts
+```
+
+### Page
+
+```text
+modules/approvals/index.php
+```
+
+---
+
+# Database Setup
+
+For a **fresh remake installation**, import:
 
 ```text
 database/kenjis_kitchen.sql
 ```
 
-For existing database, run:
+If you already have the older database and only want to reset/update the menu catalog, run:
+
+```text
+database/remake_catalog_update.sql
+```
+
+For updating an older version of the system, you may also need:
 
 ```text
 database/rbac_update.sql
 database/operational_update.sql
 ```
 
-`rbac_update.sql`
+---
 
-- Resets the correct role assignments.
+# Demo Accounts
 
-`operational_update.sql`
+All demo accounts use the same password:
 
-- Adds the new operational fields.
-- Adds order status values.
-- Adds the server account.
-- Adds cashier shift table.
-- Adds inventory log types.
+```text
+password
+```
 
+### Usernames
 
-### Testing POS to Kitchen to Serving
+```text
+admin
+cashier
+kitchen
+inventory
+server
+manager
+```
 
-1. Login as `cashier`.
-2. Create an order.
-3. Select the order type.
-4. Process and pay the order.
-5. Login as `kitchen`.
-6. Open the Kitchen Display System.
-7. Check the incoming order.
-8. Mark the order as `Preparing`.
-9. Mark the order as `Ready`.
-10. Login as `server`.
-11. Open the Serving module.
-12. Check the ready order.
-13. Click `Bump / Served`.
-14. Check if the order changes to `Served` or `Picked Up`.
-15. Login as `inventory`.
-16. Check the inventory stock and movement logs.
+### Demo Role Access
 
-### Testing Now Serving Display
+```text
+admin     → Admin
+cashier   → Cashier
+kitchen   → Kitchen Staff
+inventory → Inventory Staff
+server    → Server
+manager   → Manager
+```
 
-1. Login as `server`.
-2. Open the Serving module.
-3. Click `Now Serving Display`.
-4. Open the display in another tab.
-5. In the Kitchen module, mark an order as `Ready`.
-6. Wait a few seconds.
-7. Check if the order appears on the Now Serving display.
+If you need to reset or update the demo account roles, run:
 
-The display automatically refreshes using JavaScript polling.
+```text
+database/rbac_update.sql
+```
 
-### Testing Print Slip
+in phpMyAdmin.
 
-1. Open the Serving module.
-2. Find a ready order.
-3. Click `Print Slip`.
-4. Check the order slip preview.
-5. Click `Print Slip`.
-6. The print layout is designed for an 80mm thermal paper style receipt.
+---
 
-### Testing Online Ordering
+# Installation / How to Run
 
-1. Open:
+### 1. Open the XAMPP folder
+
+Open:
+
+```text
+C:\xampp\
+```
+
+### 2. Open the htdocs folder
+
+```text
+C:\xampp\htdocs\
+```
+
+### 3. Paste the project folder
+
+Copy:
+
+```text
+kenjis-kitchen-remake
+```
+
+into:
+
+```text
+C:\xampp\htdocs\
+```
+
+You may rename the folder to:
+
+```text
+kenjis-kitchen
+```
+
+### 4. Start XAMPP
+
+Open the XAMPP Control Panel and start:
+
+```text
+Apache
+MySQL
+```
+
+### 5. Import the database
+
+Open phpMyAdmin and import:
+
+```text
+database/kenjis_kitchen.sql
+```
+
+### 6. Check database configuration
+
+Verify the database credentials in:
+
+```text
+config/db.php
+```
+
+### 7. Open the system
+
+If the folder is named `kenjis-kitchen`, open:
+
+```text
+http://localhost/kenjis-kitchen/login.php
+```
+
+### Online Ordering
+
+Open:
 
 ```text
 http://localhost/kenjis-kitchen/modules/online/index.html
 ```
 
-2. Select a menu category.
-3. Search for a menu item.
-4. Try the price filter.
-5. Click a food item.
-6. Customize the portion or extras.
-7. Add the item to cart.
-8. Change the quantity or remove an item.
-9. Proceed to checkout.
-10. Fill in the customer details.
-11. Select a payment method.
-12. Place the order.
-13. Check the order tracking.
-14. Open order history.
-15. Try the reorder button.
+---
 
-## Important Note
+# Important Development Notes
 
-The system currently has the complete structure for Modules 1 to 10, but some features are still prepared for future development.
+This project is currently under development.
 
-For example, Module 7 is currently frontend only and uses mock data and `localStorage`. The PHP and MySQL integration can be added later so online orders can be saved and automatically sent to the Kitchen Display System.
+The first completed/active system modules are being developed progressively, while the menu catalog and other system features are still being updated.
 
-The file below is also kept as an administrative fallback tool:
+### For Team Members
+
+* If you encounter an error, inform **Erika** immediately.
+* Double-check the folder where you are placing files before adding or replacing anything.
+* Ask first if you are unsure whether a file or feature should be added.
+* If you want a module fixed or changed, inform the team before modifying it.
+* Inform the team if you add a new feature or make a major system change.
+* Keep the project structure organized.
+* Always check whether your changes affect another module.
+* The project will also be uploaded to Git for easier access by all members.
+
+### Current Development Status
 
 ```text
-reset_all.php
+Module 1 – Cross-Platform Compatibility
+Module 2 – User Management
+Module 3 – Menu Management
+Module 4 – Inventory Management
+Module 5 – POS
 ```
 
-I did not modify it because it can still be useful if the demo passwords need to be reset during testing.
+The remaining modules are part of the updated system specification and will continue to be developed and integrated.
 
-## System Workflow
+The menu catalog is also still being updated.
 
-This version follows this workflow:
+---
+
+# Important Hardware Note
+
+Some hardware integrations are currently planned rather than fully tested.
+
+These include:
 
 ```text
-User Management
-      ↓
-Menu Management
-      ↓
-Inventory Management
-      ↓
-Point of Sale (POS)
-      ↓
-Kitchen Display System
-      ↓
-Order Serving and Display
-      ↓
-Online Ordering
-      ↓
-Reports
-      ↓
-Transaction Approval
-      ↓
-Notification and System Monitoring
+Bluetooth thermal printers
+USB thermal printers
+Wi-Fi thermal printers
+Wireless barcode readers
+Physical KDS devices
 ```
+
+Actual hardware testing requires the physical device, compatible drivers, browser permissions, and/or additional integration methods.
+
+The web system is prepared for these integrations through:
+
+* Receipt layouts
+* Printing pages
+* Device compatibility documentation
+* Browser-based KDS screens
+* Responsive POS interfaces
+
+---
+
+# Project Technology
+
+```text
+Frontend:
+HTML
+CSS
+Vanilla JavaScript
+
+Backend:
+PHP
+
+Database:
+MySQL
+
+Database Connection:
+PDO
+
+Local Development:
+XAMPP
+
+Version Control:
+Git / GitHub
+```
+
+---
+
+# Project Structure
+
+The project uses a modular structure so each major restaurant operation can be developed and maintained separately.
+
+```text
+kenjis-kitchen/
+│
+├── config/
+│   └── db.php
+│
+├── database/
+│   ├── kenjis_kitchen.sql
+│   ├── remake_catalog_update.sql
+│   ├── rbac_update.sql
+│   └── operational_update.sql
+│
+├── modules/
+│   ├── compatibility/
+│   ├── users/
+│   ├── menu/
+│   ├── inventory/
+│   ├── pos/
+│   ├── kitchen/
+│   ├── serving/
+│   ├── online/
+│   ├── bills/
+│   └── approvals/
+│
+└── login.php
+```
+
+> Folder names may change as development continues. Always check the latest project structure before adding new files.
+
+---
+
+# Final Development Reminder
+
+This is a collaborative project. Please communicate before making major changes to the system.
+
+If you encounter an error, especially in the active modules, report it immediately so it can be checked before additional changes are made.
+
+```text
+ERROR FOUND
+     ↓
+Inform Erika / Team
+     ↓
+Identify affected module
+     ↓
+Check recent changes
+     ↓
+Fix and test
+```
+
+The goal is to keep the Kenji's Kitchen system organized, functional, and easy for every team member to access and maintain.

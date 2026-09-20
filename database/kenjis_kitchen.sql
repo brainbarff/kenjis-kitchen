@@ -148,17 +148,69 @@ INSERT INTO users (full_name, username, password, role_id) VALUES
 ('Kenji Cashier', 'cashier', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2uheWG/igi', 2),
 ('Kitchen Staff', 'kitchen', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2uheWG/igi', 3),
 ('Inventory Staff', 'inventory', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2uheWG/igi', 4),
-('Kenji Server', 'server', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2uheWG/igi', 5);
+('Kenji Server', 'server', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2uheWG/igi', 5),
+('Kenji Manager', 'manager', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2uheWG/igi', 6);
 
 INSERT INTO categories (category_name) VALUES
-('Rice Meals'), ('Noodles'), ('Drinks'), ('Desserts'), ('Sides');
+('Student Meals'), ('Add-Ons'), ('Pulutan & Pares'), ('Silog Meals'), ('Silog Set Meals'), ('Bilao Favorites');
 
 INSERT INTO menu_items (category_id, item_name, description, price, image, availability, promo_price, promo_start, promo_end) VALUES
-(1, 'Chicken Teriyaki Bowl', 'Grilled chicken with rice and vegetables.', 145.00, NULL, 'Available', 129.00, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 14 DAY)),
-(1, 'Pork Katsudon', 'Crispy pork cutlet over steamed rice.', 155.00, NULL, 'Available', NULL, NULL, NULL),
-(2, 'Beef Ramen', 'Warm ramen with beef strips and egg.', 180.00, NULL, 'Available', NULL, NULL, NULL),
-(3, 'Iced Tea', 'House blend iced tea.', 45.00, NULL, 'Available', NULL, NULL, NULL),
-(5, 'Gyoza', 'Pan-fried dumplings.', 95.00, NULL, 'Available', NULL, NULL, NULL);
+(1, 'Burgersteak Rice', 'Student meal with burgersteak and rice.', 35.00, NULL, 'Available', NULL, NULL, NULL),
+(1, 'Pancit Canton', 'Budget-friendly pancit canton meal.', 35.00, NULL, 'Available', NULL, NULL, NULL),
+(1, 'Pastil Rice', 'Sulit pastil rice meal.', 30.00, NULL, 'Available', NULL, NULL, NULL),
+(1, 'Pastilsilog', 'Pastil rice with silog add-ons.', 65.00, NULL, 'Available', NULL, NULL, NULL),
+(1, 'Shanghai Rice', 'Shanghai rolls served with rice.', 46.00, NULL, 'Available', NULL, NULL, NULL),
+(1, 'Siomai Rice', 'Siomai served with rice.', 40.00, NULL, 'Available', NULL, NULL, NULL),
+(1, 'Siomaisilog', 'Siomai rice with egg.', 55.00, NULL, 'Available', NULL, NULL, NULL),
+(2, 'Garlic Rice', 'Extra garlic rice.', 20.00, NULL, 'Available', NULL, NULL, NULL),
+(2, 'Plain Rice', 'Extra plain rice.', 15.00, NULL, 'Available', NULL, NULL, NULL),
+(2, 'Fried Egg', 'Extra fried egg.', 15.00, NULL, 'Available', NULL, NULL, NULL),
+(3, 'Bagnet Pares', 'Pares meal with crispy bagnet.', 65.00, NULL, 'Available', NULL, NULL, NULL),
+(3, 'Beef Pares', 'Classic beef pares.', 65.00, NULL, 'Available', NULL, NULL, NULL),
+(3, 'Mami Pares', 'Pares mami noodles.', 75.00, NULL, 'Available', NULL, NULL, NULL),
+(3, 'Mami Pares w/ Egg', 'Mami pares with egg.', 85.00, NULL, 'Available', NULL, NULL, NULL),
+(3, 'Mami Pares w/ Rice', 'Mami pares with rice.', 90.00, NULL, 'Available', NULL, NULL, NULL),
+(3, 'Mami Pares Bagnet', 'Mami pares with bagnet.', 75.00, NULL, 'Available', NULL, NULL, NULL),
+(3, 'Papaitan', 'Savory papaitan bowl.', 85.00, NULL, 'Available', NULL, NULL, NULL),
+(3, 'Bagnet', 'Crispy bagnet pulutan.', 250.00, NULL, 'Available', NULL, NULL, NULL),
+(3, 'Chicken Fillet', 'Chicken fillet pulutan.', 140.00, NULL, 'Available', NULL, NULL, NULL),
+(3, 'Dynamite', 'Spicy dynamite rolls.', 150.00, NULL, 'Available', NULL, NULL, NULL),
+(3, 'Fried Bangus', 'Fried bangus plate.', 120.00, NULL, 'Available', NULL, NULL, NULL),
+(3, 'Shanghai', 'Shanghai platter.', 140.00, NULL, 'Available', NULL, NULL, NULL),
+(3, 'Sisig', 'Sizzling sisig.', 160.00, NULL, 'Available', NULL, NULL, NULL),
+(3, 'Sizzling Hotdog', 'Sizzling hotdog plate.', 160.00, NULL, 'Available', NULL, NULL, NULL),
+(4, 'Baconsilog', 'Bacon, sinangag, and egg.', 100.00, NULL, 'Available', NULL, NULL, NULL),
+(4, 'Bagnetsilog', 'Bagnet, sinangag, and egg.', 150.00, NULL, 'Available', NULL, NULL, NULL),
+(4, 'Bangsilog', 'Bangus, sinangag, and egg.', 100.00, NULL, 'Available', NULL, NULL, NULL),
+(4, 'Chicksilog', 'Chicken, sinangag, and egg.', 135.00, NULL, 'Available', NULL, NULL, NULL),
+(4, 'Filletsilog', 'Fillet, sinangag, and egg.', 115.00, NULL, 'Available', NULL, NULL, NULL),
+(4, 'Hamsilog', 'Ham, sinangag, and egg.', 100.00, NULL, 'Available', NULL, NULL, NULL),
+(4, 'Hotsilog', 'Hotdog, sinangag, and egg.', 95.00, NULL, 'Available', NULL, NULL, NULL),
+(4, 'Hungariansilog', 'Hungarian sausage, sinangag, and egg.', 115.00, NULL, 'Available', NULL, NULL, NULL),
+(4, 'Longsilog', 'Longganisa, sinangag, and egg.', 100.00, NULL, 'Available', NULL, NULL, NULL),
+(4, 'Malingsilog', 'Maling, sinangag, and egg.', 100.00, NULL, 'Available', NULL, NULL, NULL),
+(4, 'Porkchopsilog', 'Porkchop, sinangag, and egg.', 115.00, NULL, 'Available', NULL, NULL, NULL),
+(4, 'Sisigsilog', 'Sisig, sinangag, and egg.', 120.00, NULL, 'Available', NULL, NULL, NULL),
+(4, 'Spamsilog', 'Spam, sinangag, and egg.', 120.00, NULL, 'Available', NULL, NULL, NULL),
+(4, 'Tapsilog', 'Tapa, sinangag, and egg.', 155.00, NULL, 'Available', NULL, NULL, NULL),
+(4, 'Tinapasilog', 'Tinapa, sinangag, and egg.', 85.00, NULL, 'Available', NULL, NULL, NULL),
+(4, 'Tocilog', 'Tocino, sinangag, and egg.', 100.00, NULL, 'Available', NULL, NULL, NULL),
+(4, 'Tortasilog', 'Torta, sinangag, and egg.', 100.00, NULL, 'Available', NULL, NULL, NULL),
+(5, 'Set Meal A', '2 Pastil Rice, Ham, and Egg.', 135.00, NULL, 'Available', NULL, NULL, NULL),
+(5, 'Set Meal B', '2 Pastil Rice, Shanghai, and Egg.', 130.00, NULL, 'Available', NULL, NULL, NULL),
+(5, 'Set Meal C', '2 Pastil Rice, Longganisa, and Egg.', 130.00, NULL, 'Available', NULL, NULL, NULL),
+(5, 'Set Meal D', '2 Pastil Rice, Hotdog, and Egg.', 140.00, NULL, 'Available', NULL, NULL, NULL),
+(5, 'Set Meal E', '2 Pastil Rice, Maling, and Egg.', 135.00, NULL, 'Available', NULL, NULL, NULL),
+(5, 'Set Meal F', '2 Pastil Rice, Longganisa, Shanghai, and Egg.', 155.00, NULL, 'Available', NULL, NULL, NULL),
+(5, 'Set Meal G', '2 Pastil Rice, Hotdog, Shanghai, and Egg.', 165.00, NULL, 'Available', NULL, NULL, NULL),
+(5, 'Set Meal H', '2 Pastil Rice, Maling, Shanghai, and Egg.', 165.00, NULL, 'Available', NULL, NULL, NULL),
+(5, 'Set Meal I', '2 Pastil Rice, Ham, Shanghai, and Egg.', 170.00, NULL, 'Available', NULL, NULL, NULL),
+(6, 'Spaghetti Bilao Small', 'Good for sharing, small tray.', 500.00, NULL, 'Available', NULL, NULL, NULL),
+(6, 'Spaghetti Bilao Medium', 'Good for sharing, medium tray.', 850.00, NULL, 'Available', NULL, NULL, NULL),
+(6, 'Spaghetti Bilao Large', 'Good for sharing, large tray.', 1200.00, NULL, 'Available', NULL, NULL, NULL),
+(6, 'Spaghetti Bilao XL', 'Good for sharing, extra large tray.', 1550.00, NULL, 'Available', NULL, NULL, NULL),
+(6, 'Palabok Bilao Small', 'Palabok bilao small tray.', 650.00, NULL, 'Available', NULL, NULL, NULL),
+(6, 'Bihon Bilao Small', 'Bihon bilao small tray.', 550.00, NULL, 'Available', NULL, NULL, NULL);
 
 INSERT INTO inventory (ingredient_name, unit, current_stock, low_stock, supplier) VALUES
 ('Rice', 'kg', 25, 5, 'Local Supplier'),
@@ -168,4 +220,4 @@ INSERT INTO inventory (ingredient_name, unit, current_stock, low_stock, supplier
 ('Iced Tea Mix', 'packs', 15, 4, 'Beverage Hub');
 
 INSERT INTO menu_ingredients (menu_item_id, inventory_id, qty_needed) VALUES
-(1, 1, 0.20), (1, 2, 0.18), (2, 1, 0.20), (2, 3, 0.18), (3, 4, 1.00), (4, 5, 0.20);
+(1, 1, 0.20), (2, 4, 1.00), (3, 1, 0.15), (4, 1, 0.20), (5, 1, 0.20), (6, 1, 0.20), (7, 1, 0.20);

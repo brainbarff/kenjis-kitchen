@@ -38,7 +38,8 @@ function role_home($role = null)
         'cashier' => '/modules/pos/index.php',
         'inventory' => '/modules/inventory/index.php',
         'kitchen' => '/modules/kitchen/index.php',
-        'server' => '/modules/serving/index.php'
+        'server' => '/modules/serving/index.php',
+        'manager' => '/modules/bills/index.php'
     ];
 
     return $homes[role_key($role)] ?? '/pages/access_denied.php';

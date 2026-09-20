@@ -10,6 +10,7 @@
     <nav class="nav">
         <?php if (can_access('admin')): ?>
             <a class="<?= active_link('dashboard') ?>" href="<?= BASE_URL ?>/pages/dashboard.php"><i class="bi bi-speedometer2"></i>Dashboard</a>
+            <a class="<?= active_link('compatibility') ?>" href="<?= BASE_URL ?>/modules/compatibility/index.php"><i class="bi bi-phone"></i>Devices</a>
             <a class="<?= active_link('users') ?>" href="<?= BASE_URL ?>/modules/users/index.php"><i class="bi bi-people"></i>Users</a>
             <a class="<?= active_link('menu') ?>" href="<?= BASE_URL ?>/modules/menu/index.php"><i class="bi bi-card-list"></i>Menu</a>
         <?php endif; ?>
@@ -28,6 +29,11 @@
 
         <?php if (can_access(['admin', 'cashier', 'server'])): ?>
             <a class="<?= active_link('serving') ?>" href="<?= BASE_URL ?>/modules/serving/index.php"><i class="bi bi-bell"></i>Serving</a>
+        <?php endif; ?>
+
+        <?php if (can_access(['admin', 'manager'])): ?>
+            <a class="<?= active_link('bills') ?>" href="<?= BASE_URL ?>/modules/bills/index.php"><i class="bi bi-wallet2"></i>Bills & Reports</a>
+            <a class="<?= active_link('approvals') ?>" href="<?= BASE_URL ?>/modules/approvals/index.php"><i class="bi bi-shield-check"></i>Approvals</a>
         <?php endif; ?>
     </nav>
 

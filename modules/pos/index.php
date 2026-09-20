@@ -50,7 +50,12 @@ include ROOT_PATH . '/includes/header.php';
     </section>
 
     <aside class="card receipt-panel">
-        <h2>Receipt</h2>
+        <div class="receipt-brand">
+            <span class="brand-mark">K</span>
+            <h2>KENJI'S kitchen</h2>
+            <p>From Silog to Sulit Meals, Busog Ka Dito!</p>
+            <small>Florante At Laura St. | 09687430373</small>
+        </div>
         <div class="form">
             <div class="field">
                 <label>Order Type</label>
@@ -68,7 +73,7 @@ include ROOT_PATH . '/includes/header.php';
         <div class="totals">
             <div><span>Subtotal</span><strong id="subtotal">₱0.00</strong></div>
             <div><span>Discount</span><input id="discount" type="number" min="0" value="0" style="width:90px"></div>
-            <div><span>Tax</span><strong id="tax">₱0.00</strong></div>
+            <div><span>Tax</span><strong id="tax">Tax-Free</strong></div>
             <div class="grand"><span>Total</span><strong id="grandTotal">₱0.00</strong></div>
         </div>
 

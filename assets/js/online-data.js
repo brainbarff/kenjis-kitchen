@@ -1,69 +1,70 @@
 const onlineData = {
     categories: [
         { id: 'all', name: 'All' },
-        { id: 'mains', name: 'Mains' },
-        { id: 'noodles', name: 'Noodles' },
-        { id: 'drinks', name: 'Drinks' },
-        { id: 'desserts', name: 'Desserts' },
-        { id: 'sides', name: 'Sides' }
+        { id: 'student', name: 'Student Meals' },
+        { id: 'addons', name: 'Add-Ons' },
+        { id: 'pares', name: 'Pulutan & Pares' },
+        { id: 'silog', name: 'Silog Meals' },
+        { id: 'sets', name: 'Set Meals' },
+        { id: 'bilao', name: 'Bilao' }
     ],
     items: [
         {
             id: 1,
-            category: 'mains',
-            name: 'Chicken Teriyaki Bowl',
-            description: 'Grilled chicken glazed with teriyaki sauce, served with rice and vegetables.',
-            price: 145,
+            category: 'student',
+            name: 'Pastil Rice',
+            description: 'Sulit student meal with rice and flavorful pastil topping.',
+            price: 30,
             popular: true,
             stock: 'available',
             image: 'https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?auto=format&fit=crop&w=900&q=80'
         },
         {
             id: 2,
-            category: 'mains',
-            name: 'Pork Katsudon',
-            description: 'Crispy pork cutlet with egg and onions over steamed rice.',
-            price: 155,
+            category: 'student',
+            name: 'Burgersteak Rice',
+            description: 'Affordable burgersteak rice meal for students.',
+            price: 35,
             popular: true,
             stock: 'available',
             image: 'https://images.unsplash.com/photo-1569058242567-93de6f36f8eb?auto=format&fit=crop&w=900&q=80'
         },
         {
             id: 3,
-            category: 'noodles',
-            name: 'Beef Ramen',
-            description: 'Warm ramen with beef strips, egg, spring onions, and savory broth.',
-            price: 180,
+            category: 'pares',
+            name: 'Beef Pares',
+            description: 'Classic beef pares served hot and savory.',
+            price: 65,
             popular: false,
             stock: 'available',
             image: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=900&q=80'
         },
         {
             id: 4,
-            category: 'drinks',
-            name: 'House Iced Tea',
-            description: 'Refreshing house blend iced tea served cold.',
-            price: 55,
+            category: 'silog',
+            name: 'Tapsilog',
+            description: 'Tapa, sinangag, and egg meal.',
+            price: 155,
             popular: false,
             stock: 'available',
             image: 'https://images.unsplash.com/photo-1556679343-c7306c1976bc?auto=format&fit=crop&w=900&q=80'
         },
         {
             id: 5,
-            category: 'sides',
-            name: 'Gyoza',
-            description: 'Pan-fried dumplings with a light dipping sauce.',
-            price: 95,
+            category: 'sets',
+            name: 'Set Meal I',
+            description: '2 Pastil Rice, Ham, Shanghai, and Egg.',
+            price: 170,
             popular: true,
             stock: 'available',
             image: 'https://images.unsplash.com/photo-1609183480237-ccbb2d7c5772?auto=format&fit=crop&w=900&q=80'
         },
         {
             id: 6,
-            category: 'desserts',
-            name: 'Mango Panna Cotta',
-            description: 'Creamy dessert topped with fresh mango sauce.',
-            price: 85,
+            category: 'bilao',
+            name: 'Spaghetti Bilao Small',
+            description: 'Small bilao tray for sharing.',
+            price: 500,
             popular: false,
             stock: 'out',
             image: 'https://images.unsplash.com/photo-1488477181946-6428a0291777?auto=format&fit=crop&w=900&q=80'
@@ -84,17 +85,17 @@ const onlineData = {
             orderNo: 'ONL-20260820-001',
             date: 'Aug 20, 2026',
             status: 'Delivered',
-            items: ['Chicken Teriyaki Bowl', 'House Iced Tea'],
-            itemIds: [1, 4],
-            total: 224.40
+            items: ['Pastil Rice', 'Burgersteak Rice'],
+            itemIds: [1, 2],
+            total: 65.00
         },
         {
             orderNo: 'ONL-20260818-014',
             date: 'Aug 18, 2026',
             status: 'Picked Up',
-            items: ['Beef Ramen', 'Gyoza'],
+            items: ['Beef Pares', 'Set Meal I'],
             itemIds: [3, 5],
-            total: 308.00
+            total: 235.00
         }
     ]
 };
