@@ -10,7 +10,6 @@ const printArea = document.getElementById('printArea');
 let readyOrders = [];
 let isLoading = false;
 
-// API calls are separated from UI rendering so the module is easier to explain and maintain.
 const servingApi = {
     async getReadyOrders() {
         const res = await fetch('api_ready_orders.php');
@@ -132,7 +131,6 @@ async function bumpOrder(orderId) {
     const card = servingGrid.querySelector(`[data-order-id="${orderId}"]`);
     const oldOrders = [...readyOrders];
 
-    // Optimistic update: remove the card immediately so the server sees quick feedback.
     readyOrders = readyOrders.filter(order => String(order.id) !== String(orderId));
     renderOrders();
 
@@ -172,6 +170,16 @@ function buildSlip(order) {
     `;
 }
 
+function hideSlipModal() {
+    slipModal.hidden = true;
+    slipModal.style.display = 'none';
+}
+
+function showSlipModal() {
+    slipModal.hidden = false;
+    slipModal.style.display = 'flex';
+}
+
 servingGrid.addEventListener('click', event => {
     const serveBtn = event.target.closest('[data-serve]');
     const slipBtn = event.target.closest('[data-slip]');
@@ -184,12 +192,12 @@ servingGrid.addEventListener('click', event => {
         const order = readyOrders.find(row => String(row.id) === String(slipBtn.dataset.slip));
         if (!order) return;
         buildSlip(order);
-        slipModal.hidden = false;
+        showSlipModal();
     }
 });
 
-document.getElementById('closeSlip').addEventListener('click', () => slipModal.hidden = true);
-document.getElementById('cancelSlip').addEventListener('click', () => slipModal.hidden = true);
+document.getElementById('closeSlip').addEventListener('click', hideSlipModal);
+document.getElementById('cancelSlip').addEventListener('click', hideSlipModal);
 document.getElementById('printSlip').addEventListener('click', () => window.print());
 refreshServing.addEventListener('click', loadReadyOrders);
 

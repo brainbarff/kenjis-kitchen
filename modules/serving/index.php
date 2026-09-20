@@ -36,7 +36,7 @@ include ROOT_PATH . '/includes/header.php';
     </article>
 </section>
 
-<div class="modal-backdrop" id="slipModal" hidden>
+<div class="modal-backdrop" id="slipModal" style="display: none;" hidden>
     <section class="modal-card slip-preview">
         <div class="modal-head no-print">
             <h2>Order Slip</h2>
