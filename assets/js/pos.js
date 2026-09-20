@@ -5,17 +5,36 @@ const cartItems = document.getElementById('cartItems');
 const discountInput = document.getElementById('discount');
 const cashInput = document.getElementById('cash');
 
+function filterMenu() {
+    const activeTab = document.querySelector('.tab.active');
+    const cat = activeTab ? activeTab.dataset.cat : 'all';
+    
+    const searchInput = document.querySelector('input[type="search"]') || document.querySelector('.navbar input') || document.querySelector('header input');
+    const query = searchInput ? searchInput.value.trim().toLowerCase() : '';
+
+    document.querySelectorAll('.food-card').forEach(card => {
+        const itemCat = card.dataset.cat || '';
+        const itemName = (card.dataset.name || card.textContent).toLowerCase();
+
+        const matchesCat = cat === 'all' || itemCat === cat;
+        const matchesSearch = !query || itemName.includes(query);
+
+        card.style.display = matchesCat && matchesSearch ? '' : 'none';
+    });
+}
+
 document.querySelectorAll('.tab').forEach(tab => {
     tab.addEventListener('click', () => {
         document.querySelectorAll('.tab').forEach(btn => btn.classList.remove('active'));
         tab.classList.add('active');
-        const cat = tab.dataset.cat;
-
-        document.querySelectorAll('.food-card').forEach(card => {
-            card.style.display = cat === 'all' || card.dataset.cat === cat ? '' : 'none';
-        });
+        filterMenu();
     });
 });
+
+const posSearchInput = document.querySelector('input[type="search"]') || document.querySelector('.navbar input') || document.querySelector('header input');
+if (posSearchInput) {
+    posSearchInput.addEventListener('input', filterMenu);
+}
 
 document.querySelectorAll('.food-card').forEach(card => {
     card.addEventListener('click', () => {

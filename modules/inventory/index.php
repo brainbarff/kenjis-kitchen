@@ -6,7 +6,8 @@ require_role(['admin', 'inventory']);
 $page = 'inventory';
 $title = 'Inventory Management';
 $heading = 'Inventory Management';
-$msg = '';
+$msg = $_SESSION['flash_msg'] ?? '';
+unset($_SESSION['flash_msg']);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
@@ -23,28 +24,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_POST['low_stock'],
             trim($_POST['supplier'])
         ]);
-        $msg = 'Ingredient added.';
+        $_SESSION['flash_msg'] = 'Ingredient added.';
+        header('Location: ' . $_SERVER['PHP_SELF']);
+        exit;
     }
 
     if ($action === 'stock') {
         $id = (int) $_POST['inventory_id'];
         $qty = (float) $_POST['quantity'];
-        $type = $_POST['stock_action'];
-        $signed = in_array($type, ['Stock Out', 'Waste/Spoilage'], true) ? -$qty : $qty;
+        $type = trim($_POST['stock_action'] ?? '');
+        $signed = in_array($type, ['Stock Out', 'Adjustment'], true) ? -$qty : $qty;
 
         $stmt = $conn->prepare("UPDATE inventory SET current_stock = current_stock + ? WHERE id = ?");
         $stmt->execute([$signed, $id]);
 
         $stmt = $conn->prepare("INSERT INTO inventory_logs (inventory_id, user_id, action, quantity, remarks) VALUES (?, ?, ?, ?, ?)");
         $stmt->execute([$id, $_SESSION['u_id'], $type, $qty, trim($_POST['remarks'])]);
-        $msg = 'Stock updated.';
+        $_SESSION['flash_msg'] = 'Stock updated.';
+        header('Location: ' . $_SERVER['PHP_SELF']);
+        exit;
     }
 }
 
 if (isset($_GET['delete'])) {
     $stmt = $conn->prepare("DELETE FROM inventory WHERE id = ?");
     $stmt->execute([(int) $_GET['delete']]);
-    redirect('/modules/inventory/index.php');
+    header('Location: ' . $_SERVER['PHP_SELF']);
+    exit;
 }
 
 $items = $conn->query("SELECT * FROM inventory ORDER BY ingredient_name")->fetchAll();
@@ -71,7 +77,7 @@ include ROOT_PATH . '/includes/header.php';
 <div class="grid grid-2" style="margin-top:24px">
     <section class="card">
         <h2>Add Ingredient</h2>
-        <form class="form" method="post">
+        <form class="form" method="post" action="index.php">
             <input type="hidden" name="action" value="save">
             <div class="field"><label>Ingredient Name</label><input name="ingredient_name" required></div>
             <div class="grid grid-2">
@@ -88,18 +94,23 @@ include ROOT_PATH . '/includes/header.php';
 
     <section class="card">
         <h2>Stock Movement</h2>
-        <form class="form" method="post">
+        <form class="form" method="post" action="index.php">
             <input type="hidden" name="action" value="stock">
-            <div class="field"><label>Ingredient</label><select name="inventory_id" required><?php foreach ($items as $item): ?><option value="<?= e($item['id']) ?>"><?= e($item['ingredient_name']) ?></option><?php endforeach; ?></select></div>
+            <div class="field">
+                <label>Ingredient</label>
+                <select name="inventory_id" required>
+                    <?php foreach ($items as $item): ?>
+                        <option value="<?= e($item['id']) ?>"><?= e($item['ingredient_name']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
             <div class="grid grid-2">
                 <div class="field">
                     <label>Action</label>
-                    <select name="stock_action">
-                        <option>Stock In</option>
-                        <option>Stock Out</option>
-                        <option>Delivery</option>
-                        <option>Waste/Spoilage</option>
-                        <option>Adjustment</option>
+                    <select name="stock_action" required>
+                        <option value="Stock In">Stock In</option>
+                        <option value="Stock Out">Stock Out</option>
+                        <option value="Adjustment">Adjustment</option>
                     </select>
                 </div>
                 <div class="field"><label>Quantity</label><input type="number" step="0.01" name="quantity" required></div>
