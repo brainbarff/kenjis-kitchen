@@ -1,6 +1,6 @@
 <aside class="sidebar" id="sidebar">
     <a class="brand" href="<?= BASE_URL . role_home() ?>">
-        <span class="brand-mark">K</span>
+        <img src="<?= BASE_URL ?>/assets/img/logo.jpg" alt="Kenji's Kitchen Logo" style="width: 38px; height: 38px; border-radius: 8px; object-fit: cover;">
         <span>
             <strong>Kenji's Kitchen</strong>
             <small>Restaurant POS</small>
