@@ -22,7 +22,9 @@ body {
     margin: 0;
     background: var(--bg);
     color: var(--text);
-    font-family: "IBM Plex Serif", serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
 
 a {
@@ -69,15 +71,16 @@ textarea {
     background: var(--primary);
     display: grid;
     place-items: center;
-    font-family: "Old Standard TT", serif;
+    font-family: 'Inter', sans-serif;
     font-size: 28px;
     font-weight: 700;
 }
 
 .brand strong {
     display: block;
-    font-family: "Old Standard TT", serif;
+    font-family: 'Inter', sans-serif;
     font-size: 20px;
+    font-weight: 700;
 }
 
 .brand small,
@@ -373,7 +376,7 @@ tbody tr:hover {
 
 .badge {
     display: inline-flex;
-    align-items: center;
+    align-items: border-box;
     border-radius: 999px;
     padding: 6px 10px;
     font-size: 13px;
@@ -432,7 +435,8 @@ tbody tr:hover {
 }
 
 .login-brand h1 {
-    font-family: "Old Standard TT", serif;
+    font-family: 'Inter', sans-serif;
+    font-weight: 700;
     margin: 0;
 }
 
@@ -561,7 +565,8 @@ tbody tr:hover {
 
 .receipt-brand h2 {
     margin: 0;
-    font-family: "Old Standard TT", serif;
+    font-family: 'Inter', sans-serif;
+    font-weight: 700;
 }
 
 .receipt-brand p {
@@ -809,7 +814,7 @@ tbody tr:hover {
     margin: 0 auto;
     color: #111111;
     background: #ffffff;
-    font-family: "IBM Plex Serif", serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     font-size: 13px;
     line-height: 1.4;
 }
@@ -822,8 +827,9 @@ tbody tr:hover {
 }
 
 .thermal-slip h1 {
-    font-family: "Old Standard TT", serif;
+    font-family: 'Inter', sans-serif;
     font-size: 22px;
+    font-weight: 700;
 }
 
 .thermal-slip h2 {
@@ -887,8 +893,9 @@ tbody tr:hover {
 
 .display-head h1 {
     margin: 0;
-    font-family: "Old Standard TT", serif;
+    font-family: 'Inter', sans-serif;
     font-size: 44px;
+    font-weight: 700;
 }
 
 .display-head p {
