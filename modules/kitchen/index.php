@@ -16,4 +16,4 @@ include ROOT_PATH . '/includes/header.php';
 </section>
 
 <section class="kds-grid" id="kdsGrid"></section>
-<?php $script = 'kitchen.js'; include ROOT_PATH . '/includes/footer.php'; ?>
+<?php $script = 'kitchen.js?v=' . time(); include ROOT_PATH . '/includes/footer.php'; ?>

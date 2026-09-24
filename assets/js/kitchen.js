@@ -44,6 +44,12 @@ async function loadOrders() {
             <p><strong>Customer:</strong> ${order.customer_name || 'Walk-in Customer'}</p>
             ${order.table_no ? `<p><strong>Table:</strong> ${order.table_no}</p>` : ''}
             <p><strong>Elapsed:</strong> ${elapsed(order.created_at)}</p>
+            ${order.notes ? `
+                <div style="background:#fef3c7; border-left:3px solid #f59e0b; padding:6px 10px; border-radius:6px; margin:8px 0; font-size:0.82rem; color:#92400e; display:flex; align-items:flex-start; gap:6px; line-height:1.35;">
+                    <i class="bi bi-chat-left-text-fill" style="margin-top:2px;"></i>
+                    <span><strong>Note:</strong> ${order.notes}</span>
+                </div>
+            ` : ''}
             <ul class="order-items">
                 ${order.items.map(item => `<li><strong>${item.quantity}x</strong> ${item.item_name}${item.notes ? `<br><span class="muted">${item.notes}</span>` : ''}</li>`).join('')}
             </ul>

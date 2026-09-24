@@ -7,7 +7,7 @@ header('Content-Type: application/json');
 
 try {
     $orders = $conn->query("
-        SELECT id, order_no, queue_no, customer_name, order_type, table_no, ready_at, created_at
+        SELECT id, order_no, queue_no, customer_name, order_type, table_no, notes, ready_at, created_at
         FROM orders
         WHERE status = 'Ready'
         ORDER BY ready_at ASC, created_at ASC

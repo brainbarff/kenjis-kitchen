@@ -7,14 +7,23 @@ header('Content-Type: application/json');
 
 $data = json_decode(file_get_contents('php://input'), true);
 $cart = $data['cart'] ?? [];
+$paymentMode = !empty($data['paymentMode']) ? ucfirst(trim($data['paymentMode'])) : 'Cash';
+$cash = (float) ($data['cash'] ?? 0);
+$total = (float) ($data['total'] ?? 0);
+$change = (float) ($data['change'] ?? 0);
 
-if (!$cart || empty($data['orderType']) || (float) $data['cash'] < (float) $data['total']) {
+if (!$cart || empty($data['orderType']) || ($paymentMode === 'Cash' && $cash < $total)) {
     echo json_encode(['ok' => false, 'msg' => 'Invalid order details.']);
     exit;
 }
 
 try {
     $conn->beginTransaction();
+
+    $cols = $conn->query("SHOW COLUMNS FROM orders")->fetchAll(PDO::FETCH_COLUMN);
+    if (!in_array('notes', $cols)) {
+        $conn->query("ALTER TABLE orders ADD COLUMN notes TEXT NULL");
+    }
 
     $stock_check = $conn->prepare("
         SELECT inventory.ingredient_name
@@ -39,22 +48,25 @@ try {
 
     $queue = (int) $conn->query("SELECT COALESCE(MAX(queue_no), 0) + 1 q FROM orders WHERE DATE(created_at) = CURDATE()")->fetch()['q'];
     $order_no = 'ORD-' . date('Ymd') . '-' . str_pad($queue, 4, '0', STR_PAD_LEFT);
+    $orderNote = !empty($data['orderNote']) ? trim($data['orderNote']) : null;
+    $userId = $_SESSION['u_id'] ?? ($_SESSION['user_id'] ?? 1);
 
     $stmt = $conn->prepare("
-        INSERT INTO orders (order_no, queue_no, user_id, customer_name, order_type, table_no, subtotal, discount, tax, total, status, paid_at, kitchen_queued_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending', NOW(), NOW())
+        INSERT INTO orders (order_no, queue_no, user_id, customer_name, order_type, table_no, subtotal, discount, tax, total, notes, status, paid_at, kitchen_queued_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending', NOW(), NOW())
     ");
     $stmt->execute([
         $order_no,
         $queue,
-        $_SESSION['u_id'],
+        $userId,
         'Walk-in Customer',
         $data['orderType'],
         $data['tableNo'] ?: null,
         $data['subtotal'],
         $data['discount'],
         $data['tax'],
-        $data['total']
+        $data['total'],
+        $orderNote
     ]);
     $order_id = $conn->lastInsertId();
 
@@ -75,7 +87,7 @@ try {
     foreach ($cart as $row) {
         $item_stmt->execute([$order_id, $row['id'], $row['name'], $row['qty'], $row['price']]);
         $deduct->execute([$row['qty'], $row['id']]);
-        $log->execute([$_SESSION['u_id'], $row['qty'], 'Order ' . $order_no, $row['id']]);
+        $log->execute([$userId, $row['qty'], 'Order ' . $order_no, $row['id']]);
     }
 
     $conn->exec("
@@ -89,8 +101,11 @@ try {
         )
     ");
 
-    $stmt = $conn->prepare("INSERT INTO payments (order_id, payment_method, amount_paid, change_amount) VALUES (?, 'Cash', ?, ?)");
-    $stmt->execute([$order_id, $data['cash'], $data['change']]);
+    $amountPaid = ($paymentMode === 'Gcash' || $paymentMode === 'GCash') ? $total : $cash;
+    $changeAmount = ($paymentMode === 'Gcash' || $paymentMode === 'GCash') ? 0 : $change;
+
+    $stmt = $conn->prepare("INSERT INTO payments (order_id, payment_method, amount_paid, change_amount) VALUES (?, ?, ?, ?)");
+    $stmt->execute([$order_id, $paymentMode, $amountPaid, $changeAmount]);
 
     $receipt_no = 'RCPT-' . date('Ymd') . '-' . str_pad($order_id, 5, '0', STR_PAD_LEFT);
     $stmt = $conn->prepare("INSERT INTO receipts (order_id, receipt_no) VALUES (?, ?)");
@@ -100,6 +115,5 @@ try {
     echo json_encode(['ok' => true, 'order_no' => $order_no, 'receipt_no' => $receipt_no]);
 } catch (Exception $e) {
     $conn->rollBack();
-    echo json_encode(['ok' => false, 'msg' => 'Order was not saved.']);
+    echo json_encode(['ok' => false, 'msg' => 'Order was not saved. ' . $e->getMessage()]);
 }
-?>

@@ -100,6 +100,13 @@ function renderOrders() {
                     <p><strong>Customer:</strong> ${escapeHtml(order.customer_name || 'Walk-in Customer')}</p>
                 </div>
 
+                ${order.notes ? `
+                    <div style="background:#fef3c7; border-left:3px solid #f59e0b; padding:6px 10px; border-radius:6px; margin:8px 0; font-size:0.82rem; color:#92400e; display:flex; align-items:flex-start; gap:6px; line-height:1.35;">
+                        <i class="bi bi-chat-left-text-fill" style="margin-top:2px;"></i>
+                        <span><strong>Note:</strong> ${escapeHtml(order.notes)}</span>
+                    </div>
+                ` : ''}
+
                 <ul class="order-items">${items}</ul>
 
                 <div class="serve-actions">
@@ -162,6 +169,7 @@ function buildSlip(order) {
             <p>Queue No: #${escapeHtml(order.queue_no)}</p>
             <p>Type: ${escapeHtml(order.order_type)}</p>
             ${order.table_no ? `<p>Table: ${escapeHtml(order.table_no)}</p>` : ''}
+            ${order.notes ? `<p style="font-weight:bold; margin:6px 0;">Note: ${escapeHtml(order.notes)}</p>` : ''}
             <hr>
             <table>${items}</table>
             <hr>
