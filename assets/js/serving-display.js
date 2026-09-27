@@ -1,6 +1,27 @@
-const pickupDisplay = document.getElementById('pickupDisplay');
-const dineDisplay = document.getElementById('dineDisplay');
-const displayClock = document.getElementById('displayClock');
+const pickupDisplay =
+    document.getElementById(
+        'pickupDisplay'
+    );
+
+const dineDisplay =
+    document.getElementById(
+        'dineDisplay'
+    );
+
+const pickupCount =
+    document.getElementById(
+        'pickupCount'
+    );
+
+const dineCount =
+    document.getElementById(
+        'dineCount'
+    );
+
+const displayClock =
+    document.getElementById(
+        'displayClock'
+    );
 
 function safeText(value) {
     return String(value ?? '')
@@ -12,44 +33,198 @@ function safeText(value) {
 }
 
 function updateClock() {
-    displayClock.textContent = new Date().toLocaleTimeString([], {
-        hour: '2-digit',
-        minute: '2-digit'
-    });
+    displayClock.textContent =
+        new Date().toLocaleTimeString(
+            [],
+            {
+                hour: '2-digit',
+                minute: '2-digit'
+            }
+        );
 }
 
-function displayCard(order) {
+function getDestination(
+    order
+) {
+    if (
+        order.order_type ===
+        'DINE-IN'
+    ) {
+        return order.table_no
+            ? `TABLE ${safeText(
+                order.table_no
+            )}`
+            : 'TABLE NOT SET';
+    }
+
+    return 'TAKE-OUT';
+}
+
+function displayCard(
+    order
+) {
+    const isOnline =
+        order.order_type ===
+        'ONLINE';
+
+    const destination =
+        getDestination(
+            order
+        );
+
+    const typeText =
+        order.order_type ===
+        'DINE-IN'
+            ? 'DINE-IN'
+            : 'READY FOR PICKUP';
+
     return `
         <div class="display-order">
-            <span>#${safeText(order.queue_no)}</span>
-            <strong>${safeText(order.order_no)}</strong>
-            <small>${safeText(order.order_type)}</small>
+            <div>
+                <span class="display-order-queue">
+                    #${safeText(
+                        order.queue_no
+                    )}
+                </span>
+
+                <div class="display-order-destination">
+                    ${destination}
+                </div>
+
+                <div class="display-order-type">
+                    ${safeText(
+                        typeText
+                    )}
+                </div>
+
+                ${
+                    isOnline
+                        ? `
+                            <span class="display-online">
+                                ONLINE
+                            </span>
+                        `
+                        : ''
+                }
+            </div>
+
+            <div class="display-order-number">
+                ${safeText(
+                    order.order_no
+                )}
+            </div>
         </div>
     `;
 }
 
+function renderList(
+    container,
+    orders,
+    emptyMessage
+) {
+    container.innerHTML =
+        orders.length
+            ? orders
+                .map(
+                    displayCard
+                )
+                .join('')
+            : `
+                <div class="display-empty">
+                    ${safeText(
+                        emptyMessage
+                    )}
+                </div>
+            `;
+}
+
 async function loadDisplayOrders() {
     try {
-        const res = await fetch('api_ready_orders.php');
-        const data = await res.json();
-        const orders = data.ok ? data.orders : [];
-        const pickups = orders.filter(order => order.order_type !== 'DINE-IN');
-        const dineIns = orders.filter(order => order.order_type === 'DINE-IN');
+        const res =
+            await fetch(
+                'api_ready_orders.php'
+            );
 
-        pickupDisplay.innerHTML = pickups.length
-            ? pickups.map(displayCard).join('')
-            : '<p class="display-empty">No pickup orders ready.</p>';
+        const data =
+            await res.json();
 
-        dineDisplay.innerHTML = dineIns.length
-            ? dineIns.map(displayCard).join('')
-            : '<p class="display-empty">No dine-in orders ready.</p>';
+        const orders =
+            data.ok &&
+            Array.isArray(
+                data.orders
+            )
+                ? data.orders
+                : [];
+
+        const pickups =
+            orders.filter(
+                order =>
+                    order.order_type !==
+                    'DINE-IN'
+            );
+
+        const dineIns =
+            orders.filter(
+                order =>
+                    order.order_type ===
+                    'DINE-IN'
+            );
+
+        if (pickupCount) {
+            pickupCount.textContent =
+                pickups.length;
+        }
+
+        if (dineCount) {
+            dineCount.textContent =
+                dineIns.length;
+        }
+
+        renderList(
+            pickupDisplay,
+            pickups,
+            'No pickup orders ready.'
+        );
+
+        renderList(
+            dineDisplay,
+            dineIns,
+            'No dine-in orders ready.'
+        );
     } catch (error) {
-        pickupDisplay.innerHTML = '<p class="display-empty">Unable to load orders.</p>';
-        dineDisplay.innerHTML = '<p class="display-empty">Please check the connection.</p>';
+        if (pickupCount) {
+            pickupCount.textContent =
+                '0';
+        }
+
+        if (dineCount) {
+            dineCount.textContent =
+                '0';
+        }
+
+        pickupDisplay.innerHTML = `
+            <div class="display-empty">
+                Unable to load orders.
+            </div>
+        `;
+
+        dineDisplay.innerHTML = `
+            <div class="display-empty">
+                Please check the connection.
+            </div>
+        `;
     }
 }
 
 updateClock();
 loadDisplayOrders();
-setInterval(updateClock, 30000);
-setInterval(loadDisplayOrders, 5000);
+
+setInterval(
+    updateClock,
+    30000
+);
+
+setInterval(
+    loadDisplayOrders,
+    5000
+);
