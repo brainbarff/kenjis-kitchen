@@ -14,6 +14,7 @@ $historyPerPage = 10;
 
 $inventoryPage = isset($_GET['inventory_page']) ? (int) $_GET['inventory_page'] : 1;
 $historyPage = isset($_GET['history_page']) ? (int) $_GET['history_page'] : 1;
+$inventorySearch = trim($_GET['inventory_search'] ?? '');
 
 if ($inventoryPage < 1) {
     $inventoryPage = 1;
@@ -110,12 +111,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$items = $conn->query("SELECT menu_items.*, categories.category_name FROM menu_items JOIN categories ON categories.id = menu_items.category_id WHERE menu_items.is_archived = 0 ORDER BY menu_items.item_name")->fetchAll();
+$items = $conn->query("SELECT menu_items.*, categories.category_name FROM menu_items JOIN categories ON categories.id = menu_items.category_id WHERE menu_items.is_archived = 0 ORDER BY menu_items.item_name, menu_items.id")->fetchAll();
 
 $low = $conn->query("SELECT COUNT(*) total FROM menu_items WHERE is_archived = 0 AND stock <= 5 AND stock > 0")->fetch();
 $out = $conn->query("SELECT COUNT(*) total FROM menu_items WHERE is_archived = 0 AND stock <= 0")->fetch();
 
-$totalInventoryItems = count($items);
+$inventoryWhere = 'WHERE menu_items.is_archived = 0';
+if ($inventorySearch !== '') {
+    $inventoryWhere .= ' AND (menu_items.item_name LIKE :search_name OR categories.category_name LIKE :search_category)';
+}
+
+$inventoryCountStmt = $conn->prepare("SELECT COUNT(*) FROM menu_items JOIN categories ON categories.id = menu_items.category_id $inventoryWhere");
+if ($inventorySearch !== '') {
+    $inventorySearchLike = '%' . $inventorySearch . '%';
+    $inventoryCountStmt->bindValue(':search_name', $inventorySearchLike, PDO::PARAM_STR);
+    $inventoryCountStmt->bindValue(':search_category', $inventorySearchLike, PDO::PARAM_STR);
+}
+$inventoryCountStmt->execute();
+$totalInventoryItems = (int) $inventoryCountStmt->fetchColumn();
 $totalInventoryPages = max(1, (int) ceil($totalInventoryItems / $inventoryPerPage));
 
 if ($inventoryPage > $totalInventoryPages) {
@@ -123,7 +136,23 @@ if ($inventoryPage > $totalInventoryPages) {
 }
 
 $inventoryOffset = ($inventoryPage - 1) * $inventoryPerPage;
-$inventoryItems = array_slice($items, $inventoryOffset, $inventoryPerPage);
+
+$inventoryStmt = $conn->prepare("SELECT menu_items.*, categories.category_name FROM menu_items JOIN categories ON categories.id = menu_items.category_id $inventoryWhere ORDER BY menu_items.item_name, menu_items.id LIMIT :limit OFFSET :offset");
+if ($inventorySearch !== '') {
+    $inventoryStmt->bindValue(':search_name', $inventorySearchLike, PDO::PARAM_STR);
+    $inventoryStmt->bindValue(':search_category', $inventorySearchLike, PDO::PARAM_STR);
+}
+$inventoryStmt->bindValue(':limit', $inventoryPerPage, PDO::PARAM_INT);
+$inventoryStmt->bindValue(':offset', $inventoryOffset, PDO::PARAM_INT);
+$inventoryStmt->execute();
+$inventoryItems = $inventoryStmt->fetchAll();
+
+$buildQuery = static function (array $params): string {
+    $params = array_filter($params, static function ($value) {
+        return $value !== null && $value !== '';
+    });
+    return '?' . http_build_query($params, '', '&', PHP_QUERY_RFC3986);
+};
 
 $totalLogs = (int) $conn->query("SELECT COUNT(*) FROM inventory_logs")->fetchColumn();
 $totalHistoryPages = max(1, (int) ceil($totalLogs / $historyPerPage));
@@ -142,6 +171,293 @@ $logs = $logsStmt->fetchAll();
 
 include ROOT_PATH . '/includes/header.php';
 ?>
+<style>
+.inventory-card-head,
+.history-card-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 24px;
+    flex-wrap: wrap;
+}
+
+.inventory-card-title {
+    min-width: 220px;
+}
+
+.inventory-card-title h2,
+.history-card-head h2 {
+    margin: 0;
+}
+
+.inventory-tools {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-left: auto;
+}
+
+.inventory-search-form {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.inventory-search-input {
+    min-width: 250px;
+    height: 44px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 0 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--white);
+}
+
+.inventory-search-input:focus-within {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 4px rgba(242, 193, 46, .16);
+}
+
+.inventory-search-input i {
+    color: var(--muted);
+}
+
+.inventory-search-input input {
+    border: 0;
+    outline: 0;
+    width: 100%;
+    min-width: 0;
+}
+
+.inventory-pagination,
+.history-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    white-space: nowrap;
+}
+
+.inventory-page-info,
+.history-page-info {
+    min-width: 96px;
+    text-align: center;
+}
+
+@media (max-width: 1100px) {
+    .inventory-tools {
+        width: 100%;
+        justify-content: flex-start;
+    }
+
+    .inventory-search-form {
+        justify-content: flex-start;
+    }
+}
+
+@media (max-width: 640px) {
+    .inventory-search-form,
+    .inventory-search-input,
+    .inventory-tools,
+    .inventory-pagination,
+    .history-pagination {
+        width: 100%;
+    }
+
+    .inventory-search-input {
+        min-width: 0;
+    }
+
+    .inventory-pagination,
+    .history-pagination {
+        justify-content: space-between;
+    }
+}
+
+.inventory-confirm-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(0, 0, 0, 0.58);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s ease, visibility 0.2s ease;
+}
+
+.inventory-confirm-overlay.show {
+    opacity: 1;
+    visibility: visible;
+}
+
+.inventory-confirm-modal {
+    position: relative;
+    width: min(440px, 100%);
+    background: #ffffff;
+    border: 1px solid #e5e5e5;
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
+    transform: translateY(16px) scale(0.97);
+    transition: transform 0.2s ease;
+}
+
+.inventory-confirm-overlay.show .inventory-confirm-modal {
+    transform: translateY(0) scale(1);
+}
+
+.inventory-confirm-accent {
+    height: 7px;
+    background: #F2C12E;
+}
+
+.inventory-confirm-close {
+    position: absolute;
+    top: 13px;
+    right: 13px;
+    width: 32px;
+    height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 50%;
+    background: #f5f5f5;
+    color: #111111;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.15s ease;
+    z-index: 2;
+}
+
+.inventory-confirm-close:hover {
+    background: #F2C12E;
+    transform: scale(1.04);
+}
+
+.inventory-confirm-body {
+    padding: 30px 28px 26px;
+    text-align: center;
+}
+
+.inventory-confirm-icon {
+    width: 72px;
+    height: 72px;
+    margin: 0 auto 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: #FFF1B8;
+    color: #111111;
+    font-size: 2.15rem;
+}
+
+.inventory-confirm-title {
+    margin: 0;
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: #111111;
+}
+
+.inventory-confirm-message {
+    margin: 8px auto 18px;
+    max-width: 340px;
+    font-size: 0.84rem;
+    line-height: 1.5;
+    color: #666666;
+}
+
+.inventory-confirm-details {
+    display: grid;
+    gap: 8px;
+    margin: 0 auto 20px;
+    padding: 14px 16px;
+    max-width: 360px;
+    border: 1px solid #eeeeee;
+    border-radius: 10px;
+    background: #fafafa;
+    text-align: left;
+}
+
+.inventory-confirm-detail-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    font-size: 0.8rem;
+    line-height: 1.4;
+}
+
+.inventory-confirm-detail-row span {
+    color: #666666;
+}
+
+.inventory-confirm-detail-row strong {
+    color: #111111;
+    text-align: right;
+}
+
+.inventory-confirm-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.inventory-confirm-actions button {
+    flex: 1;
+    min-height: 42px;
+    border-radius: 7px;
+    font-size: 0.82rem;
+    font-weight: 800;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.inventory-confirm-cancel {
+    border: 1px solid #d7d7d7;
+    background: #ffffff;
+    color: #222222;
+}
+
+.inventory-confirm-cancel:hover {
+    background: #f5f5f5;
+}
+
+.inventory-confirm-submit {
+    border: 1px solid #D8AF18;
+    background: #F2C12E;
+    color: #111111;
+}
+
+.inventory-confirm-submit:hover {
+    background: #E8B717;
+}
+
+.inventory-confirm-actions button:active {
+    transform: translateY(1px);
+}
+
+@media (max-width: 520px) {
+    .inventory-confirm-body {
+        padding: 28px 20px 22px;
+    }
+
+    .inventory-confirm-actions {
+        flex-direction: column-reverse;
+    }
+}
+</style>
+
 <?php if ($msg): ?><div class="alert alert-success"><?= e($msg) ?></div><?php endif; ?>
 
 <section class="grid grid-3">
@@ -211,15 +527,36 @@ include ROOT_PATH . '/includes/header.php';
 
 <section class="card" style="margin-top:24px">
     <div class="inventory-card-head">
-        <div>
+        <div class="inventory-card-title">
             <h2>Inventory List</h2>
-            <p class="inventory-help-text">Showing <?= count($inventoryItems) ?> of <?= $totalInventoryItems ?> menu items.</p>
+            <p class="inventory-help-text">
+                <?php if ($inventorySearch !== ''): ?>
+                    Showing <?= count($inventoryItems) ?> of <?= $totalInventoryItems ?> matching menu items.
+                <?php else: ?>
+                    Showing <?= count($inventoryItems) ?> of <?= $totalInventoryItems ?> menu items.
+                <?php endif; ?>
+            </p>
         </div>
 
-        <div class="inventory-pagination">
-            <a class="btn btn-secondary" href="?inventory_page=<?= $inventoryPage - 1 ?>&history_page=<?= $historyPage ?>" <?= $inventoryPage <= 1 ? 'style="pointer-events:none;opacity:0.5;"' : '' ?>><i class="bi bi-chevron-left"></i>Previous</a>
-            <strong class="inventory-page-info">Page <?= $inventoryPage ?> of <?= $totalInventoryPages ?></strong>
-            <a class="btn btn-secondary" href="?inventory_page=<?= $inventoryPage + 1 ?>&history_page=<?= $historyPage ?>" <?= $inventoryPage >= $totalInventoryPages ? 'style="pointer-events:none;opacity:0.5;"' : '' ?>>Next<i class="bi bi-chevron-right"></i></a>
+        <div class="inventory-tools">
+            <form class="inventory-search-form" method="get" action="index.php">
+                <input type="hidden" name="inventory_page" value="1">
+                <input type="hidden" name="history_page" value="<?= $historyPage ?>">
+                <div class="inventory-search-input">
+                    <i class="bi bi-search"></i>
+                    <input type="search" name="inventory_search" value="<?= e($inventorySearch) ?>" placeholder="Search menu items" autocomplete="off">
+                </div>
+                <button class="btn btn-primary" type="submit">Search</button>
+                <?php if ($inventorySearch !== ''): ?>
+                    <a class="btn btn-secondary" href="<?= e($buildQuery(['inventory_page' => 1, 'history_page' => $historyPage])) ?>">Clear</a>
+                <?php endif; ?>
+            </form>
+
+            <div class="inventory-pagination">
+                <a class="btn btn-secondary" href="<?= e($buildQuery(['inventory_page' => $inventoryPage - 1, 'history_page' => $historyPage, 'inventory_search' => $inventorySearch])) ?>" <?= $inventoryPage <= 1 ? 'style="pointer-events:none;opacity:0.5;"' : '' ?>><i class="bi bi-chevron-left"></i>Previous</a>
+                <strong class="inventory-page-info">Page <?= $inventoryPage ?> of <?= $totalInventoryPages ?></strong>
+                <a class="btn btn-secondary" href="<?= e($buildQuery(['inventory_page' => $inventoryPage + 1, 'history_page' => $historyPage, 'inventory_search' => $inventorySearch])) ?>" <?= $inventoryPage >= $totalInventoryPages ? 'style="pointer-events:none;opacity:0.5;"' : '' ?>>Next<i class="bi bi-chevron-right"></i></a>
+            </div>
         </div>
     </div>
 
@@ -259,9 +596,9 @@ include ROOT_PATH . '/includes/header.php';
     <div class="history-card-head">
         <h2>Recent Stock History</h2>
         <div class="history-pagination">
-            <a class="btn btn-secondary" href="?history_page=<?= $historyPage - 1 ?>&inventory_page=<?= $inventoryPage ?>" <?= $historyPage <= 1 ? 'style="pointer-events:none;opacity:0.5;"' : '' ?>><i class="bi bi-chevron-left"></i>Previous</a>
+            <a class="btn btn-secondary" href="<?= e($buildQuery(['history_page' => $historyPage - 1, 'inventory_page' => $inventoryPage, 'inventory_search' => $inventorySearch])) ?>" <?= $historyPage <= 1 ? 'style="pointer-events:none;opacity:0.5;"' : '' ?>><i class="bi bi-chevron-left"></i>Previous</a>
             <strong class="history-page-info">Page <?= $historyPage ?> of <?= $totalHistoryPages ?></strong>
-            <a class="btn btn-secondary" href="?history_page=<?= $historyPage + 1 ?>&inventory_page=<?= $inventoryPage ?>" <?= $historyPage >= $totalHistoryPages ? 'style="pointer-events:none;opacity:0.5;"' : '' ?>>Next<i class="bi bi-chevron-right"></i></a>
+            <a class="btn btn-secondary" href="<?= e($buildQuery(['history_page' => $historyPage + 1, 'inventory_page' => $inventoryPage, 'inventory_search' => $inventorySearch])) ?>" <?= $historyPage >= $totalHistoryPages ? 'style="pointer-events:none;opacity:0.5;"' : '' ?>>Next<i class="bi bi-chevron-right"></i></a>
         </div>
     </div>
 
@@ -287,6 +624,53 @@ include ROOT_PATH . '/includes/header.php';
         </table>
     </div>
 </section>
+
+<div class="inventory-confirm-overlay" id="inventoryConfirmOverlay" aria-hidden="true">
+    <div class="inventory-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="inventoryConfirmTitle">
+        <div class="inventory-confirm-accent"></div>
+
+        <button type="button" class="inventory-confirm-close" id="inventoryConfirmClose" aria-label="Close" title="Close">
+            <i class="bi bi-x-lg"></i>
+        </button>
+
+        <div class="inventory-confirm-body">
+            <div class="inventory-confirm-icon">
+                <i class="bi bi-question-lg"></i>
+            </div>
+
+            <h2 class="inventory-confirm-title" id="inventoryConfirmTitle">Confirm Stock Update</h2>
+            <p class="inventory-confirm-message">Please review the stock change before continuing.</p>
+
+            <div class="inventory-confirm-details">
+                <div class="inventory-confirm-detail-row">
+                    <span>Menu Item</span>
+                    <strong id="confirmItemName">-</strong>
+                </div>
+                <div class="inventory-confirm-detail-row">
+                    <span>Action</span>
+                    <strong id="confirmAction">-</strong>
+                </div>
+                <div class="inventory-confirm-detail-row">
+                    <span id="confirmQuantityLabel">Quantity</span>
+                    <strong id="confirmQuantity">-</strong>
+                </div>
+                <div class="inventory-confirm-detail-row">
+                    <span>Current Stock</span>
+                    <strong id="confirmCurrentStock">-</strong>
+                </div>
+                <div class="inventory-confirm-detail-row">
+                    <span>New Stock</span>
+                    <strong id="confirmNewStock">-</strong>
+                </div>
+            </div>
+
+            <div class="inventory-confirm-actions">
+                <button type="button" class="inventory-confirm-cancel" id="inventoryConfirmCancel">Cancel</button>
+                <button type="button" class="inventory-confirm-submit" id="inventoryConfirmSubmit">Confirm Update</button>
+            </div>
+        </div>
+    </div>
+</div>
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {
@@ -451,19 +835,55 @@ document.addEventListener('DOMContentLoaded', () => {
             quantityLabelText = 'New Stock Quantity';
         }
 
-        const confirmed = window.confirm(
-            'Confirm Stock Update\n\n' +
-            'Menu Item: ' + item.name + '\n' +
-            'Action: ' + stockAction.value + '\n' +
-            quantityLabelText + ': ' + quantity + ' pcs\n' +
-            'Current Stock: ' + currentStock + ' pcs\n' +
-            'New Stock: ' + newStock + ' pcs\n\n' +
-            'Do you want to continue?'
-        );
+        event.preventDefault();
 
-        if (!confirmed) {
-            event.preventDefault();
-        }
+        const overlay = document.getElementById('inventoryConfirmOverlay');
+        const closeButton = document.getElementById('inventoryConfirmClose');
+        const cancelButton = document.getElementById('inventoryConfirmCancel');
+        const confirmButton = document.getElementById('inventoryConfirmSubmit');
+        const itemName = document.getElementById('confirmItemName');
+        const confirmAction = document.getElementById('confirmAction');
+        const confirmQuantityLabel = document.getElementById('confirmQuantityLabel');
+        const confirmQuantity = document.getElementById('confirmQuantity');
+        const confirmCurrentStock = document.getElementById('confirmCurrentStock');
+        const confirmNewStock = document.getElementById('confirmNewStock');
+
+        itemName.textContent = item.name;
+        confirmAction.textContent = stockAction.value;
+        confirmQuantityLabel.textContent = quantityLabelText;
+        confirmQuantity.textContent = `${quantity} pcs`;
+        confirmCurrentStock.textContent = `${currentStock} pcs`;
+        confirmNewStock.textContent = `${newStock} pcs`;
+
+        overlay.classList.add('show');
+        overlay.setAttribute('aria-hidden', 'false');
+        confirmButton.focus();
+
+        const handleEscape = keyboardEvent => {
+            if (keyboardEvent.key === 'Escape') {
+                closeConfirmation();
+            }
+        };
+
+        const closeConfirmation = () => {
+            overlay.classList.remove('show');
+            overlay.setAttribute('aria-hidden', 'true');
+            document.removeEventListener('keydown', handleEscape);
+            form.querySelector('#updateStockBtn')?.focus();
+        };
+
+        const submitConfirmed = () => {
+            document.removeEventListener('keydown', handleEscape);
+            overlay.classList.remove('show');
+            overlay.setAttribute('aria-hidden', 'true');
+            form.submit();
+        };
+
+        closeButton.onclick = closeConfirmation;
+        cancelButton.onclick = closeConfirmation;
+        confirmButton.onclick = submitConfirmed;
+
+        document.addEventListener('keydown', handleEscape);
     });
 
     updateSelectedItem();

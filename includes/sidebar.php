@@ -32,6 +32,7 @@
         <?php endif; ?>
 
         <?php if (can_access(['admin', 'manager'])): ?>
+            <a class="<?= active_link('reports') ?>" href="<?= BASE_URL ?>/modules/reports/index.php"><i class="bi bi-graph-up"></i>Reports</a>
             <a class="<?= active_link('bills') ?>" href="<?= BASE_URL ?>/modules/bills/index.php"><i class="bi bi-wallet2"></i>Bills & Reports</a>
             <a class="<?= active_link('approvals') ?>" href="<?= BASE_URL ?>/modules/approvals/index.php"><i class="bi bi-shield-check"></i>Approvals</a>
         <?php endif; ?>
