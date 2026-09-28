@@ -12,6 +12,7 @@ $raw_items = $conn->query("
     SELECT menu_items.*, categories.category_name
     FROM menu_items
     JOIN categories ON categories.id = menu_items.category_id
+    WHERE menu_items.is_archived = 0
     ORDER BY categories.sort_order ASC, menu_items.sort_order ASC
 ")->fetchAll();
 
@@ -125,9 +126,11 @@ foreach ($raw_items as $item) {
                 }
 
                 $bilao_groups[$dish]['variants'][$size] = [
-                    'id'    => (int)$item['id'],
-                    'price' => (float)$item['price'],
-                    'desc'  => $official_specs[$dish]['rates'][$size]['desc']
+                    'id'           => (int)$item['id'],
+                    'price'        => (float)$item['price'],
+                    'desc'         => $official_specs[$dish]['rates'][$size]['desc'],
+                    'stock'        => max(0, (int)($item['stock'] ?? 0)),
+                    'availability' => $item['availability'] ?? 'Available'
                 ];
                 break;
             }
@@ -141,10 +144,13 @@ foreach ($bilao_groups as $dish => &$group) {
     $first_available_id = !empty($group['variants']) ? reset($group['variants'])['id'] : 1;
     foreach (['S', 'M', 'L', 'XL'] as $sz) {
         if (!isset($group['variants'][$sz])) {
+            $fallback_variant = reset($group['variants']);
             $group['variants'][$sz] = [
-                'id'    => $first_available_id,
-                'price' => (float)$official_specs[$dish]['rates'][$sz]['price'],
-                'desc'  => $official_specs[$dish]['rates'][$sz]['desc']
+                'id'           => $first_available_id,
+                'price'        => (float)$official_specs[$dish]['rates'][$sz]['price'],
+                'desc'         => $official_specs[$dish]['rates'][$sz]['desc'],
+                'stock'        => isset($fallback_variant['stock']) ? (int)$fallback_variant['stock'] : 0,
+                'availability' => $fallback_variant['availability'] ?? 'Available'
             ];
         }
     }
@@ -1179,7 +1185,7 @@ include ROOT_PATH . '/includes/header.php';
                     $subcat = 'loaded';
                 }
 
-                $stock = isset($item['stock']) ? (int)$item['stock'] : (isset($item['quantity']) ? (int)$item['quantity'] : 50);
+                $stock = max(0, (int)($item['stock'] ?? 0));
                 $isUnavailable = ($item['availability'] === 'Unavailable') || ($stock <= 0);
                 ?>
 
@@ -1189,7 +1195,8 @@ include ROOT_PATH . '/includes/header.php';
                          data-id="<?= e($item['id']) ?>"
                          data-name="<?= e($item['item_name']) ?>"
                          data-price="<?= e($price) ?>"
-                         data-stock="<?= e($stock) ?>">
+                         data-stock="<?= e($stock) ?>"
+                         data-availability="<?= e($item['availability']) ?>">
 
                     <span class="stock-badge <?= $stock <= 0 ? 'out-of-stock' : ($stock <= 5 ? 'low-stock' : '') ?>">
                         <?= $stock > 0 ? e($stock) . ' pcs left' : 'Out of Stock' ?>
@@ -1232,6 +1239,8 @@ include ROOT_PATH . '/includes/header.php';
                     $init_name = $dish . ' Tray S';
                     $init_desc = $default_variant['desc'];
                     $json_variants = htmlspecialchars(json_encode($info['variants']), ENT_QUOTES, 'UTF-8');
+                    $init_stock = max(0, (int)($default_variant['stock'] ?? 0));
+                    $init_availability = $default_variant['availability'] ?? 'Available';
                     ?>
 
                     <article class="food-card bilao-card bilao-centered-card"
@@ -1240,8 +1249,14 @@ include ROOT_PATH . '/includes/header.php';
                              data-id="<?= e($init_id) ?>"
                              data-name="<?= e($init_name) ?>"
                              data-price="<?= e($init_price) ?>"
+                             data-stock="<?= e($init_stock) ?>"
+                             data-availability="<?= e($init_availability) ?>"
                              data-base="<?= e($dish) ?>"
                              data-variants='<?= $json_variants ?>'>
+
+                        <span class="stock-badge <?= $init_stock <= 0 ? 'out-of-stock' : ($init_stock <= 5 ? 'low-stock' : '') ?>">
+                            <?= $init_stock > 0 ? e($init_stock) . ' pcs left' : 'Out of Stock' ?>
+                        </span>
 
                         <?php if ($info['image']): ?>
                             <img src="<?= BASE_URL ?>/uploads/menu/<?= e($info['image']) ?>" alt="<?= e($dish) ?>">
@@ -1524,7 +1539,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     document.querySelectorAll('.bilao-card').forEach(card => {
-        const variants = JSON.parse(card.dataset.variants || '{}');
         const baseName = card.dataset.base;
         const priceTag = card.querySelector('.bilao-price');
         const descTag = card.querySelector('.bilao-desc');
@@ -1536,12 +1550,35 @@ document.addEventListener('DOMContentLoaded', function() {
             const activePkg =
                 card.querySelector('.pkg-btn.active')?.dataset.pkg || 'Tray';
 
+            const variants = JSON.parse(card.dataset.variants || '{}');
             const v = variants[activeSize];
 
             if (v) {
+                const stock = Math.max(0, Number(v.stock ?? 0));
+                const availability = v.availability || 'Available';
+                const unavailable = availability !== 'Available' || stock <= 0;
+
                 card.dataset.id = v.id;
                 card.dataset.price = v.price;
                 card.dataset.name = baseName + ' ' + activePkg + ' ' + activeSize;
+                card.dataset.stock = String(Math.floor(stock));
+                card.dataset.availability = availability;
+                card.classList.toggle('unavailable', unavailable);
+
+                const stockBadge = card.querySelector('.stock-badge');
+                if (stockBadge) {
+                    stockBadge.classList.remove('low-stock', 'out-of-stock');
+
+                    if (stock <= 0) {
+                        stockBadge.classList.add('out-of-stock');
+                        stockBadge.textContent = 'Out of Stock';
+                    } else {
+                        if (stock <= 5) {
+                            stockBadge.classList.add('low-stock');
+                        }
+                        stockBadge.textContent = Math.floor(stock) + ' pcs left';
+                    }
+                }
 
                 if (descTag) {
                     descTag.textContent = v.desc;
@@ -1583,6 +1620,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 updateCardState();
             });
         });
+
+        updateCardState();
     });
 
     updateSubFilterVisibility();

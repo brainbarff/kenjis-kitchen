@@ -728,7 +728,7 @@ function addToCart(
     stock
 ) {
     const maxStock =
-        Number(stock ?? 999);
+        Math.max(0, Math.floor(Number(stock ?? 0)));
 
     const existing =
         cart.find(
@@ -988,7 +988,7 @@ function updateMenuCardControls() {
             const stock =
                 Number(
                     card.dataset.stock ??
-                    999
+                    0
                 );
 
             const cartItem =
@@ -2042,6 +2042,104 @@ function printReceipt(
     });
 }
 
+function updateMenuStockAfterCheckout(completedCart) {
+    const cards = Array.from(document.querySelectorAll('.food-card'));
+
+    completedCart.forEach(orderItem => {
+        const itemId = String(orderItem.id);
+        const soldQty = Math.max(0, Math.floor(Number(orderItem.qty ?? 0)));
+
+        cards.forEach(card => {
+            const variantsRaw = card.dataset.variants;
+
+            if (variantsRaw) {
+                let variants;
+
+                try {
+                    variants = JSON.parse(variantsRaw);
+                } catch (error) {
+                    return;
+                }
+
+                let changed = false;
+
+                Object.keys(variants).forEach(size => {
+                    const variant = variants[size];
+
+                    if (variant && String(variant.id) === itemId) {
+                        variant.stock = Math.max(0, Math.floor(Number(variant.stock ?? 0)) - soldQty);
+                        changed = true;
+                    }
+                });
+
+                if (changed) {
+                    card.dataset.variants = JSON.stringify(variants);
+
+                    if (String(card.dataset.id) === itemId) {
+                        const currentVariant = variants[
+                            card.querySelector('.size-btn.active')?.dataset.size || 'S'
+                        ];
+
+                        if (currentVariant) {
+                            card.dataset.stock = String(currentVariant.stock);
+
+                            if (currentVariant.stock <= 0) {
+                                card.classList.add('unavailable');
+                            }
+
+                            const badge = card.querySelector('.stock-badge');
+
+                            if (badge) {
+                                badge.classList.remove('low-stock', 'out-of-stock');
+
+                                if (currentVariant.stock <= 0) {
+                                    badge.classList.add('out-of-stock');
+                                    badge.textContent = 'Out of Stock';
+                                } else {
+                                    if (currentVariant.stock <= 5) {
+                                        badge.classList.add('low-stock');
+                                    }
+                                    badge.textContent = `${currentVariant.stock} pcs left`;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                return;
+            }
+
+            if (String(card.dataset.id) === itemId) {
+                const currentStock = Math.max(0, Math.floor(Number(card.dataset.stock ?? 0)));
+                const newStock = Math.max(0, currentStock - soldQty);
+                card.dataset.stock = String(newStock);
+
+                if (newStock <= 0) {
+                    card.classList.add('unavailable');
+                }
+
+                const badge = card.querySelector('.stock-badge');
+
+                if (badge) {
+                    badge.classList.remove('low-stock', 'out-of-stock');
+
+                    if (newStock <= 0) {
+                        badge.classList.add('out-of-stock');
+                        badge.textContent = 'Out of Stock';
+                    } else {
+                        if (newStock <= 5) {
+                            badge.classList.add('low-stock');
+                        }
+                        badge.textContent = `${newStock} pcs left`;
+                    }
+                }
+            }
+        });
+    });
+
+    updateMenuCardControls();
+}
+
 const checkoutBtn =
     document.getElementById(
         'checkoutBtn'
@@ -2208,6 +2306,8 @@ if (checkoutBtn) {
                 }
 
                 if (json.ok) {
+                    updateMenuStockAfterCheckout([...cart]);
+
                     const receiptNumber =
                         json.receipt_no ||
                         json.order_no;

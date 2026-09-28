@@ -21,27 +21,40 @@ try {
     $conn->beginTransaction();
 
     $cols = $conn->query("SHOW COLUMNS FROM orders")->fetchAll(PDO::FETCH_COLUMN);
-    if (!in_array('notes', $cols)) {
+    if (!in_array('notes', $cols, true)) {
         $conn->query("ALTER TABLE orders ADD COLUMN notes TEXT NULL");
     }
 
-    $stock_check = $conn->prepare("
-        SELECT inventory.ingredient_name
-        FROM menu_ingredients
-        JOIN inventory ON inventory.id = menu_ingredients.inventory_id
-        JOIN menu_items ON menu_items.id = menu_ingredients.menu_item_id
-        WHERE menu_ingredients.menu_item_id = ?
-          AND (inventory.current_stock < (menu_ingredients.qty_needed * ?) OR menu_items.availability <> 'Available')
-        LIMIT 1
-    ");
+    $stockCheck = $conn->prepare("SELECT id, item_name, stock, availability, is_archived FROM menu_items WHERE id = ? FOR UPDATE");
 
     foreach ($cart as $row) {
-        $stock_check->execute([$row['id'], $row['qty']]);
-        $short = $stock_check->fetch();
+        $itemId = (int) ($row['id'] ?? 0);
+        $qty = (int) ($row['qty'] ?? 0);
 
-        if ($short) {
+        if ($itemId <= 0 || $qty <= 0) {
             $conn->rollBack();
-            echo json_encode(['ok' => false, 'msg' => $short['ingredient_name'] . ' is not enough for this order.']);
+            echo json_encode(['ok' => false, 'msg' => 'Invalid item quantity.']);
+            exit;
+        }
+
+        $stockCheck->execute([$itemId]);
+        $item = $stockCheck->fetch();
+
+        if (!$item || (int) $item['is_archived'] === 1) {
+            $conn->rollBack();
+            echo json_encode(['ok' => false, 'msg' => 'One of the selected menu items is no longer available.']);
+            exit;
+        }
+
+        if ($item['availability'] !== 'Available') {
+            $conn->rollBack();
+            echo json_encode(['ok' => false, 'msg' => $item['item_name'] . ' is currently unavailable.']);
+            exit;
+        }
+
+        if ((int) $item['stock'] < $qty) {
+            $conn->rollBack();
+            echo json_encode(['ok' => false, 'msg' => 'Only ' . (int) $item['stock'] . ' pcs of ' . $item['item_name'] . ' are available.']);
             exit;
         }
     }
@@ -51,10 +64,7 @@ try {
     $orderNote = !empty($data['orderNote']) ? trim($data['orderNote']) : null;
     $userId = $_SESSION['u_id'] ?? ($_SESSION['user_id'] ?? 1);
 
-    $stmt = $conn->prepare("
-        INSERT INTO orders (order_no, queue_no, user_id, customer_name, order_type, table_no, subtotal, discount, tax, total, notes, status, paid_at, kitchen_queued_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending', NOW(), NOW())
-    ");
+    $stmt = $conn->prepare("INSERT INTO orders (order_no, queue_no, user_id, customer_name, order_type, table_no, subtotal, discount, tax, total, notes, status, paid_at, kitchen_queued_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending', NOW(), NOW())");
     $stmt->execute([
         $order_no,
         $queue,
@@ -71,35 +81,26 @@ try {
     $order_id = $conn->lastInsertId();
 
     $item_stmt = $conn->prepare("INSERT INTO order_items (order_id, menu_item_id, item_name, quantity, price) VALUES (?, ?, ?, ?, ?)");
-    $deduct = $conn->prepare("
-        UPDATE inventory
-        JOIN menu_ingredients ON menu_ingredients.inventory_id = inventory.id
-        SET inventory.current_stock = inventory.current_stock - (menu_ingredients.qty_needed * ?)
-        WHERE menu_ingredients.menu_item_id = ?
-    ");
-    $log = $conn->prepare("
-        INSERT INTO inventory_logs (inventory_id, user_id, action, quantity, remarks)
-        SELECT inventory_id, ?, 'Order Deduction', qty_needed * ?, ?
-        FROM menu_ingredients
-        WHERE menu_item_id = ?
-    ");
+    $deduct = $conn->prepare("UPDATE menu_items SET stock = stock - ? WHERE id = ? AND stock >= ?");
+    $log = $conn->prepare("INSERT INTO inventory_logs (inventory_id, menu_item_id, user_id, action, quantity, remarks) VALUES (NULL, ?, ?, 'Order Deduction', ?, ?)");
 
     foreach ($cart as $row) {
-        $item_stmt->execute([$order_id, $row['id'], $row['name'], $row['qty'], $row['price']]);
-        $deduct->execute([$row['qty'], $row['id']]);
-        $log->execute([$userId, $row['qty'], 'Order ' . $order_no, $row['id']]);
+        $itemId = (int) $row['id'];
+        $qty = (int) $row['qty'];
+
+        $item_stmt->execute([$order_id, $itemId, $row['name'], $qty, $row['price']]);
+
+        $deduct->execute([$qty, $itemId, $qty]);
+
+        if ($deduct->rowCount() !== 1) {
+            $conn->rollBack();
+            echo json_encode(['ok' => false, 'msg' => 'Stock changed while the order was being processed. Please review the order and try again.']);
+            exit;
+        }
+
+        $log->execute([$itemId, $userId, $qty, 'Order ' . $order_no . ' auto-deduction']);
     }
 
-    $conn->exec("
-        UPDATE menu_items
-        SET availability = 'Unavailable'
-        WHERE id IN (
-            SELECT menu_item_id
-            FROM menu_ingredients
-            JOIN inventory ON inventory.id = menu_ingredients.inventory_id
-            WHERE inventory.current_stock <= 0
-        )
-    ");
 
     $amountPaid = ($paymentMode === 'Gcash' || $paymentMode === 'GCash') ? $total : $cash;
     $changeAmount = ($paymentMode === 'Gcash' || $paymentMode === 'GCash') ? 0 : $change;
@@ -114,6 +115,8 @@ try {
     $conn->commit();
     echo json_encode(['ok' => true, 'order_no' => $order_no, 'receipt_no' => $receipt_no]);
 } catch (Exception $e) {
-    $conn->rollBack();
+    if ($conn->inTransaction()) {
+        $conn->rollBack();
+    }
     echo json_encode(['ok' => false, 'msg' => 'Order was not saved. ' . $e->getMessage()]);
 }

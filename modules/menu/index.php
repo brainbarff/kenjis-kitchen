@@ -6,7 +6,10 @@ require_role('admin');
 $page = 'menu';
 $title = 'Menu Management';
 $heading = 'Menu Management';
-$msg = '';
+$msg = $_SESSION['flash_msg'] ?? '';
+unset($_SESSION['flash_msg']);
+
+$showArchived = isset($_GET['archived']) && $_GET['archived'] === '1';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
@@ -16,8 +19,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($name) {
             $stmt = $conn->prepare("INSERT INTO categories (category_name) VALUES (?)");
             $stmt->execute([$name]);
-            $msg = 'Category added.';
+            $_SESSION['flash_msg'] = 'Category added.';
         }
+        header('Location: ' . ($showArchived ? 'index.php?archived=1' : 'index.php'));
+        exit;
     }
 
     if ($action === 'item') {
@@ -37,30 +42,51 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_POST['promo_start'] ?: null,
             $_POST['promo_end'] ?: null
         ]);
-        $msg = 'Menu item saved.';
+        $_SESSION['flash_msg'] = 'Menu item saved.';
+        header('Location: index.php');
+        exit;
     }
 }
 
 if (isset($_GET['toggle'])) {
     $id = (int) $_GET['toggle'];
-    $stmt = $conn->prepare("UPDATE menu_items SET availability = IF(availability = 'Available', 'Unavailable', 'Available') WHERE id = ?");
+    $stmt = $conn->prepare("UPDATE menu_items SET availability = IF(availability = 'Available', 'Unavailable', 'Available') WHERE id = ? AND is_archived = 0");
     $stmt->execute([$id]);
-    redirect('/modules/menu/index.php');
+    header('Location: index.php' . ($showArchived ? '?archived=1' : ''));
+    exit;
 }
 
-if (isset($_GET['delete'])) {
-    $stmt = $conn->prepare("DELETE FROM menu_items WHERE id = ?");
-    $stmt->execute([(int) $_GET['delete']]);
-    redirect('/modules/menu/index.php');
+if (isset($_GET['archive'])) {
+    $id = (int) $_GET['archive'];
+    $stmt = $conn->prepare("UPDATE menu_items SET is_archived = 1 WHERE id = ? AND is_archived = 0");
+    $stmt->execute([$id]);
+    $_SESSION['flash_msg'] = 'Menu item archived.';
+    header('Location: index.php');
+    exit;
+}
+
+if (isset($_GET['restore'])) {
+    $id = (int) $_GET['restore'];
+    $stmt = $conn->prepare("UPDATE menu_items SET is_archived = 0 WHERE id = ? AND is_archived = 1");
+    $stmt->execute([$id]);
+    $_SESSION['flash_msg'] = 'Menu item restored.';
+    header('Location: index.php?archived=1');
+    exit;
 }
 
 $categories = $conn->query("SELECT * FROM categories ORDER BY category_name")->fetchAll();
-$items = $conn->query("
+
+$itemsStmt = $conn->prepare("
     SELECT menu_items.*, categories.category_name
     FROM menu_items
     JOIN categories ON categories.id = menu_items.category_id
+    WHERE menu_items.is_archived = ?
     ORDER BY menu_items.created_at DESC
-")->fetchAll();
+");
+$itemsStmt->execute([$showArchived ? 1 : 0]);
+$items = $itemsStmt->fetchAll();
+
+$archivedCount = (int) $conn->query("SELECT COUNT(*) FROM menu_items WHERE is_archived = 1")->fetchColumn();
 
 include ROOT_PATH . '/includes/header.php';
 ?>
@@ -100,24 +126,39 @@ include ROOT_PATH . '/includes/header.php';
 </div>
 
 <section class="card" style="margin-top:24px">
-    <div class="page-head"><h2>Menu Items</h2></div>
+    <div class="page-head" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+        <h2><?= $showArchived ? 'Archived Menu Items' : 'Menu Items' ?></h2>
+        <?php if ($showArchived): ?>
+            <a class="btn btn-secondary" href="index.php"><i class="bi bi-arrow-left"></i>Active Items</a>
+        <?php elseif ($archivedCount > 0): ?>
+            <a class="btn btn-secondary" href="?archived=1"><i class="bi bi-archive"></i>Archived Items (<?= $archivedCount ?>)</a>
+        <?php endif; ?>
+    </div>
     <div class="table-wrap">
         <table>
             <thead><tr><th>Item</th><th>Category</th><th>Price</th><th>Promo</th><th>Status</th><th></th></tr></thead>
             <tbody>
-                <?php foreach ($items as $row): ?>
-                <tr>
-                    <td><strong><?= e($row['item_name']) ?></strong><br><span class="muted"><?= e($row['description']) ?></span></td>
-                    <td><?= e($row['category_name']) ?></td>
-                    <td><?= money($row['price']) ?></td>
-                    <td><?= $row['promo_price'] ? money($row['promo_price']) : '<span class="muted">None</span>' ?></td>
-                    <td><span class="badge <?= $row['availability'] === 'Available' ? 'badge-success' : 'badge-muted' ?>"><?= e($row['availability']) ?></span></td>
-                    <td class="actions">
-                        <a class="btn btn-secondary" href="?toggle=<?= e($row['id']) ?>"><i class="bi bi-arrow-repeat"></i></a>
-                        <a class="btn btn-danger" data-confirm="Delete this item?" href="?delete=<?= e($row['id']) ?>"><i class="bi bi-trash"></i></a>
-                    </td>
-                </tr>
-                <?php endforeach; ?>
+                <?php if ($items): ?>
+                    <?php foreach ($items as $row): ?>
+                    <tr>
+                        <td><strong><?= e($row['item_name']) ?></strong><br><span class="muted"><?= e($row['description']) ?></span></td>
+                        <td><?= e($row['category_name']) ?></td>
+                        <td><?= money($row['price']) ?></td>
+                        <td><?= $row['promo_price'] ? money($row['promo_price']) : '<span class="muted">None</span>' ?></td>
+                        <td><span class="badge <?= $row['availability'] === 'Available' && !$showArchived ? 'badge-success' : 'badge-muted' ?>"><?= $showArchived ? 'Archived' : e($row['availability']) ?></span></td>
+                        <td class="actions">
+                            <?php if ($showArchived): ?>
+                                <a class="btn btn-secondary" data-confirm="Restore this menu item?" href="?archived=1&restore=<?= e($row['id']) ?>"><i class="bi bi-arrow-counterclockwise"></i></a>
+                            <?php else: ?>
+                                <a class="btn btn-secondary" href="?toggle=<?= e($row['id']) ?>"><i class="bi bi-arrow-repeat"></i></a>
+                                <a class="btn btn-danger" data-confirm="Archive this menu item?" href="?archive=<?= e($row['id']) ?>"><i class="bi bi-archive"></i></a>
+                            <?php endif; ?>
+                        </td>
+                    </tr>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                    <tr><td colspan="6" style="text-align:center;"><?= $showArchived ? 'No archived menu items.' : 'No menu items found.' ?></td></tr>
+                <?php endif; ?>
             </tbody>
         </table>
     </div>
