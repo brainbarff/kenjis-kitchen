@@ -148,6 +148,7 @@ a {
     color: #E2E2E2;
     font-size: 13px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    overflow: hidden;
 }
 
 .topbar-inner {
@@ -159,6 +160,7 @@ a {
     justify-content: space-between;
     gap: 16px;
     flex-wrap: wrap;
+    overflow: hidden;
 }
 
 .topbar-status {
@@ -224,94 +226,247 @@ a {
 }
 
 /* ==========================================================================
-   Clean Authentic Eatery Footer
+   Branded Store Facebook Banner
+   ========================================================================== */
+.landing-banner-wrap {
+    max-width: 1320px;
+    margin: 20px auto 0;
+    padding: 0 32px;
+}
+
+.landing-banner-img {
+    width: 100%;
+    height: auto;
+    max-height: 290px;
+    object-fit: cover;
+    object-position: center;
+    border-radius: 18px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+    display: block;
+    border: 1px solid var(--border);
+}
+
+@media (max-width: 768px) {
+    .landing-banner-wrap {
+        padding: 0 16px;
+        margin-top: 12px;
+    }
+    .landing-banner-img {
+        max-height: 180px;
+        border-radius: 12px;
+    }
+}
+
+/* ==========================================================================
+   Coffee Realm Inspired Eatery Footer
    ========================================================================== */
 .customer-footer {
     background: #FFFFFF;
     border-top: 1px solid var(--border);
-    padding: 32px 0 24px;
+    padding: 56px 0 0;
     margin-top: 60px;
 }
 
 .footer-container {
-    max-width: 1200px;
+    max-width: 1240px;
     margin: 0 auto;
     padding: 0 24px;
 }
 
-.footer-simple-inner {
+.footer-contact-map-grid {
+    display: grid;
+    grid-template-columns: 1fr 1.25fr;
+    gap: 32px;
+    margin-bottom: 48px;
+    align-items: stretch;
+}
+
+.footer-contact-card {
+    background: #F8F9F8;
+    border: 1px solid #EAEAEA;
+    border-radius: 20px;
+    padding: 36px 32px;
     display: flex;
-    flex-wrap: wrap;
-    align-items: center;
+    flex-direction: column;
     justify-content: space-between;
-    gap: 20px;
 }
 
-.footer-brand {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.footer-brand strong {
+.contact-eyebrow {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    color: #8C6D1F;
+    text-transform: uppercase;
+    margin-bottom: 8px;
     display: block;
-    font-size: 17px;
-    font-weight: 700;
+}
+
+.contact-title {
+    font-size: 28px;
+    font-weight: 800;
     color: var(--dark);
+    margin: 0 0 12px;
+    line-height: 1.2;
 }
 
-.footer-brand p {
-    margin: 2px 0 0;
-    font-size: 13px;
+.contact-desc {
+    font-size: 13.5px;
     color: var(--muted);
+    line-height: 1.5;
+    margin: 0 0 24px;
 }
 
-.footer-info {
+.contact-details-list {
     display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 24px;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 28px;
 }
 
-.footer-info .info-item {
+.contact-detail-row {
     display: flex;
-    align-items: center;
-    gap: 8px;
+    align-items: flex-start;
+    gap: 12px;
     font-size: 13.5px;
     color: var(--text);
-    font-weight: 500;
 }
 
-.footer-info .info-item i {
-    color: var(--primary);
-    font-size: 16px;
-}
-
-.footer-info .info-item a {
-    color: inherit;
-    transition: color 0.2s;
-}
-
-.footer-info .info-item a:hover {
-    color: var(--primary-hover);
-}
-
-.footer-copy p {
-    margin: 0;
+.contact-detail-row i {
+    color: var(--dark);
+    background: var(--primary);
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
     font-size: 13px;
-    color: var(--muted);
+    flex-shrink: 0;
+    margin-top: 1px;
 }
 
-@media (max-width: 768px) {
-    .footer-simple-inner {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 16px;
+.contact-detail-row div {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.contact-detail-row strong {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--dark);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.contact-detail-row span,
+.contact-detail-row a {
+    color: var(--text);
+    line-height: 1.4;
+}
+
+.contact-detail-row a:hover {
+    color: var(--primary-hover);
+    text-decoration: underline;
+}
+
+.get-directions-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: var(--dark);
+    color: var(--white);
+    font-size: 13.5px;
+    font-weight: 700;
+    padding: 12px 24px;
+    border-radius: 999px;
+    text-decoration: none;
+    width: fit-content;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 12px rgba(35, 35, 35, 0.15);
+}
+
+.get-directions-btn:hover {
+    background: var(--primary);
+    color: var(--dark);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(242, 193, 46, 0.35);
+}
+
+.footer-map-card {
+    border-radius: 20px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+    min-height: 380px;
+    background: #EAEAEA;
+    position: relative;
+}
+
+.footer-map-iframe {
+    width: 100%;
+    height: 100%;
+    min-height: 380px;
+    border: 0;
+    display: block;
+}
+
+.footer-bottom-bar {
+    background: #181818;
+    padding: 20px 0;
+    border-top: 1px solid #282828;
+}
+
+.footer-bottom-container {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.footer-social-links {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.footer-social-links a {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.1);
+    color: #FFFFFF;
+    display: grid;
+    place-items: center;
+    font-size: 16px;
+    transition: all 0.2s ease;
+}
+
+.footer-social-links a:hover {
+    background: var(--primary);
+    color: var(--dark);
+    transform: translateY(-2px);
+}
+
+.footer-copyright-text {
+    font-size: 13px;
+    color: #9CA3AF;
+}
+
+@media (max-width: 992px) {
+    .footer-contact-map-grid {
+        grid-template-columns: 1fr;
     }
-    .footer-info {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 10px;
+    .footer-contact-card {
+        padding: 28px 22px;
+    }
+    .footer-map-card,
+    .footer-map-iframe {
+        min-height: 300px;
     }
 }
 
@@ -1373,11 +1528,30 @@ main {
 
 .stock-badge {
     position: absolute;
-    top: 10px;
-    right: 10px;
-    background: #EF4444;
-    color: var(--white);
-    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.25);
+    top: 8px;
+    right: 8px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 9999px;
+    background: #F1F5F9;
+    color: #475569;
+    border: 1px solid #E2E8F0;
+    z-index: 2;
+    pointer-events: none;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+}
+
+.stock-badge.low-stock {
+    background: #FEF3C7;
+    color: #B45309;
+    border-color: #FDE68A;
+}
+
+.stock-badge.out-of-stock {
+    background: #FEE2E2;
+    color: #DC2626;
+    border-color: #FECACA;
 }
 
 .food-body {

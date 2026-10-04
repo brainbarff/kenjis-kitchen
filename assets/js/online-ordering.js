@@ -253,15 +253,29 @@ function renderMenu() {
     }
 
     foodGrid.innerHTML = items.map(item => {
-        const stock = Number(item.stock);
-        const out = stock <= 0 || Number(item.is_available) !== 1;
+        const stock = Math.max(0, Number(item.stock));
+        const isAvailable = Number(item.is_available) === 1 && (item.availability === 'Available' || !item.availability);
+        const out = stock <= 0 || !isAvailable;
         const price = currentUnitPrice(item);
         const original = price !== Number(item.price);
+
+        let stockBadgeClass = '';
+        let stockBadgeText = '';
+        if (out) {
+            stockBadgeClass = 'out-of-stock';
+            stockBadgeText = 'Out of Stock';
+        } else if (stock <= 5) {
+            stockBadgeClass = 'low-stock';
+            stockBadgeText = `${stock} pcs left`;
+        } else {
+            stockBadgeText = `${stock} pcs left`;
+        }
+
         return `
-            <article class="food-card ${out ? 'disabled' : ''}" data-item="${item.id}">
+            <article class="food-card ${out ? 'disabled unavailable' : ''}" data-item="${item.id}">
                 <div class="food-img-wrap">
                     <img src="${escapeHtml(item.image_url)}" alt="${escapeHtml(item.name)}" loading="lazy">
-                    <span class="stock-badge ${stock <= 5 && !out ? 'low-stock' : ''}">${out ? 'Out of Stock' : `${stock} pcs left`}</span>
+                    <span class="stock-badge ${stockBadgeClass}">${stockBadgeText}</span>
                 </div>
                 <div class="food-body">
                     <span class="badge">${escapeHtml(item.category_name)}</span>
@@ -270,7 +284,7 @@ function renderMenu() {
                     <div class="food-bottom">
                         <strong>${money.format(price)}${original ? `<small style="display:block;text-decoration:line-through;opacity:.55">${money.format(item.price)}</small>` : ''}</strong>
                         <button type="button" class="food-add-btn" ${out ? 'disabled' : ''} data-add="${item.id}">
-                            <i class="bi bi-plus-lg"></i> Add to Order
+                            <i class="bi bi-${out ? 'slash-circle' : 'plus-lg'}"></i> ${out ? 'Out of Stock' : 'Add to Order'}
                         </button>
                     </div>
                 </div>
@@ -826,7 +840,7 @@ function setupEventListeners() {
 
     document.getElementById('forgotPwdLink')?.addEventListener('click', (e) => {
         e.preventDefault();
-        alert('Please approach our eatery staff or call hotline 0912-345-6789 to reset your customer password.');
+        alert('Please approach our eatery staff or call hotline 0968 743 0373 to reset your customer password.');
     });
 
     // 3. Category & Food Selection
@@ -1074,6 +1088,17 @@ function initLandingFeatures() {
             renderHistory([]);
         }
         setAuthTab('signin');
+
+        // Real-time stock sync with POS / Inventory
+        setInterval(() => {
+            if (document.visibilityState === 'visible') {
+                loadMenu().catch(() => {});
+            }
+        }, 20000);
+
+        window.addEventListener('focus', () => {
+            loadMenu().catch(() => {});
+        });
     } catch (error) {
         if (foodGrid) {
             foodGrid.innerHTML = `
