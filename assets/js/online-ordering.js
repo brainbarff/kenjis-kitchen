@@ -843,6 +843,11 @@ function setupEventListeners() {
         alert('Please approach our eatery staff or call hotline 0968 743 0373 to reset your customer password.');
     });
 
+    document.getElementById('backToTopBtn')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+
     // 3. Category & Food Selection
     if (categoryTabs) {
         categoryTabs.addEventListener('click', async event => {
