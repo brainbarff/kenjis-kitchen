@@ -844,11 +844,33 @@ function setupEventListeners() {
         foodGrid.addEventListener('click', event => {
             const addButton = event.target.closest('[data-add]');
             if (addButton) {
-                openItemModal(Number(addButton.dataset.add));
+                event.preventDefault();
+                event.stopPropagation();
+                const itemId = Number(addButton.dataset.add);
+                const item = getItem(itemId);
+                if (item && Number(item.stock) > 0 && Number(item.is_available) === 1) {
+                    const existing = state.cart.find(c => Number(c.id) === Number(item.id) && !c.notes);
+                    if (existing) {
+                        existing.qty = Math.min(Number(item.stock), Number(existing.qty) + 1);
+                    } else {
+                        state.cart.push({
+                            id: Number(item.id),
+                            name: item.name,
+                            image_url: item.image_url,
+                            unitPrice: currentUnitPrice(item),
+                            notes: '',
+                            qty: 1
+                        });
+                    }
+                    renderCart();
+                    openCart();
+                }
                 return;
             }
             const card = event.target.closest('[data-item]');
-            if (card) openItemModal(Number(card.dataset.item));
+            if (card) {
+                openItemModal(Number(card.dataset.item));
+            }
         });
     }
 

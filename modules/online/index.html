@@ -6,7 +6,7 @@
     <title>Online Ordering - Kenji's Kitchen</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Serif:wght@400;500;600;700&family=Old+Standard+TT:wght@700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="../../assets/css/online-ordering.css">
     <style>
@@ -27,7 +27,7 @@
             </div>
             <div class="topbar-promo">
                 <i class="bi bi-scooter"></i>
-                <span>Fast local delivery & store pickup • Orders ₱500+ qualify for discounted fees!</span>
+                <span>Fast local delivery & store pickup • Fresh comfort food daily</span>
             </div>
             <div class="topbar-contact">
                 <a href="tel:09123456789"><i class="bi bi-telephone-fill"></i> 0912-345-6789</a>
@@ -37,7 +37,7 @@
 
     <header class="customer-header">
         <a class="brand" href="#">
-            <span class="brand-mark">K</span>
+            <img src="../../assets/img/logo.jpg" alt="Kenji's Kitchen Logo" class="brand-logo-img">
             <span>
                 <strong>Kenji's Kitchen</strong>
                 <small>Online Ordering</small>
@@ -45,12 +45,9 @@
         </a>
 
         <nav class="customer-nav">
-            <a href="#heroSection">Home</a>
-            <a href="#dealsSection">Deals</a>
-            <a href="#categoriesSection">Categories</a>
             <a href="#menuSection">Menu</a>
-            <a href="#trackingSection">Track</a>
-            <a href="#historySection">History</a>
+            <a href="#trackingSection">Track Order</a>
+            <a href="#historySection">Order History</a>
         </nav>
 
         <div class="customer-account" id="customerAccount">
@@ -64,272 +61,6 @@
     </header>
 
     <main>
-        <!-- Animated Hero Section -->
-        <section class="landing-hero" id="heroSection">
-            <div class="hero-inner">
-                <div class="hero-content">
-                    <div class="hero-chip">
-                        <i class="bi bi-fire"></i>
-                        <span>Freshly Cooked Daily • Authentic Filipino Flavors</span>
-                    </div>
-                    <h1 class="hero-title">
-                        Craving Comfort Food? Savor the Best of <span class="hero-highlight">Kenji's Kitchen</span>
-                    </h1>
-                    <p class="hero-desc">
-                        From hearty student silog meals and sizzling savory pares to celebratory bilao platters — handcrafted hot and fresh, ready for quick pickup or delivery.
-                    </p>
-                    <div class="hero-actions">
-                        <a href="#menuSection" class="hero-btn-primary">
-                            <i class="bi bi-bag-check-fill"></i> Order Food Now
-                        </a>
-                        <a href="#dealsSection" class="hero-btn-secondary">
-                            <i class="bi bi-percent"></i> View Today's Deals
-                        </a>
-                    </div>
-                    <div class="hero-stats">
-                        <div class="hero-stat-item">
-                            <strong class="stat-number">15+</strong>
-                            <span class="stat-label">Signature Dishes</span>
-                        </div>
-                        <div class="hero-stat-sep"></div>
-                        <div class="hero-stat-item">
-                            <strong class="stat-number"><i class="bi bi-star-fill text-yellow"></i> 4.9</strong>
-                            <span class="stat-label">Customer Rating</span>
-                        </div>
-                        <div class="hero-stat-sep"></div>
-                        <div class="hero-stat-item">
-                            <strong class="stat-number">~25m</strong>
-                            <span class="stat-label">Express Kitchen Prep</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="hero-showcase">
-                    <div class="showcase-card">
-                        <div class="showcase-glow"></div>
-                        <div class="showcase-badge badge-bestseller">
-                            <i class="bi bi-lightning-charge-fill"></i> #1 Best Seller
-                        </div>
-                        <div class="showcase-img-wrap">
-                            <img src="../../uploads/menu/burgersteak_rice.png" alt="Burgersteak Rice" class="showcase-img" id="heroShowcaseImg">
-                        </div>
-                        <div class="showcase-info">
-                            <div class="showcase-details">
-                                <span class="showcase-category">Student Meals</span>
-                                <h3 class="showcase-title">Burgersteak Rice Bowl</h3>
-                                <p class="showcase-subtitle">Savory beef patties drenched in rich mushroom gravy over hot steamed rice.</p>
-                            </div>
-                            <div class="showcase-bottom">
-                                <div class="showcase-price">
-                                    <small>Special Price</small>
-                                    <strong>PHP 35.00</strong>
-                                </div>
-                                <button type="button" class="showcase-order-btn" data-hero-add="1">
-                                    <i class="bi bi-plus-lg"></i> Quick Add
-                                </button>
-                            </div>
-                        </div>
-                        <div class="showcase-badge-pill">
-                            <i class="bi bi-check-circle-fill"></i> 100% Cooked to Order
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Deals & Promotions Section -->
-        <section class="deals-section reveal-on-scroll" id="dealsSection">
-            <div class="section-container">
-                <div class="landing-section-head text-center">
-                    <span class="section-eyebrow"><i class="bi bi-stars"></i> Limited Time Offers</span>
-                    <h2>Today's Specials & Value Deals</h2>
-                    <p>Feast on our most popular bundles, student-friendly rice bowls, and party trays.</p>
-                </div>
-
-                <div class="deals-grid">
-                    <article class="deal-card deal-student">
-                        <div class="deal-tag">Budget Hero</div>
-                        <div class="deal-img">
-                            <img src="../../uploads/menu/pastil_rice.png" alt="Student Meals">
-                        </div>
-                        <div class="deal-body">
-                            <div class="deal-meta">Starting from <strong>PHP 30.00</strong></div>
-                            <h3>Student Rice Bowls</h3>
-                            <p>Big flavor, filling portions, and budget prices designed to fuel your busy study or work day.</p>
-                            <button type="button" class="deal-cta" data-category-jump="1">
-                                <span>Browse Student Meals</span> <i class="bi bi-arrow-right"></i>
-                            </button>
-                        </div>
-                    </article>
-
-                    <article class="deal-card deal-bilao featured-deal">
-                        <div class="deal-tag popular-tag">Crowd Favorite</div>
-                        <div class="deal-img">
-                            <img src="../../uploads/menu/pancit_canton.png" alt="Bilao Favorites">
-                        </div>
-                        <div class="deal-body">
-                            <div class="deal-meta">Sharing Trays & Platters</div>
-                            <h3>Barkada Bilao Feasts</h3>
-                            <p>Loaded pancit, savory meats, and generous pairings perfect for office parties and family gatherings.</p>
-                            <button type="button" class="deal-cta" data-category-jump="6">
-                                <span>View Bilao Trays</span> <i class="bi bi-arrow-right"></i>
-                            </button>
-                        </div>
-                    </article>
-
-                    <article class="deal-card deal-silog">
-                        <div class="deal-tag">All-Day Breakfast</div>
-                        <div class="deal-img">
-                            <img src="../../uploads/menu/pastilsilog.png" alt="Silog Meals">
-                        </div>
-                        <div class="deal-body">
-                            <div class="deal-meta">Classic Comfort Food</div>
-                            <h3>Signature Silog Combos</h3>
-                            <p>Savory meats paired with golden garlic rice and a fresh fried egg for the ultimate comfort meal.</p>
-                            <button type="button" class="deal-cta" data-category-jump="4">
-                                <span>Explore Silog Meals</span> <i class="bi bi-arrow-right"></i>
-                            </button>
-                        </div>
-                    </article>
-                </div>
-            </div>
-        </section>
-
-        <!-- Category Quick-Jump Section -->
-        <section class="category-strip-section reveal-on-scroll" id="categoriesSection">
-            <div class="section-container">
-                <div class="landing-section-head">
-                    <div>
-                        <span class="section-eyebrow"><i class="bi bi-grid-fill"></i> Menu Directory</span>
-                        <h2>Explore by Category</h2>
-                        <p>Select your craving below to jump straight to delicious meals.</p>
-                    </div>
-                </div>
-
-                <div class="category-shortcuts-grid">
-                    <button type="button" class="cat-shortcut-card" data-category-jump="1">
-                        <div class="cat-icon-circle"><i class="bi bi-mortarboard-fill"></i></div>
-                        <strong>Student Meals</strong>
-                        <span>From ₱30.00</span>
-                    </button>
-                    <button type="button" class="cat-shortcut-card" data-category-jump="4">
-                        <div class="cat-icon-circle"><i class="bi bi-egg-fried"></i></div>
-                        <strong>Silog Meals</strong>
-                        <span>Rice & Egg Combos</span>
-                    </button>
-                    <button type="button" class="cat-shortcut-card" data-category-jump="5">
-                        <div class="cat-icon-circle"><i class="bi bi-cup-hot-fill"></i></div>
-                        <strong>Silog Set Meals</strong>
-                        <span>Complete Sets</span>
-                    </button>
-                    <button type="button" class="cat-shortcut-card" data-category-jump="3">
-                        <div class="cat-icon-circle"><i class="bi bi-fire"></i></div>
-                        <strong>Pulutan & Pares</strong>
-                        <span>Sizzling & Savory</span>
-                    </button>
-                    <button type="button" class="cat-shortcut-card" data-category-jump="6">
-                        <div class="cat-icon-circle"><i class="bi bi-basket-fill"></i></div>
-                        <strong>Bilao Favorites</strong>
-                        <span>Sharing Trays</span>
-                    </button>
-                    <button type="button" class="cat-shortcut-card" data-category-jump="2">
-                        <div class="cat-icon-circle"><i class="bi bi-plus-circle-fill"></i></div>
-                        <strong>Add-Ons & Extras</strong>
-                        <span>Rice, Eggs & Sides</span>
-                    </button>
-                </div>
-            </div>
-        </section>
-
-        <!-- Value Propositions Grid -->
-        <section class="features-section reveal-on-scroll" id="featuresSection">
-            <div class="section-container">
-                <div class="landing-section-head text-center">
-                    <span class="section-eyebrow"><i class="bi bi-shield-check"></i> Why Order With Us</span>
-                    <h2>The Kenji's Kitchen Promise</h2>
-                    <p>We pride ourselves on taste, quality ingredients, and reliable service.</p>
-                </div>
-
-                <div class="features-grid">
-                    <div class="feature-card">
-                        <div class="feature-icon"><i class="bi bi-fire"></i></div>
-                        <h3>Cooked Fresh to Order</h3>
-                        <p>Never sitting under heat lamps. Every dish is seasoned and fired up fresh the moment your order arrives.</p>
-                    </div>
-                    <div class="feature-card">
-                        <div class="feature-icon"><i class="bi bi-stopwatch"></i></div>
-                        <h3>Fast Preparation & Dispatch</h3>
-                        <p>Our streamlined kitchen queuing ensures swift turnaround, keeping your wait times short and meals hot.</p>
-                    </div>
-                    <div class="feature-card">
-                        <div class="feature-icon"><i class="bi bi-qr-code-scan"></i></div>
-                        <h3>Cash & GCash Ready</h3>
-                        <p>Convenient, secure checkout with real-time GCash QR code payment reference and Cash on Delivery / Pickup.</p>
-                    </div>
-                    <div class="feature-card">
-                        <div class="feature-icon"><i class="bi bi-heart-fill"></i></div>
-                        <h3>Generous & Student-Friendly</h3>
-                        <p>Hearty Filipino comfort food with large portions, genuine flavors, and student-accessible pricing.</p>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Testimonials / Social Proof Section -->
-        <section class="testimonials-section reveal-on-scroll" id="testimonialsSection">
-            <div class="section-container">
-                <div class="landing-section-head text-center">
-                    <span class="section-eyebrow"><i class="bi bi-chat-heart-fill"></i> Customer Love</span>
-                    <h2>What Our Diners Are Saying</h2>
-                    <p>Join hundreds of satisfied students, families, and foodies in the neighborhood.</p>
-                </div>
-
-                <div class="testimonials-grid">
-                    <div class="testimonial-card">
-                        <div class="testi-stars">
-                            <i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i>
-                        </div>
-                        <p class="testi-quote">"The Pastilsilog and Burgersteak Rice are our go-to campus lunches! The sauce is rich, rice is freshly steamed, and it never fails to satisfy."</p>
-                        <div class="testi-author">
-                            <div class="author-avatar">RM</div>
-                            <div>
-                                <strong>Rico Morales</strong>
-                                <small>Campus Student</small>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="testimonial-card featured-testimonial">
-                        <div class="testi-stars">
-                            <i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i>
-                        </div>
-                        <p class="testi-quote">"Ordered the Bilao platter for a family get-together. The delivery was right on time, steaming hot, and portion sizes were more than generous!"</p>
-                        <div class="testi-author">
-                            <div class="author-avatar">MC</div>
-                            <div>
-                                <strong>Maria Claire Santos</strong>
-                                <small>Local Resident</small>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="testimonial-card">
-                        <div class="testi-stars">
-                            <i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i>
-                        </div>
-                        <p class="testi-quote">"Super smooth online ordering system! Placed my order, paid with GCash, and watched the tracking status. Ready in 20 minutes."</p>
-                        <div class="testi-author">
-                            <div class="author-avatar">DP</div>
-                            <div>
-                                <strong>Dante Pangilinan</strong>
-                                <small>Regular Customer</small>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
         <section class="order-shell" id="menuSection">
             <div class="menu-panel">
                 <div class="section-head">
@@ -525,73 +256,30 @@
         </section>
     </main>
 
-    <!-- Modern Customer Footer -->
+    <!-- Authentic Eatery Footer -->
     <footer class="customer-footer">
         <div class="footer-container">
-            <div class="footer-grid">
-                <div class="footer-col footer-brand-col">
-                    <div class="brand">
-                        <span class="brand-mark">K</span>
-                        <span>
-                            <strong>Kenji's Kitchen</strong>
-                            <small>Online Ordering & POS</small>
-                        </span>
-                    </div>
-                    <p class="footer-bio">
-                        Serving warm, handcrafted Filipino comfort food, savory rice meals, and signature bilao feasts made fresh daily.
-                    </p>
-                    <div class="footer-socials">
-                        <a href="#" aria-label="Facebook"><i class="bi bi-facebook"></i></a>
-                        <a href="#" aria-label="Instagram"><i class="bi bi-instagram"></i></a>
-                        <a href="#" aria-label="TikTok"><i class="bi bi-tiktok"></i></a>
+            <div class="footer-simple-inner">
+                <div class="footer-brand">
+                    <img src="../../assets/img/logo.jpg" alt="Kenji's Kitchen Logo" class="brand-logo-img">
+                    <div>
+                        <strong>Kenji's Kitchen</strong>
+                        <p>Comfort Food & Eatery</p>
                     </div>
                 </div>
-
-                <div class="footer-col">
-                    <h4>Quick Navigation</h4>
-                    <ul class="footer-links">
-                        <li><a href="#heroSection"><i class="bi bi-chevron-right"></i> Home</a></li>
-                        <li><a href="#dealsSection"><i class="bi bi-chevron-right"></i> Today's Specials</a></li>
-                        <li><a href="#categoriesSection"><i class="bi bi-chevron-right"></i> Categories</a></li>
-                        <li><a href="#menuSection"><i class="bi bi-chevron-right"></i> Full Menu</a></li>
-                        <li><a href="#trackingSection"><i class="bi bi-chevron-right"></i> Track Order</a></li>
-                    </ul>
-                </div>
-
-                <div class="footer-col">
-                    <h4>Operating Hours</h4>
-                    <div class="hours-card">
-                        <div class="hours-row">
-                            <span>Monday – Saturday</span>
-                            <strong>9:00 AM – 9:00 PM</strong>
-                        </div>
-                        <div class="hours-row">
-                            <span>Sunday</span>
-                            <strong>9:00 AM – 8:30 PM</strong>
-                        </div>
-                        <div class="hours-status">
-                            <span class="live-pulse-dot"></span>
-                            <span>Kitchen accepting online orders</span>
-                        </div>
+                <div class="footer-info">
+                    <div class="info-item">
+                        <i class="bi bi-clock-fill"></i>
+                        <span>Kitchen Hours: 9:00 AM – 9:00 PM</span>
+                    </div>
+                    <div class="info-item">
+                        <i class="bi bi-telephone-fill"></i>
+                        <a href="tel:09123456789">0912-345-6789</a>
                     </div>
                 </div>
-
-                <div class="footer-col">
-                    <h4>Store Location & Contact</h4>
-                    <p class="contact-line"><i class="bi bi-geo-alt-fill"></i> Kenji's Kitchen Main Branch</p>
-                    <p class="contact-line"><i class="bi bi-telephone-fill"></i> 0912-345-6789</p>
-                    <p class="contact-line"><i class="bi bi-envelope-fill"></i> orders@kenjis-kitchen.local</p>
-                    <div class="pickup-reminder">
-                        <i class="bi bi-info-circle-fill"></i> Store pickup orders can be claimed at Counter 1.
-                    </div>
+                <div class="footer-copy">
+                    <p>&copy; 2026 Kenji's Kitchen. All rights reserved.</p>
                 </div>
-            </div>
-
-            <div class="footer-bottom">
-                <p>&copy; 2026 Kenji's Kitchen. All rights reserved. Capstone Project.</p>
-                <a href="#heroSection" class="back-to-top" id="backToTopBtn">
-                    <i class="bi bi-arrow-up-short"></i> Back to Top
-                </a>
             </div>
         </div>
     </footer>
@@ -640,7 +328,7 @@
             <!-- Left Side: Branded Welcome Panel -->
             <div class="auth-banner" id="authBanner">
                 <div class="auth-brand-badge">
-                    <span>K</span>
+                    <img src="../../assets/img/logo.jpg" alt="Kenji's Kitchen Logo" class="auth-logo-img">
                 </div>
                 <h2 class="auth-banner-title" id="authBannerTitle">Hello, Welcome!</h2>
                 <p class="auth-banner-sub" id="authBannerSub">Don't have an account?</p>

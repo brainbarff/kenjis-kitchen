@@ -27,8 +27,7 @@ try {
         $sql = "SELECT m.id, m.category_id, c.category_name, m.item_name AS name, m.description, m.price, m.promo_price, m.promo_start, m.promo_end, m.image, m.availability, m.stock
                 FROM menu_items m
                 JOIN categories c ON c.id = m.category_id
-                WHERE m.is_archived = 0
-                  AND m.availability = 'Available'";
+                WHERE m.is_archived = 0";
         $params = [];
 
         if ($categoryId) {
@@ -58,7 +57,7 @@ try {
             if ($item['promo_price'] !== null && $item['promo_start'] !== null && $item['promo_end'] !== null && $today >= $item['promo_start'] && $today <= $item['promo_end']) {
                 $item['effective_price'] = $item['promo_price'];
             }
-            $item['is_available'] = $item['stock'] > 0 ? 1 : 0;
+            $item['is_available'] = ($item['stock'] > 0 && $item['availability'] === 'Available') ? 1 : 0;
             $imageName = basename((string)($item['image'] ?? ''));
             $item['image_url'] = $imageName !== '' ? BASE_URL . '/uploads/menu/' . rawurlencode($imageName) : $placeholder;
         }

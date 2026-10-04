@@ -217,12 +217,12 @@ try {
     $orderId = (int)$conn->lastInsertId();
 
     $itemStmt = $conn->prepare("INSERT INTO order_items (order_id, menu_item_id, item_name, quantity, price, notes) VALUES (?, ?, ?, ?, ?, ?)");
-    $stockStmt = $conn->prepare("UPDATE menu_items SET stock = stock - ? WHERE id = ? AND stock >= ? AND is_archived = 0 AND availability = 'Available'");
+    $stockStmt = $conn->prepare("UPDATE menu_items SET stock = stock - ?, availability = CASE WHEN stock - ? <= 0 THEN 'Unavailable' ELSE 'Available' END WHERE id = ? AND stock >= ? AND is_archived = 0 AND availability = 'Available'");
     $logStmt = $conn->prepare("INSERT INTO inventory_logs (inventory_id, menu_item_id, user_id, action, quantity, remarks) VALUES (NULL, ?, ?, 'Order Deduction', ?, ?)");
 
     foreach ($normalized as $item) {
         $itemStmt->execute([$orderId, $item['id'], $item['name'], $item['qty'], $item['price'], $item['notes']]);
-        $stockStmt->execute([$item['qty'], $item['id'], $item['qty']]);
+        $stockStmt->execute([$item['qty'], $item['qty'], $item['id'], $item['qty']]);
         if ($stockStmt->rowCount() !== 1) {
             throw new RuntimeException('Stock changed while placing your order. Please try again.');
         }
