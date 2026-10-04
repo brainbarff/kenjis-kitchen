@@ -2431,8 +2431,179 @@ main {
     }
 }
 
-.customer-account { margin-left: auto; display: flex; align-items: center; margin-right: 10px; }
-.account-btn { white-space: nowrap; }
+.customer-account {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-right: 10px;
+}
+
+.account-btn {
+    white-space: nowrap;
+}
+
+.user-greeting {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: #F8F9FA;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 8px 16px;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--dark);
+    max-width: 220px;
+}
+
+.user-greeting i {
+    font-size: 16px;
+    color: #8C6D1F;
+    flex-shrink: 0;
+}
+
+.user-greeting .user-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.logout-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #FFFFFF;
+    border: 1.5px solid #FCA5A5;
+    color: #DC2626;
+    border-radius: 999px;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.logout-btn:hover {
+    background: #FEE2E2;
+    border-color: #DC2626;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.15);
+}
+
+.logout-btn i {
+    font-size: 15px;
+}
+
+/* Email Verification Modal Elements */
+.verify-badge-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    margin-bottom: 8px;
+}
+
+.verify-badge-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: #FEF3C7;
+    color: #B45309;
+    display: grid;
+    place-items: center;
+    font-size: 24px;
+    margin-bottom: 10px;
+}
+
+.verify-instructions {
+    font-size: 13.5px;
+    color: #4B5563;
+    line-height: 1.5;
+    margin: 0;
+}
+
+.verify-instructions strong {
+    color: #111827;
+    word-break: break-all;
+}
+
+.verify-group {
+    justify-content: center;
+}
+
+.verify-code-input {
+    font-size: 26px !important;
+    font-weight: 800 !important;
+    letter-spacing: 12px !important;
+    text-align: center !important;
+    padding: 14px 16px !important;
+    font-family: monospace, -apple-system, BlinkMacSystemFont, sans-serif !important;
+    color: #111827 !important;
+}
+
+.resend-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12.5px;
+    color: #6B7280;
+    margin-top: 4px;
+}
+
+.resend-btn {
+    background: none;
+    border: 0;
+    color: #B45309;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 0;
+    text-decoration: underline;
+    font-size: 12.5px;
+    transition: color 0.2s;
+}
+
+.resend-btn:hover:not(:disabled) {
+    color: #92400E;
+}
+
+.resend-btn:disabled {
+    color: #9CA3AF;
+    cursor: not-allowed;
+    text-decoration: none;
+}
+
+.demo-code-pill {
+    background: #ECFDF5;
+    border: 1px solid #A7F3D0;
+    color: #065F46;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    text-align: center;
+    line-height: 1.4;
+}
+
+.back-to-reg-btn {
+    background: none;
+    border: 0;
+    color: #6B7280;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 0 0;
+    transition: color 0.2s;
+}
+
+.back-to-reg-btn:hover {
+    color: #111827;
+}
 /* ==========================================================================
    Coffee Realm Inspired Split Auth Card & Modal
    ========================================================================== */

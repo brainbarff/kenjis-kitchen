@@ -473,6 +473,43 @@
                         <i class="bi bi-person-badge"></i> Continue as Guest
                     </button>
                 </form>
+
+                <!-- Email Verification Code Form -->
+                <form id="verifyForm" class="auth-form" hidden>
+                    <div class="verify-badge-wrap">
+                        <div class="verify-badge-icon">
+                            <i class="bi bi-envelope-check-fill"></i>
+                        </div>
+                        <p class="verify-instructions">
+                            We sent a 6-digit verification code to<br>
+                            <strong id="verifyTargetEmail">your email</strong>
+                        </p>
+                    </div>
+
+                    <div class="auth-field">
+                        <label for="verificationCodeInput">Enter 6-Digit Code</label>
+                        <div class="auth-input-group verify-group">
+                            <input type="text" id="verificationCodeInput" class="verify-code-input" placeholder="------" maxlength="6" inputmode="numeric" autocomplete="one-time-code" required>
+                        </div>
+                    </div>
+
+                    <div class="resend-row">
+                        <span>Didn't receive code?</span>
+                        <button type="button" class="resend-btn" id="resendCodeBtn">Resend Code</button>
+                    </div>
+
+                    <div id="demoCodeNotice" class="demo-code-pill" hidden></div>
+
+                    <small class="field-error" id="verifyError"></small>
+
+                    <button class="primary-btn auth-submit-btn" type="submit" id="verifySubmitBtn">
+                        VERIFY & COMPLETE
+                    </button>
+
+                    <button type="button" class="back-to-reg-btn" id="backToRegBtn">
+                        <i class="bi bi-arrow-left"></i> Change registration details
+                    </button>
+                </form>
             </div>
         </section>
     </div>

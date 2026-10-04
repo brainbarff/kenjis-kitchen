@@ -188,6 +188,43 @@
                         <i class="bi bi-person-badge"></i> Continue as Guest
                     </a>
                 </form>
+
+                <!-- Email Verification Code Form -->
+                <form id="verifyForm" class="auth-form" hidden>
+                    <div class="verify-badge-wrap">
+                        <div class="verify-badge-icon">
+                            <i class="bi bi-envelope-check-fill"></i>
+                        </div>
+                        <p class="verify-instructions">
+                            We sent a 6-digit verification code to<br>
+                            <strong id="verifyTargetEmail">your email</strong>
+                        </p>
+                    </div>
+
+                    <div class="auth-field">
+                        <label for="verificationCodeInput">Enter 6-Digit Code</label>
+                        <div class="auth-input-group verify-group">
+                            <input type="text" id="verificationCodeInput" class="verify-code-input" placeholder="------" maxlength="6" inputmode="numeric" autocomplete="one-time-code" required>
+                        </div>
+                    </div>
+
+                    <div class="resend-row">
+                        <span>Didn't receive code?</span>
+                        <button type="button" class="resend-btn" id="resendCodeBtn">Resend Code</button>
+                    </div>
+
+                    <div id="demoCodeNotice" class="demo-code-pill" hidden></div>
+
+                    <small class="field-error" id="verifyError"></small>
+
+                    <button class="primary-btn auth-submit-btn" type="submit" id="verifySubmitBtn">
+                        VERIFY & COMPLETE
+                    </button>
+
+                    <button type="button" class="back-to-reg-btn" id="backToRegBtn">
+                        <i class="bi bi-arrow-left"></i> Change registration details
+                    </button>
+                </form>
             </div>
         </section>
     </div>
@@ -202,10 +239,44 @@
         const authFormTitle = document.getElementById('authFormTitle');
         const signInForm = document.getElementById('signInForm');
         const registerForm = document.getElementById('registerForm');
+        const verifyForm = document.getElementById('verifyForm');
+        const verificationCodeInput = document.getElementById('verificationCodeInput');
+        const resendCodeBtn = document.getElementById('resendCodeBtn');
+        const backToRegBtn = document.getElementById('backToRegBtn');
+        const verifyTargetEmail = document.getElementById('verifyTargetEmail');
+        const demoCodeNotice = document.getElementById('demoCodeNotice');
+        const verifyError = document.getElementById('verifyError');
+        const verifySubmitBtn = document.getElementById('verifySubmitBtn');
+
+        let resendTimer = null;
+        function startResendCooldown(seconds = 30) {
+            if (!resendCodeBtn) return;
+            clearInterval(resendTimer);
+            let remaining = seconds;
+            resendCodeBtn.disabled = true;
+            resendCodeBtn.textContent = `Resend Code (${remaining}s)`;
+
+            resendTimer = setInterval(() => {
+                remaining--;
+                if (remaining <= 0) {
+                    clearInterval(resendTimer);
+                    resendCodeBtn.disabled = false;
+                    resendCodeBtn.textContent = 'Resend Code';
+                } else {
+                    resendCodeBtn.textContent = `Resend Code (${remaining}s)`;
+                }
+            }, 1000);
+        }
 
         function setAuthMode(mode) {
             currentTab = mode;
             const isSignIn = mode === 'signin';
+            const isRegister = mode === 'register';
+            const isVerify = mode === 'verify';
+
+            if (authSwitchBtn) {
+                authSwitchBtn.style.display = isVerify ? 'none' : 'inline-block';
+            }
 
             if (isSignIn) {
                 authBannerTitle.textContent = 'Hello, Welcome!';
@@ -214,20 +285,37 @@
                 authFormTitle.textContent = 'Customer Login';
                 signInForm.hidden = false;
                 registerForm.hidden = true;
+                verifyForm.hidden = true;
                 document.getElementById('signInEmail')?.focus();
-            } else {
+            } else if (isRegister) {
                 authBannerTitle.textContent = 'Welcome Back!';
                 authBannerSub.textContent = 'Already have an account?';
                 authSwitchBtn.textContent = 'Sign In!';
                 authFormTitle.textContent = 'Create Account';
                 signInForm.hidden = true;
                 registerForm.hidden = false;
+                verifyForm.hidden = true;
                 document.getElementById('registerName')?.focus();
+            } else if (isVerify) {
+                authBannerTitle.textContent = 'Almost There!';
+                authBannerSub.textContent = 'Verify your email to continue';
+                authFormTitle.textContent = 'Email Verification';
+                signInForm.hidden = true;
+                registerForm.hidden = true;
+                verifyForm.hidden = false;
+                if (verificationCodeInput) {
+                    verificationCodeInput.value = '';
+                    setTimeout(() => verificationCodeInput.focus(), 150);
+                }
             }
         }
 
         authSwitchBtn.addEventListener('click', () => {
             setAuthMode(currentTab === 'signin' ? 'register' : 'signin');
+        });
+
+        backToRegBtn?.addEventListener('click', () => {
+            setAuthMode('register');
         });
 
         // Password visibility toggle
@@ -291,27 +379,29 @@
             }
         });
 
-        // Registration submission
+        // Registration submission (Step 1: Request Verification Code)
         registerForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const err = document.getElementById('registerError');
             err.textContent = '';
             const btn = document.getElementById('registerBtn');
             btn.disabled = true;
-            btn.textContent = 'CREATING ACCOUNT...';
+            btn.textContent = 'SENDING CODE...';
+
+            const payload = {
+                full_name: document.getElementById('registerName').value.trim(),
+                email: document.getElementById('registerEmail').value.trim(),
+                phone: document.getElementById('registerPhone').value.trim(),
+                address: document.getElementById('registerAddress').value.trim(),
+                password: document.getElementById('registerPassword').value
+            };
 
             try {
-                const res = await fetch(`${API_BASE}/auth.php?action=register`, {
+                const res = await fetch(`${API_BASE}/auth.php?action=send_verification_code`, {
                     method: 'POST',
                     credentials: 'same-origin',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        full_name: document.getElementById('registerName').value.trim(),
-                        email: document.getElementById('registerEmail').value.trim(),
-                        phone: document.getElementById('registerPhone').value.trim(),
-                        address: document.getElementById('registerAddress').value.trim(),
-                        password: document.getElementById('registerPassword').value
-                    })
+                    body: JSON.stringify(payload)
                 });
                 const data = await res.json().catch(() => ({ status: 'error', message: 'Invalid response from server.' }));
 
@@ -322,12 +412,93 @@
                     return;
                 }
 
-                // Successful registration -> Redirect back to ordering page
-                window.location.href = 'index.html';
+                // Switch to verification view
+                verifyTargetEmail.textContent = payload.email;
+                if (data.demo_code) {
+                    demoCodeNotice.hidden = false;
+                    demoCodeNotice.innerHTML = `<i class="bi bi-info-circle-fill"></i> Demo/Testing code: <strong>${data.demo_code}</strong>`;
+                } else {
+                    demoCodeNotice.hidden = true;
+                }
+                verifyError.textContent = '';
+
+                setAuthMode('verify');
+                startResendCooldown(30);
             } catch (error) {
                 err.textContent = 'Unable to connect to the authentication server.';
+            } finally {
                 btn.disabled = false;
                 btn.textContent = 'REGISTER';
+            }
+        });
+
+        // Step 2: Verify Code submission
+        verifyForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            verifyError.textContent = '';
+            const code = verificationCodeInput.value.trim();
+
+            if (!code || code.length !== 6) {
+                verifyError.textContent = 'Please enter the 6-digit verification code.';
+                return;
+            }
+
+            verifySubmitBtn.disabled = true;
+            verifySubmitBtn.textContent = 'VERIFYING...';
+
+            try {
+                const res = await fetch(`${API_BASE}/auth.php?action=verify_code`, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code })
+                });
+                const data = await res.json().catch(() => ({ status: 'error', message: 'Invalid response from server.' }));
+
+                if (data.status !== 'success') {
+                    verifyError.textContent = data.message || 'Verification failed.';
+                    verifySubmitBtn.disabled = false;
+                    verifySubmitBtn.textContent = 'VERIFY & COMPLETE';
+                    return;
+                }
+
+                alert(data.message || 'Account successfully created and verified!');
+                window.location.href = 'index.html';
+            } catch (error) {
+                verifyError.textContent = 'Unable to verify code with server.';
+                verifySubmitBtn.disabled = false;
+                verifySubmitBtn.textContent = 'VERIFY & COMPLETE';
+            }
+        });
+
+        // Resend Code handler
+        resendCodeBtn?.addEventListener('click', async () => {
+            resendCodeBtn.disabled = true;
+            verifyError.textContent = '';
+
+            try {
+                const res = await fetch(`${API_BASE}/auth.php?action=resend_code`, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await res.json().catch(() => ({ status: 'error', message: 'Invalid response from server.' }));
+
+                if (data.status !== 'success') {
+                    verifyError.textContent = data.message;
+                    resendCodeBtn.disabled = false;
+                    return;
+                }
+
+                if (data.demo_code) {
+                    demoCodeNotice.hidden = false;
+                    demoCodeNotice.innerHTML = `<i class="bi bi-info-circle-fill"></i> New code: <strong>${data.demo_code}</strong>`;
+                }
+
+                startResendCooldown(30);
+            } catch (error) {
+                verifyError.textContent = 'Failed to resend verification code.';
+                resendCodeBtn.disabled = false;
             }
         });
     </script>

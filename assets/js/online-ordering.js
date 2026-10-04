@@ -52,6 +52,14 @@ const authSwitchBtn = document.getElementById('authSwitchBtn');
 const authFormTitle = document.getElementById('authFormTitle');
 const signInForm = document.getElementById('signInForm');
 const registerForm = document.getElementById('registerForm');
+const verifyForm = document.getElementById('verifyForm');
+const verificationCodeInput = document.getElementById('verificationCodeInput');
+const resendCodeBtn = document.getElementById('resendCodeBtn');
+const backToRegBtn = document.getElementById('backToRegBtn');
+const verifyTargetEmail = document.getElementById('verifyTargetEmail');
+const demoCodeNotice = document.getElementById('demoCodeNotice');
+const verifyError = document.getElementById('verifyError');
+const verifySubmitBtn = document.getElementById('verifySubmitBtn');
 
 const historyGrid = document.getElementById('historyGrid');
 const guestNotice = document.getElementById('guestNotice');
@@ -360,28 +368,52 @@ function closeAuth() {
 
 function setAuthTab(tab) {
     const isSignIn = tab === 'signin';
-    if (authBannerTitle) authBannerTitle.textContent = isSignIn ? 'Hello, Welcome!' : 'Welcome Back!';
-    if (authBannerSub) authBannerSub.textContent = isSignIn ? "Don't have an account?" : 'Already have an account?';
-    if (authSwitchBtn) authSwitchBtn.textContent = isSignIn ? 'Register Now!' : 'Sign In!';
-    if (authFormTitle) authFormTitle.textContent = isSignIn ? 'Customer Login' : 'Create Account';
+    const isRegister = tab === 'register';
+    const isVerify = tab === 'verify';
 
-    if (signInForm) signInForm.hidden = !isSignIn;
-    if (registerForm) registerForm.hidden = isSignIn;
+    if (authSwitchBtn) {
+        authSwitchBtn.style.display = isVerify ? 'none' : 'inline-block';
+    }
 
     if (isSignIn) {
+        if (authBannerTitle) authBannerTitle.textContent = 'Hello, Welcome!';
+        if (authBannerSub) authBannerSub.textContent = "Don't have an account?";
+        if (authSwitchBtn) authSwitchBtn.textContent = 'Register Now!';
+        if (authFormTitle) authFormTitle.textContent = 'Customer Login';
+        if (signInForm) signInForm.hidden = false;
+        if (registerForm) registerForm.hidden = true;
+        if (verifyForm) verifyForm.hidden = true;
         document.getElementById('signInEmail')?.focus();
-    } else {
+    } else if (isRegister) {
+        if (authBannerTitle) authBannerTitle.textContent = 'Welcome Back!';
+        if (authBannerSub) authBannerSub.textContent = 'Already have an account?';
+        if (authSwitchBtn) authSwitchBtn.textContent = 'Sign In!';
+        if (authFormTitle) authFormTitle.textContent = 'Create Account';
+        if (signInForm) signInForm.hidden = true;
+        if (registerForm) registerForm.hidden = false;
+        if (verifyForm) verifyForm.hidden = true;
         document.getElementById('registerName')?.focus();
+    } else if (isVerify) {
+        if (authBannerTitle) authBannerTitle.textContent = 'Almost There!';
+        if (authBannerSub) authBannerSub.textContent = 'Verify your email to continue';
+        if (authFormTitle) authFormTitle.textContent = 'Email Verification';
+        if (signInForm) signInForm.hidden = true;
+        if (registerForm) registerForm.hidden = true;
+        if (verifyForm) verifyForm.hidden = false;
+        if (verificationCodeInput) {
+            verificationCodeInput.value = '';
+            setTimeout(() => verificationCodeInput.focus(), 150);
+        }
     }
 }
 
 function setAccountUI() {
-    const btn = document.getElementById('accountBtn');
+    const container = document.getElementById('customerAccount');
+    if (!container) return;
+
     if (!state.user) {
-        if (btn) {
-            btn.textContent = 'Sign In';
-            btn.onclick = () => openAuth('signin');
-        }
+        container.innerHTML = `<button class="secondary-btn account-btn" id="accountBtn" type="button">Sign In</button>`;
+        document.getElementById('accountBtn')?.addEventListener('click', () => openAuth('signin'));
 
         // Guest Notice in Checkout
         if (guestNoticeText) {
@@ -393,19 +425,27 @@ function setAccountUI() {
         return;
     }
 
-    // Logged-in State
-    if (btn) {
-        btn.textContent = state.user.full_name;
-        btn.onclick = async () => {
-            if (!confirm(`Log out from customer account "${state.user.full_name}"?`)) return;
-            await apiFetch(`${API_BASE}/auth.php?action=logout`);
-            state.user = null;
-            state.latestOrder = null;
-            setAccountUI();
-            renderTracking(null);
-            renderHistory([]);
-        };
-    }
+    // Logged-in State: Show User Greeting + Dedicated Log Out Button
+    container.innerHTML = `
+        <div class="user-greeting" title="Signed in as ${escapeHtml(state.user.full_name)}">
+            <i class="bi bi-person-circle"></i>
+            <span class="user-name">${escapeHtml(state.user.full_name)}</span>
+        </div>
+        <button class="logout-btn" id="logoutBtn" type="button" aria-label="Log Out" title="Log out from account">
+            <i class="bi bi-box-arrow-right"></i>
+            <span>Log Out</span>
+        </button>
+    `;
+
+    document.getElementById('logoutBtn')?.addEventListener('click', async () => {
+        if (!confirm(`Are you sure you want to log out, ${state.user.full_name}?`)) return;
+        await apiFetch(`${API_BASE}/auth.php?action=logout`);
+        state.user = null;
+        state.latestOrder = null;
+        setAccountUI();
+        renderTracking(null);
+        renderHistory([]);
+    });
 
     if (guestNoticeText) {
         guestNoticeText.innerHTML = `<i class="bi bi-person-check-fill"></i> Logged in as <strong>${escapeHtml(state.user.full_name)}</strong> (${escapeHtml(state.user.email || state.user.phone)}).`;
@@ -737,34 +777,154 @@ async function handleSignIn(event) {
     pollLatestOrder();
 }
 
+let resendTimer = null;
+function startResendCooldown(seconds = 30) {
+    if (!resendCodeBtn) return;
+    clearInterval(resendTimer);
+    let remaining = seconds;
+    resendCodeBtn.disabled = true;
+    resendCodeBtn.textContent = `Resend Code (${remaining}s)`;
+
+    resendTimer = setInterval(() => {
+        remaining--;
+        if (remaining <= 0) {
+            clearInterval(resendTimer);
+            resendCodeBtn.disabled = false;
+            resendCodeBtn.textContent = 'Resend Code';
+        } else {
+            resendCodeBtn.textContent = `Resend Code (${remaining}s)`;
+        }
+    }, 1000);
+}
+
 async function handleRegister(event) {
     event.preventDefault();
     const error = document.getElementById('registerError');
     if (error) error.textContent = '';
 
-    const result = await apiFetch(`${API_BASE}/auth.php?action=register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            full_name: document.getElementById('registerName').value.trim(),
-            email: document.getElementById('registerEmail').value.trim(),
-            phone: document.getElementById('registerPhone').value.trim(),
-            address: document.getElementById('registerAddress').value.trim(),
-            password: document.getElementById('registerPassword').value
-        })
-    });
+    const registerSubmitBtn = registerForm?.querySelector('button[type="submit"]');
+    const originalBtnText = registerSubmitBtn ? registerSubmitBtn.textContent : 'REGISTER';
+    if (registerSubmitBtn) {
+        registerSubmitBtn.disabled = true;
+        registerSubmitBtn.textContent = 'SENDING CODE...';
+    }
 
-    if (result.status !== 'success') {
-        if (error) error.textContent = result.message;
+    const payload = {
+        full_name: document.getElementById('registerName').value.trim(),
+        email: document.getElementById('registerEmail').value.trim(),
+        phone: document.getElementById('registerPhone').value.trim(),
+        address: document.getElementById('registerAddress').value.trim(),
+        password: document.getElementById('registerPassword').value
+    };
+
+    try {
+        const result = await apiFetch(`${API_BASE}/auth.php?action=send_verification_code`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (result.status !== 'success') {
+            if (error) error.textContent = result.message || 'Registration failed.';
+            return;
+        }
+
+        // Successfully sent verification code -> switch to verify step
+        if (verifyTargetEmail) {
+            verifyTargetEmail.textContent = payload.email;
+        }
+        if (demoCodeNotice) {
+            if (result.demo_code) {
+                demoCodeNotice.hidden = false;
+                demoCodeNotice.innerHTML = `<i class="bi bi-info-circle-fill"></i> Demo/Testing code: <strong>${result.demo_code}</strong>`;
+            } else {
+                demoCodeNotice.hidden = true;
+            }
+        }
+        if (verifyError) verifyError.textContent = '';
+
+        setAuthTab('verify');
+        startResendCooldown(30);
+    } catch (err) {
+        if (error) error.textContent = err.message || 'Unable to connect to authentication server.';
+    } finally {
+        if (registerSubmitBtn) {
+            registerSubmitBtn.disabled = false;
+            registerSubmitBtn.textContent = originalBtnText;
+        }
+    }
+}
+
+async function handleVerify(event) {
+    event.preventDefault();
+    if (verifyError) verifyError.textContent = '';
+
+    const code = verificationCodeInput ? verificationCodeInput.value.trim() : '';
+    if (!code || code.length !== 6) {
+        if (verifyError) verifyError.textContent = 'Please enter the complete 6-digit verification code.';
         return;
     }
 
-    state.user = result.user;
-    setAccountUI();
-    closeAuth();
-    fillCustomerDetails();
-    await loadHistory();
-    pollLatestOrder();
+    if (verifySubmitBtn) {
+        verifySubmitBtn.disabled = true;
+        verifySubmitBtn.textContent = 'VERIFYING...';
+    }
+
+    try {
+        const result = await apiFetch(`${API_BASE}/auth.php?action=verify_code`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code })
+        });
+
+        if (result.status !== 'success') {
+            if (verifyError) verifyError.textContent = result.message || 'Verification failed.';
+            return;
+        }
+
+        state.user = result.user;
+        setAccountUI();
+        closeAuth();
+        fillCustomerDetails();
+        await loadHistory();
+        pollLatestOrder();
+        alert(result.message || 'Email verified successfully! Welcome to Kenji\'s Kitchen.');
+    } catch (err) {
+        if (verifyError) verifyError.textContent = err.message || 'Verification failed.';
+    } finally {
+        if (verifySubmitBtn) {
+            verifySubmitBtn.disabled = false;
+            verifySubmitBtn.textContent = 'VERIFY & COMPLETE';
+        }
+    }
+}
+
+async function handleResendCode() {
+    if (resendCodeBtn) resendCodeBtn.disabled = true;
+    if (verifyError) verifyError.textContent = '';
+
+    try {
+        const result = await apiFetch(`${API_BASE}/auth.php?action=resend_code`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+
+        if (result.status !== 'success') {
+            if (verifyError) verifyError.textContent = result.message;
+            if (resendCodeBtn) resendCodeBtn.disabled = false;
+            return;
+        }
+
+        if (demoCodeNotice && result.demo_code) {
+            demoCodeNotice.hidden = false;
+            demoCodeNotice.innerHTML = `<i class="bi bi-info-circle-fill"></i> New code: <strong>${result.demo_code}</strong>`;
+        }
+
+        startResendCooldown(30);
+    } catch (err) {
+        if (verifyError) verifyError.textContent = err.message || 'Failed to resend verification code.';
+        if (resendCodeBtn) resendCodeBtn.disabled = false;
+    }
 }
 
 function setStep(step) {
@@ -977,6 +1137,9 @@ function setupEventListeners() {
     document.getElementById('closeAuth')?.addEventListener('click', closeAuth);
     document.getElementById('signInForm')?.addEventListener('submit', handleSignIn);
     document.getElementById('registerForm')?.addEventListener('submit', handleRegister);
+    document.getElementById('verifyForm')?.addEventListener('submit', handleVerify);
+    document.getElementById('resendCodeBtn')?.addEventListener('click', handleResendCode);
+    document.getElementById('backToRegBtn')?.addEventListener('click', () => setAuthTab('register'));
 
     // 10. Fulfillment & Payment Method Switches
     document.querySelectorAll('[name="fulfillment"]').forEach(input => input.addEventListener('change', () => {
