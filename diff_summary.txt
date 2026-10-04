@@ -1,0 +1,82 @@
+================================================================================
+KENJI'S KITCHEN: CODEBASE MERGE & DIFFERENCE ANALYSIS (v1 vs v2 -> v1.1.0)
+================================================================================
+
+1. EXECUTIVE OVERVIEW
+---------------------
+Two main versions of the Kenji's Kitchen Multi-Role Restaurant Management System
+were analyzed and reconciled:
+- File A (Base / Existing Code - "kenjis - kitchen v1"):
+  Featured a native Node.js WebSocket engine (realtime/server.js, port 8787)
+  with HMAC-SHA256 JWT tokens for cashier cart monitoring and active order
+  broadcasting, multi-channel seed data, and early Module 8 online ordering UI.
+- File B (New / Updated Code - "kenjis - kitchen v2"):
+  Refined database architecture centered strictly around `menu_items.stock` as
+  the single operational truth, Admin Approvals dual-control workflow for
+  inventory (Stock In, Stock Out, Adjustment, Archive, Unarchive), extensive POS
+  enhancements with Bilao variants, and improved KDS tickets.
+
+2. UNIQUE MODULES & ENDPOINTS
+-----------------------------
+Present in v1, missing in v2:
+- realtime/server.js (Node.js WebSocket streaming server for live cashier carts
+  and internal webhook publishing).
+- includes/realtime.php (PHP JWT generator & cURL publisher to Node.js service).
+- assets/js/admin-monitor.js (Live Admin Dashboard cashier cart listener).
+- pages/online-ordering.php (Dedicated customer online ordering landing page).
+- modules/online/api/orders.php multipart proof image upload handlers.
+
+Present in v2, missing in v1:
+- modules/approvals/index.php (Admin approval queue for Inventory Staff changes).
+- approval_requests table in database.
+- modules/pos/fetch_online_orders.php (Cashier interface for incoming online orders).
+- modules/reports/complete_online_payment.php (POS completion for pending online orders).
+- Direct `menu_items.stock` whole-number inventory deduction logic.
+
+3. CONFLICTING LOGIC & OVERWRITTEN FEATURES RESOLUTION
+------------------------------------------------------
+a) Operational Inventory Architecture:
+   - Conflict: v1 online ordering attempted to deduct stock from `inventory` and
+     `menu_ingredients` recipe tables, which failed for items without recipe records
+     and conflicted with POS deductions.
+   - Resolution: Standardized on `menu_items.stock` as mandated by v2 architecture.
+     Pre-checkout stock checks and atomic SQL deductions guarantee concurrency safety:
+     "UPDATE menu_items SET stock = stock - ? WHERE id = ? AND stock >= ?".
+
+b) Soft-Archiving vs. Hard Deletes:
+   - Conflict: `modules/users/index.php` in v2 contained an active "DELETE FROM users"
+     query on line 42 when user deletion was requested.
+   - Resolution: Eliminated all DELETE queries. Replaced with soft-archiving:
+     "UPDATE users SET status = 'Inactive' WHERE id = ?".
+     All menu archiving utilizes `is_archived = 1` and `availability = 'Unavailable'`,
+     preserving foreign keys in receipts, order_items, and inventory_logs.
+
+c) Order Status Synchronization:
+   - Conflict: v2 KDS status transitions ('Pending' -> 'Preparing' -> 'Ready') updated
+     the database but did not trigger push notifications.
+   - Resolution: Status updates in KDS (`update_status.php`) now publish WebSocket events
+     (`kitchen:status_change`), which immediately broadcast to Cashier POS and Admin panels.
+
+d) Customer Special Instructions (Item Notes):
+   - Conflict: v1 and early v2 lacked persistent item-level notes in the database schema.
+   - Resolution: Added `notes VARCHAR(255)` column to `order_items` table. Integrated
+     special instructions textareas into the mobile menu modal, checkout summary, Cashier
+     POS ticket, and Kitchen Display System.
+
+4. DELIVERABLE SPECIFICATIONS (v1.1.0)
+--------------------------------------
+- CHANGELOG.md: Full release notes for v1.1.0.
+- diff_summary.txt: This difference analysis document.
+- schema.sql: Consolidated database schema with `is_archived`, seed data for Drinks
+  (Coca-Cola, Sprite, Royal, Mountain Dew, Bottled Soda @ ₱20, stock: 50), and `notes`
+  column in `order_items`.
+- .env.example: Environment configuration with EMAIL_USER=erikadainstambo2@gmail.com,
+  database parameters, and JWT secret.
+- otpService.js: Production-grade Nodemailer 6-digit OTP service with 5-minute TTL,
+  attempt rate-limiting, and cooldown protection.
+- server.js: Express REST API & WebSocket server handling menu management, soft delete,
+  atomic order processing, real-time stock sync, and OTP authentication.
+- styles.css: Mobile-first Foodpanda-style stylesheet with sticky search header,
+  category pills, responsive 2-column food cards, floating checkout cart, and >=48px touch targets.
+- app.js: Unified frontend client script powering the Foodpanda-style interface.
+================================================================================

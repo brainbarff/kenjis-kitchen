@@ -1,0 +1,14 @@
+node_modules/
+functions/node_modules/
+public-ordering/
+public-admin/
+.env
+.env.*
+!.env.example
+!.env.firebase.example
+*.log
+firebase-debug.log
+firestore-debug.log
+.firebase/
+service-account*.json
+*-service-account*.json
