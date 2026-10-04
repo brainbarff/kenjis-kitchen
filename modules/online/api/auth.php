@@ -114,25 +114,33 @@ if ($action === 'register') {
 }
 
 if ($action === 'login') {
-    $email = strtolower(trim((string)($data['email'] ?? '')));
+    $identifier = trim((string)($data['email'] ?? $data['username'] ?? ''));
     $password = (string)($data['password'] ?? '');
 
-    if (!filter_var($email, FILTER_VALIDATE_EMAIL) || $password === '') {
-        online_json(['status' => 'error', 'message' => 'Enter your email address and password.'], 400);
+    if ($identifier === '' || $password === '') {
+        online_json(['status' => 'error', 'message' => 'Enter your email, username, or phone number and password.'], 400);
     }
 
-    $stmt = $conn->prepare("SELECT u.id, u.full_name, u.email, u.phone, u.customer_address, u.password, u.status, r.role_name FROM users u JOIN roles r ON r.id = u.role_id WHERE (LOWER(u.email) = ? OR LOWER(u.username) = ?) LIMIT 1");
-    $stmt->execute([$email, $email]);
+    $cleanPhone = preg_replace('/[^0-9]/', '', $identifier);
+
+    $stmt = $conn->prepare("
+        SELECT u.id, u.full_name, u.email, u.phone, u.customer_address, u.password, u.status, r.role_name 
+        FROM users u 
+        JOIN roles r ON r.id = u.role_id 
+        WHERE (LOWER(u.email) = ? OR LOWER(u.username) = ? OR (? != '' AND u.phone = ?)) 
+        LIMIT 1
+    ");
+    $stmt->execute([strtolower($identifier), strtolower($identifier), $cleanPhone, $cleanPhone]);
     $user = $stmt->fetch();
 
     if (!$user || $user['role_name'] !== 'Customer (Online)') {
-        online_json(['status' => 'error', 'message' => 'Online customer account not found.'], 404);
+        online_json(['status' => 'error', 'message' => 'Customer account not found. Please check your credentials or register.'], 404);
     }
     if ($user['status'] !== 'Active') {
-        online_json(['status' => 'error', 'message' => 'This account is inactive.'], 403);
+        online_json(['status' => 'error', 'message' => 'This account is inactive. Please contact store staff.'], 403);
     }
     if (!password_verify($password, $user['password'])) {
-        online_json(['status' => 'error', 'message' => 'Invalid email or password.'], 401);
+        online_json(['status' => 'error', 'message' => 'Incorrect password. Please try again.'], 401);
     }
 
     session_regenerate_id(true);

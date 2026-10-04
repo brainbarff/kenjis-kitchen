@@ -382,12 +382,6 @@
 
                 <div class="cart-items" id="cartItems"></div>
 
-                <!-- Upsell Add-ons in Cart -->
-                <div class="cart-upsell-section" id="cartUpsellSection">
-                    <div class="upsell-title"><i class="bi bi-stars"></i> Popular Add-ons</div>
-                    <div class="upsell-items" id="upsellItems"></div>
-                </div>
-
                 <div class="cost-card">
                     <div><span>Subtotal</span><strong id="subtotalText">PHP 0.00</strong></div>
                     <div><span>Tax</span><strong id="taxText">Tax-Free</strong></div>
@@ -602,9 +596,10 @@
         </div>
     </footer>
 
+    <!-- Simple Eatery Item Modal -->
     <div class="modal-backdrop" id="itemModal" hidden>
-        <section class="item-modal">
-            <button class="icon-btn modal-close" id="closeModal" aria-label="Close item modal"><i class="bi bi-x-lg"></i></button>
+        <section class="item-modal eatery-modal">
+            <button class="icon-btn modal-close" id="closeModal" aria-label="Close modal"><i class="bi bi-x-lg"></i></button>
             <div class="modal-img-wrap">
                 <img id="modalImage" alt="">
             </div>
@@ -616,25 +611,10 @@
                 <h2 id="modalTitle"></h2>
                 <p id="modalDescription"></p>
 
-                <fieldset id="portionFieldset">
-                    <legend><i class="bi bi-aspect-ratio"></i> Portion Size</legend>
-                    <div class="option-list" id="portionOptions"></div>
-                </fieldset>
-
-                <fieldset id="riceFieldset">
-                    <legend><i class="bi bi-bowl"></i> Rice Selection</legend>
-                    <div class="option-list" id="riceOptions"></div>
-                </fieldset>
-
-                <fieldset id="extraFieldset">
-                    <legend><i class="bi bi-plus-circle"></i> Add-ons & Extras</legend>
-                    <div class="option-list" id="extraOptions"></div>
-                </fieldset>
-
                 <div class="modal-notes-wrap">
                     <label>
-                        <span><i class="bi bi-chat-left-text"></i> Special Cooking Instructions <small>(Optional)</small></span>
-                        <textarea id="modalSpecialNotes" placeholder="e.g. Gravy on the side, separate chili, egg well-done..." maxlength="200"></textarea>
+                        <span><i class="bi bi-chat-left-text"></i> Special Cooking Note <small>(Optional)</small></span>
+                        <input type="text" id="modalSpecialNotes" placeholder="e.g. Less spicy, egg well-done, separate sauce..." maxlength="120">
                     </label>
                 </div>
 
@@ -645,75 +625,128 @@
                         <button id="modalPlus" type="button" aria-label="Increase quantity">+</button>
                     </div>
                     <button class="primary-btn" id="addToCartBtn">
-                        <i class="bi bi-bag-plus"></i> Add to Order - <span id="modalPrice">PHP 0.00</span>
+                        <i class="bi bi-plus-lg"></i> Add to Order &bull; <span id="modalPrice">PHP 0.00</span>
                     </button>
                 </div>
             </div>
         </section>
     </div>
 
+    <!-- Modern Split Auth Modal (Coffee Realm Inspired) -->
     <div class="modal-backdrop" id="authModal" hidden>
-        <section class="auth-modal">
+        <section class="auth-modal split-auth-card">
             <button class="icon-btn modal-close" id="closeAuth" type="button" aria-label="Close"><i class="bi bi-x-lg"></i></button>
-            <div class="modal-body">
-                <span class="badge">Customer Account</span>
-                <h2 id="authTitle">Sign In</h2>
-                <p id="authSubtitle">Sign in to track orders, save delivery addresses, and enjoy faster checkout.</p>
+            
+            <!-- Left Side: Branded Welcome Panel -->
+            <div class="auth-banner" id="authBanner">
+                <div class="auth-brand-badge">
+                    <span>K</span>
+                </div>
+                <h2 class="auth-banner-title" id="authBannerTitle">Hello, Welcome!</h2>
+                <p class="auth-banner-sub" id="authBannerSub">Don't have an account?</p>
+                <button type="button" class="auth-switch-btn" id="authSwitchBtn">Register Now!</button>
+            </div>
 
-                <div class="auth-tabs">
-                    <button type="button" class="auth-tab active" id="signInTab">Sign In</button>
-                    <button type="button" class="auth-tab" id="registerTab">Register</button>
+            <!-- Right Side: Clean Form Panel -->
+            <div class="auth-form-wrap">
+                <div class="auth-form-header">
+                    <h2 id="authFormTitle">Customer Login</h2>
+                    <div class="auth-title-line"></div>
                 </div>
 
+                <!-- Sign In Form -->
                 <form id="signInForm" class="auth-form">
-                    <label>
-                        <span>Email Address</span>
-                        <input type="email" id="signInEmail" placeholder="you@example.com" required>
-                    </label>
-                    <label>
-                        <span>Password</span>
-                        <div class="password-box">
-                            <input type="password" id="signInPassword" placeholder="Enter your password" required>
-                            <button type="button" class="toggle-password" data-target="signInPassword" aria-label="Show password">
+                    <div class="auth-field">
+                        <label for="signInEmail">Username, Email, or Phone</label>
+                        <div class="auth-input-group">
+                            <i class="bi bi-person auth-input-icon"></i>
+                            <input type="text" id="signInEmail" placeholder="Enter username, email, or phone" required autocomplete="username">
+                        </div>
+                    </div>
+
+                    <div class="auth-field">
+                        <div class="field-header">
+                            <label for="signInPassword">Password</label>
+                            <a href="#" class="forgot-link" id="forgotPwdLink">Forgot Password?</a>
+                        </div>
+                        <div class="auth-input-group">
+                            <i class="bi bi-lock auth-input-icon"></i>
+                            <input type="password" id="signInPassword" placeholder="Enter your password" required autocomplete="current-password">
+                            <button type="button" class="toggle-password" data-target="signInPassword" aria-label="Toggle password visibility">
                                 <i class="bi bi-eye"></i>
                             </button>
                         </div>
-                    </label>
+                    </div>
+
                     <small class="field-error" id="signInError"></small>
-                    <button class="primary-btn" type="submit"><i class="bi bi-box-arrow-in-right"></i> Sign In</button>
+
+                    <button class="primary-btn auth-submit-btn" type="submit">LOGIN</button>
+
+                    <div class="auth-divider">
+                        <span>OR</span>
+                    </div>
+
                     <button type="button" class="guest-skip-btn" id="guestAuthSkipBtn">
-                        <i class="bi bi-person"></i> Continue as Guest
+                        <i class="bi bi-person-badge"></i> Continue as Guest
                     </button>
                 </form>
 
+                <!-- Register Form -->
                 <form id="registerForm" class="auth-form" hidden>
-                    <label>
-                        <span>Full Name</span>
-                        <input type="text" id="registerName" placeholder="Juan Dela Cruz" required>
-                    </label>
-                    <label>
-                        <span>Email Address</span>
-                        <input type="email" id="registerEmail" placeholder="you@example.com" required>
-                    </label>
-                    <label>
-                        <span>Phone Number</span>
-                        <input type="tel" id="registerPhone" placeholder="09XXXXXXXXX" maxlength="11" required>
-                    </label>
-                    <label>
-                        <span>Default Delivery Address <small>(Optional)</small></span>
-                        <textarea id="registerAddress" placeholder="Street, barangay, city, landmarks"></textarea>
-                    </label>
-                    <label>
-                        <span>Password</span>
-                        <div class="password-box">
-                            <input type="password" id="registerPassword" minlength="6" placeholder="At least 6 characters" required>
-                            <button type="button" class="toggle-password" data-target="registerPassword" aria-label="Show password">
+                    <div class="auth-field">
+                        <label for="registerName">Full Name</label>
+                        <div class="auth-input-group">
+                            <i class="bi bi-person auth-input-icon"></i>
+                            <input type="text" id="registerName" placeholder="Juan Dela Cruz" required autocomplete="name">
+                        </div>
+                    </div>
+
+                    <div class="auth-field">
+                        <label for="registerEmail">Email Address</label>
+                        <div class="auth-input-group">
+                            <i class="bi bi-envelope auth-input-icon"></i>
+                            <input type="email" id="registerEmail" placeholder="juan@example.com" required autocomplete="email">
+                        </div>
+                    </div>
+
+                    <div class="auth-field">
+                        <label for="registerPhone">Phone Number</label>
+                        <div class="auth-input-group">
+                            <i class="bi bi-telephone auth-input-icon"></i>
+                            <input type="tel" id="registerPhone" placeholder="09XXXXXXXXX" maxlength="11" required autocomplete="tel">
+                        </div>
+                    </div>
+
+                    <div class="auth-field">
+                        <label for="registerPassword">Password</label>
+                        <div class="auth-input-group">
+                            <i class="bi bi-lock auth-input-icon"></i>
+                            <input type="password" id="registerPassword" minlength="6" placeholder="At least 6 characters" required autocomplete="new-password">
+                            <button type="button" class="toggle-password" data-target="registerPassword" aria-label="Toggle password visibility">
                                 <i class="bi bi-eye"></i>
                             </button>
                         </div>
-                    </label>
+                    </div>
+
+                    <div class="auth-field">
+                        <label for="registerAddress">Delivery Address <small>(Optional)</small></label>
+                        <div class="auth-input-group textarea-group">
+                            <i class="bi bi-geo-alt auth-input-icon"></i>
+                            <textarea id="registerAddress" placeholder="Street, barangay, landmarks" rows="2"></textarea>
+                        </div>
+                    </div>
+
                     <small class="field-error" id="registerError"></small>
-                    <button class="primary-btn" type="submit"><i class="bi bi-person-plus-fill"></i> Create Account</button>
+
+                    <button class="primary-btn auth-submit-btn" type="submit">REGISTER</button>
+
+                    <div class="auth-divider">
+                        <span>OR</span>
+                    </div>
+
+                    <button type="button" class="guest-skip-btn" id="guestAuthSkipBtn2">
+                        <i class="bi bi-person-badge"></i> Continue as Guest
+                    </button>
                 </form>
             </div>
         </section>

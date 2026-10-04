@@ -29,7 +29,6 @@ const cartBadge = document.getElementById('cartBadge');
 const cartCountText = document.getElementById('cartCountText');
 const deliveryProgressText = document.getElementById('deliveryProgressText');
 const deliveryProgressFill = document.getElementById('deliveryProgressFill');
-const upsellItems = document.getElementById('upsellItems');
 const subtotalText = document.getElementById('subtotalText');
 const deliveryText = document.getElementById('deliveryText');
 const totalText = document.getElementById('totalText');
@@ -41,15 +40,19 @@ const modalCategory = document.getElementById('modalCategory');
 const modalStockPill = document.getElementById('modalStockPill');
 const modalTitle = document.getElementById('modalTitle');
 const modalDescription = document.getElementById('modalDescription');
-const portionOptions = document.getElementById('portionOptions');
-const riceOptions = document.getElementById('riceOptions');
-const extraOptions = document.getElementById('extraOptions');
 const modalSpecialNotes = document.getElementById('modalSpecialNotes');
 const modalQty = document.getElementById('modalQty');
 const modalPrice = document.getElementById('modalPrice');
 
 // Auth & Checkout Elements
 const authModal = document.getElementById('authModal');
+const authBannerTitle = document.getElementById('authBannerTitle');
+const authBannerSub = document.getElementById('authBannerSub');
+const authSwitchBtn = document.getElementById('authSwitchBtn');
+const authFormTitle = document.getElementById('authFormTitle');
+const signInForm = document.getElementById('signInForm');
+const registerForm = document.getElementById('registerForm');
+
 const historyGrid = document.getElementById('historyGrid');
 const guestNotice = document.getElementById('guestNotice');
 const guestNoticeText = document.getElementById('guestNoticeText');
@@ -116,7 +119,6 @@ function handleCartToggle() {
 function cartTotals() {
     const subtotal = state.cart.reduce((sum, item) => sum + Number(item.unitPrice) * Number(item.qty), 0);
     const fulfillment = document.querySelector('[name="fulfillment"]:checked')?.value || 'Delivery';
-    // Free delivery threshold: PHP 500. Under 500, delivery is PHP 45. Pickup is free.
     const isPickup = fulfillment === 'Pickup';
     const isFreeDelivery = isPickup || subtotal >= 500;
     const delivery = (!isPickup && subtotal > 0 && subtotal < 500) ? 45 : 0;
@@ -151,38 +153,6 @@ function updateFreeDeliveryProgress(totals) {
     }
 }
 
-function renderUpsellRecommendations() {
-    if (!upsellItems) return;
-
-    // Filter available add-ons and side dishes
-    const currentCartIds = new Set(state.cart.map(i => Number(i.id)));
-    const upsellCandidates = state.items.filter(item => {
-        const isAvail = Number(item.stock) > 0 && Number(item.is_available) === 1;
-        // Prefer extras (category 2), beverages, or budget sides
-        const isTarget = Number(item.category_id) === 2 || currentUnitPrice(item) <= 45;
-        return isAvail && isTarget && !currentCartIds.has(Number(item.id));
-    }).slice(0, 4);
-
-    if (!upsellCandidates.length) {
-        const fallback = state.items.filter(item => Number(item.stock) > 0 && Number(item.is_available) === 1).slice(0, 3);
-        upsellItems.innerHTML = fallback.map(renderUpsellChip).join('');
-        return;
-    }
-
-    upsellItems.innerHTML = upsellCandidates.map(renderUpsellChip).join('');
-}
-
-function renderUpsellChip(item) {
-    const price = currentUnitPrice(item);
-    return `
-        <div class="upsell-chip">
-            <img src="${escapeHtml(item.image_url)}" alt="${escapeHtml(item.name)}">
-            <strong>${escapeHtml(item.name)}</strong>
-            <span>${money.format(price)}</span>
-            <button type="button" class="upsell-add-btn" data-upsell-id="${item.id}">+ Add</button>
-        </div>`;
-}
-
 function renderCart() {
     saveCart();
     const itemCount = state.cart.reduce((sum, item) => sum + Number(item.qty), 0);
@@ -194,21 +164,17 @@ function renderCart() {
             <div class="cart-empty">
                 <i class="bi bi-bag"></i>
                 <strong>Your cart is empty.</strong>
-                <span>Add a meal or snack to start your order.</span>
+                <span>Add an eatery meal or snack to start your order.</span>
             </div>`;
     } else {
         cartItems.innerHTML = state.cart.map((item, index) => {
-            const hasCustomization = Boolean(item.customization);
             return `
-                <article class="cart-line" data-cart-key="${escapeHtml(item.cartKey || index)}">
+                <article class="cart-line">
                     <div>
                         <strong>${escapeHtml(item.name)}</strong>
                         <span>${money.format(item.unitPrice)} each</span>
+                        ${item.notes ? `<small style="display:block;color:#6B7280;font-style:italic;margin-top:2px;"><i class="bi bi-chat-left-text"></i> ${escapeHtml(item.notes)}</small>` : ''}
                     </div>
-                    ${hasCustomization ? `
-                        <div class="cart-line-customs">
-                            <span class="cart-custom-pill"><i class="bi bi-sliders"></i> ${escapeHtml(item.customization)}</span>
-                        </div>` : ''}
                     <div class="cart-controls">
                         <button type="button" data-cart-minus="${index}" aria-label="Decrease quantity">-</button>
                         <strong>${item.qty}</strong>
@@ -221,7 +187,6 @@ function renderCart() {
 
     const totals = cartTotals();
     updateFreeDeliveryProgress(totals);
-    renderUpsellRecommendations();
 
     if (subtotalText) subtotalText.textContent = money.format(totals.subtotal);
     if (deliveryText) {
@@ -236,36 +201,6 @@ function renderCart() {
         }
     }
     if (totalText) totalText.textContent = money.format(totals.total);
-}
-
-// Quick-add an upsell item into the cart
-function quickAddUpsell(itemId) {
-    const item = getItem(itemId);
-    if (!item || Number(item.stock) <= 0) return;
-
-    const cartKey = `${item.id}_regular_default`;
-    const existing = state.cart.find(c => c.cartKey === cartKey || (!c.customization && Number(c.id) === Number(item.id)));
-
-    if (existing) {
-        existing.qty = Math.min(Number(item.stock), Number(existing.qty) + 1);
-    } else {
-        state.cart.push({
-            cartKey,
-            id: Number(item.id),
-            name: item.name,
-            image_url: item.image_url,
-            unitPrice: currentUnitPrice(item),
-            addon_price: 0,
-            customization: '',
-            portion: 'Regular',
-            rice: '',
-            extras: [],
-            notes: '',
-            qty: 1
-        });
-    }
-
-    renderCart();
 }
 
 // ==========================================================================
@@ -313,7 +248,7 @@ function renderMenu() {
     if (!foodGrid) return;
     const items = state.items.filter(item => currentUnitPrice(item) <= state.maxPrice);
     if (!items.length) {
-        foodGrid.innerHTML = `<article class="empty-menu"><i class="bi bi-search"></i><h3>No menu items found.</h3><p>Try another category, search term, or price range.</p></article>`;
+        foodGrid.innerHTML = `<article class="empty-menu"><i class="bi bi-search"></i><h3>No eatery items found.</h3><p>Try another category, search term, or price range.</p></article>`;
         return;
     }
 
@@ -325,16 +260,18 @@ function renderMenu() {
         return `
             <article class="food-card ${out ? 'disabled' : ''}" data-item="${item.id}">
                 <div class="food-img-wrap">
-                    <img src="${escapeHtml(item.image_url)}" alt="${escapeHtml(item.name)}">
-                    ${out ? '<span class="stock-badge">Out of Stock</span>' : `<span class="stock-badge">${stock} pcs left</span>`}
+                    <img src="${escapeHtml(item.image_url)}" alt="${escapeHtml(item.name)}" loading="lazy">
+                    <span class="stock-badge ${stock <= 5 && !out ? 'low-stock' : ''}">${out ? 'Out of Stock' : `${stock} pcs left`}</span>
                 </div>
                 <div class="food-body">
                     <span class="badge">${escapeHtml(item.category_name)}</span>
                     <h3>${escapeHtml(item.name)}</h3>
-                    <p>${escapeHtml(item.description || 'No description available.')}</p>
+                    <p>${escapeHtml(item.description || 'Freshly cooked Filipino eatery comfort meal.')}</p>
                     <div class="food-bottom">
                         <strong>${money.format(price)}${original ? `<small style="display:block;text-decoration:line-through;opacity:.55">${money.format(item.price)}</small>` : ''}</strong>
-                        <button ${out ? 'disabled' : ''} data-add="${item.id}"><i class="bi bi-plus-lg"></i>Add to Order</button>
+                        <button type="button" class="food-add-btn" ${out ? 'disabled' : ''} data-add="${item.id}">
+                            <i class="bi bi-plus-lg"></i> Add to Order
+                        </button>
                     </div>
                 </div>
             </article>`;
@@ -342,7 +279,7 @@ function renderMenu() {
 }
 
 // ==========================================================================
-// Interactive Item Customization Modal
+// Simplified Eatery Item Modal (Pure Quantity & Optional Note)
 // ==========================================================================
 function openItemModal(itemId) {
     const item = getItem(itemId);
@@ -357,226 +294,34 @@ function openItemModal(itemId) {
     if (modalTitle) modalTitle.textContent = item.name;
     if (modalDescription) modalDescription.textContent = item.description || '';
     if (modalCategory) modalCategory.textContent = item.category_name;
-    if (modalStockPill) modalStockPill.textContent = `${item.stock} in stock`;
-
-    // 1. Portion Choices
-    const isBilao = Number(item.category_id) === 6 || /bilao|platter/i.test(item.name);
-    if (portionOptions) {
-        if (isBilao) {
-            portionOptions.innerHTML = `
-                <label>
-                    <div style="display:flex;align-items:center;gap:10px;">
-                        <input type="radio" name="modalPortion" value="Regular / Standard Tray" data-price="0" checked>
-                        <span>Standard Tray (4-6 pax)</span>
-                    </div>
-                    <span class="addon-price">Included</span>
-                </label>
-                <label>
-                    <div style="display:flex;align-items:center;gap:10px;">
-                        <input type="radio" name="modalPortion" value="Large Tray (8-10 pax)" data-price="250">
-                        <span>Large Tray (8-10 pax)</span>
-                    </div>
-                    <span class="addon-price">+₱250.00</span>
-                </label>
-                <label>
-                    <div style="display:flex;align-items:center;gap:10px;">
-                        <input type="radio" name="modalPortion" value="Party XL Tray (12-15 pax)" data-price="450">
-                        <span>Party XL Tray (12-15 pax)</span>
-                    </div>
-                    <span class="addon-price">+₱450.00</span>
-                </label>`;
-        } else {
-            portionOptions.innerHTML = `
-                <label>
-                    <div style="display:flex;align-items:center;gap:10px;">
-                        <input type="radio" name="modalPortion" value="Regular" data-price="0" checked>
-                        <span>Regular Serving</span>
-                    </div>
-                    <span class="addon-price">Included</span>
-                </label>
-                <label>
-                    <div style="display:flex;align-items:center;gap:10px;">
-                        <input type="radio" name="modalPortion" value="Upsize / Extra Meat" data-price="35">
-                        <span>Upsize / Extra Meat</span>
-                    </div>
-                    <span class="addon-price">+₱35.00</span>
-                </label>`;
-        }
-    }
-
-    // 2. Rice Choices (Customize based on dish type)
-    const isBeverageOrSide = Number(item.category_id) === 2 || /drink|coke|shake|juice|dessert/i.test(item.name);
-    if (riceOptions) {
-        if (isBeverageOrSide || isBilao) {
-            riceOptions.innerHTML = `
-                <label>
-                    <div style="display:flex;align-items:center;gap:10px;">
-                        <input type="radio" name="modalRice" value="No Rice" data-price="0" checked>
-                        <span>No Rice Needed</span>
-                    </div>
-                    <span class="addon-price">Included</span>
-                </label>
-                <label>
-                    <div style="display:flex;align-items:center;gap:10px;">
-                        <input type="radio" name="modalRice" value="Add Steamed Rice" data-price="15">
-                        <span>Add Plain Steamed Rice</span>
-                    </div>
-                    <span class="addon-price">+₱15.00</span>
-                </label>
-                <label>
-                    <div style="display:flex;align-items:center;gap:10px;">
-                        <input type="radio" name="modalRice" value="Add Garlic Rice" data-price="20">
-                        <span>Add Garlic Fried Rice</span>
-                    </div>
-                    <span class="addon-price">+₱20.00</span>
-                </label>`;
-        } else {
-            riceOptions.innerHTML = `
-                <label>
-                    <div style="display:flex;align-items:center;gap:10px;">
-                        <input type="radio" name="modalRice" value="Plain Steamed Rice" data-price="0" checked>
-                        <span>Plain Steamed Rice</span>
-                    </div>
-                    <span class="addon-price">Included</span>
-                </label>
-                <label>
-                    <div style="display:flex;align-items:center;gap:10px;">
-                        <input type="radio" name="modalRice" value="Garlic Fried Rice" data-price="15">
-                        <span>Upgrade to Garlic Rice</span>
-                    </div>
-                    <span class="addon-price">+₱15.00</span>
-                </label>
-                <label>
-                    <div style="display:flex;align-items:center;gap:10px;">
-                        <input type="radio" name="modalRice" value="Java Rice" data-price="20">
-                        <span>Upgrade to Java Rice</span>
-                    </div>
-                    <span class="addon-price">+₱20.00</span>
-                </label>
-                <label>
-                    <div style="display:flex;align-items:center;gap:10px;">
-                        <input type="radio" name="modalRice" value="Less Rice" data-price="0">
-                        <span>Less Rice / Keto</span>
-                    </div>
-                    <span class="addon-price">+₱0.00</span>
-                </label>`;
-        }
-    }
-
-    // 3. Extras & Add-ons (Checkboxes)
-    if (extraOptions) {
-        extraOptions.innerHTML = `
-            <label>
-                <div style="display:flex;align-items:center;gap:10px;">
-                    <input type="checkbox" name="modalExtra" value="Crispy Fried Egg" data-price="15">
-                    <span>Crispy Fried Egg</span>
-                </div>
-                <span class="addon-price">+₱15.00</span>
-            </label>
-            <label>
-                <div style="display:flex;align-items:center;gap:10px;">
-                    <input type="checkbox" name="modalExtra" value="Extra Savory Gravy" data-price="10">
-                    <span>Extra Savory Gravy</span>
-                </div>
-                <span class="addon-price">+₱10.00</span>
-            </label>
-            <label>
-                <div style="display:flex;align-items:center;gap:10px;">
-                    <input type="checkbox" name="modalExtra" value="House Atchara Pickles" data-price="15">
-                    <span>House Atchara Pickles</span>
-                </div>
-                <span class="addon-price">+₱15.00</span>
-            </label>
-            <label>
-                <div style="display:flex;align-items:center;gap:10px;">
-                    <input type="checkbox" name="modalExtra" value="Extra Chili Crunch" data-price="10">
-                    <span>Extra Chili Crunch & Garlic</span>
-                </div>
-                <span class="addon-price">+₱10.00</span>
-            </label>`;
-    }
-
+    if (modalStockPill) modalStockPill.textContent = `${item.stock} available`;
     if (modalSpecialNotes) modalSpecialNotes.value = '';
 
     updateModalPrice();
     itemModal.hidden = false;
 }
 
-function calculateModalPrice() {
-    if (!state.selectedItem) return { base: 0, addonPrice: 0, unitPrice: 0, total: 0 };
-    const base = currentUnitPrice(state.selectedItem);
-
-    const portionEl = document.querySelector('input[name="modalPortion"]:checked');
-    const portionPrice = portionEl ? Number(portionEl.dataset.price || 0) : 0;
-
-    const riceEl = document.querySelector('input[name="modalRice"]:checked');
-    const ricePrice = riceEl ? Number(riceEl.dataset.price || 0) : 0;
-
-    let extrasPrice = 0;
-    document.querySelectorAll('input[name="modalExtra"]:checked').forEach(cb => {
-        extrasPrice += Number(cb.dataset.price || 0);
-    });
-
-    const addonPrice = portionPrice + ricePrice + extrasPrice;
-    const unitPrice = base + addonPrice;
-    const total = unitPrice * state.modalQty;
-    return { base, addonPrice, unitPrice, total };
-}
-
 function updateModalPrice() {
     if (modalQty) modalQty.textContent = state.modalQty;
-    const calculated = calculateModalPrice();
-    if (modalPrice) modalPrice.textContent = money.format(calculated.total);
+    const base = currentUnitPrice(state.selectedItem);
+    if (modalPrice) modalPrice.textContent = money.format(base * state.modalQty);
 }
 
 function addSelectedItemToCart() {
     if (!state.selectedItem) return;
 
-    const portionEl = document.querySelector('input[name="modalPortion"]:checked');
-    const portionName = portionEl ? portionEl.value : 'Regular';
-
-    const riceEl = document.querySelector('input[name="modalRice"]:checked');
-    const riceName = riceEl ? riceEl.value : '';
-
-    const selectedExtras = Array.from(document.querySelectorAll('input[name="modalExtra"]:checked')).map(cb => cb.value);
     const notes = modalSpecialNotes ? modalSpecialNotes.value.trim() : '';
+    const unitPrice = currentUnitPrice(state.selectedItem);
 
-    const calculated = calculateModalPrice();
-
-    // Build human-readable customization description
-    const customParts = [];
-    if (portionName && portionName !== 'Regular' && portionName !== 'Regular / Standard Tray') {
-        customParts.push(portionName);
-    }
-    if (riceName && riceName !== 'Plain Steamed Rice' && riceName !== 'No Rice') {
-        customParts.push(riceName);
-    }
-    if (selectedExtras.length) {
-        customParts.push(...selectedExtras);
-    }
-    if (notes) {
-        customParts.push(`Note: ${notes}`);
-    }
-    const customization = customParts.join(', ');
-
-    // Unique cart key to isolate distinct customization combinations
-    const cartKey = `${state.selectedItem.id}|${portionName}|${riceName}|${selectedExtras.sort().join(';')}|${notes}`;
-
-    const existing = state.cart.find(c => c.cartKey === cartKey);
+    const existing = state.cart.find(c => Number(c.id) === Number(state.selectedItem.id) && (c.notes || '') === notes);
     if (existing) {
         existing.qty = Math.min(Number(state.selectedItem.stock), Number(existing.qty) + state.modalQty);
     } else {
         state.cart.push({
-            cartKey,
             id: Number(state.selectedItem.id),
             name: state.selectedItem.name,
             image_url: state.selectedItem.image_url,
-            unitPrice: calculated.unitPrice,
-            addon_price: calculated.addonPrice,
-            customization,
-            portion: portionName,
-            rice: riceName,
-            extras: selectedExtras,
+            unitPrice,
             notes,
             qty: state.modalQty
         });
@@ -588,7 +333,7 @@ function addSelectedItemToCart() {
 }
 
 // ==========================================================================
-// Authentication & Guest Checkout Handling
+// Authentication & Guest Checkout Handling (Coffee Realm Inspired)
 // ==========================================================================
 function openAuth(tab = 'signin') {
     authModal.hidden = false;
@@ -600,17 +345,19 @@ function closeAuth() {
 }
 
 function setAuthTab(tab) {
-    const signIn = tab === 'signin';
-    document.getElementById('signInTab')?.classList.toggle('active', signIn);
-    document.getElementById('registerTab')?.classList.toggle('active', !signIn);
-    document.getElementById('signInForm').hidden = !signIn;
-    document.getElementById('registerForm').hidden = signIn;
-    document.getElementById('authTitle').textContent = signIn ? 'Sign In' : 'Create Account';
-    const subtitle = document.getElementById('authSubtitle');
-    if (subtitle) {
-        subtitle.textContent = signIn
-            ? 'Sign in to track orders, save delivery addresses, and enjoy faster checkout.'
-            : 'Register a new customer account to save your favorite dishes and details.';
+    const isSignIn = tab === 'signin';
+    if (authBannerTitle) authBannerTitle.textContent = isSignIn ? 'Hello, Welcome!' : 'Welcome Back!';
+    if (authBannerSub) authBannerSub.textContent = isSignIn ? "Don't have an account?" : 'Already have an account?';
+    if (authSwitchBtn) authSwitchBtn.textContent = isSignIn ? 'Register Now!' : 'Sign In!';
+    if (authFormTitle) authFormTitle.textContent = isSignIn ? 'Customer Login' : 'Create Account';
+
+    if (signInForm) signInForm.hidden = !isSignIn;
+    if (registerForm) registerForm.hidden = isSignIn;
+
+    if (isSignIn) {
+        document.getElementById('signInEmail')?.focus();
+    } else {
+        document.getElementById('registerName')?.focus();
     }
 }
 
@@ -622,9 +369,9 @@ function setAccountUI() {
             btn.onclick = () => openAuth('signin');
         }
 
-        // Guest State in Checkout
+        // Guest Notice in Checkout
         if (guestNoticeText) {
-            guestNoticeText.innerHTML = `Ordering as <strong>Guest</strong>. <a href="#" id="checkoutSignInLink">Sign in</a> to load your saved profile.`;
+            guestNoticeText.innerHTML = `Ordering as <strong>Guest</strong>. <a href="#" id="checkoutSignInLink">Sign in</a> to load saved details.`;
             const link = document.getElementById('checkoutSignInLink');
             if (link) link.onclick = (e) => { e.preventDefault(); openAuth('signin'); };
         }
@@ -636,7 +383,7 @@ function setAccountUI() {
     if (btn) {
         btn.textContent = state.user.full_name;
         btn.onclick = async () => {
-            if (!confirm(`Log out from account "${state.user.full_name}"?`)) return;
+            if (!confirm(`Log out from customer account "${state.user.full_name}"?`)) return;
             await apiFetch(`${API_BASE}/auth.php?action=logout`);
             state.user = null;
             state.latestOrder = null;
@@ -694,11 +441,11 @@ function validateDetails() {
         ok = false;
     }
     if (!/^09\d{9}$/.test(phone)) {
-        if (phoneErr) phoneErr.textContent = 'Use a valid 11-digit PH mobile number starting with 09.';
+        if (phoneErr) phoneErr.textContent = 'Use a valid 11-digit mobile number starting with 09.';
         ok = false;
     }
     if (fulfillment === 'Delivery' && !address) {
-        if (addrErr) addrErr.textContent = 'Delivery address is required for dispatch.';
+        if (addrErr) addrErr.textContent = 'Delivery address is required.';
         ok = false;
     }
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -706,11 +453,10 @@ function validateDetails() {
         ok = false;
     }
 
-    // If guest opting to create account, validate password
     if (!state.user && saveAccountCheckbox?.checked) {
         const pwd = guestPassword?.value || '';
         if (pwd.length < 6) {
-            alert('Please provide a password of at least 6 characters to create your account.');
+            alert('Please create a password with at least 6 characters.');
             ok = false;
         }
     }
@@ -755,8 +501,7 @@ async function placeOrder(event) {
         items: state.cart.map(item => ({
             menu_item_id: Number(item.id),
             quantity: Number(item.qty),
-            addon_price: Number(item.addon_price || 0),
-            customization: item.customization || ''
+            notes: item.notes || ''
         })),
         notes: ''
     };
@@ -783,13 +528,12 @@ async function placeOrder(event) {
         return;
     }
 
-    // Order Success
+    // Success
     state.latestOrder = result.data;
     state.cart = [];
     renderCart();
     renderTracking(result.data);
 
-    // If account was created or guest linked, refresh user session
     await loadCurrentUser();
     await loadMenu();
     await loadHistory();
@@ -805,7 +549,7 @@ async function placeOrder(event) {
     const trackSec = document.getElementById('trackingSection');
     if (trackSec) trackSec.scrollIntoView({ behavior: 'smooth' });
 
-    alert(`Order ${result.data.order_number} was placed successfully! You can track your kitchen queue status below.`);
+    alert(`Order ${result.data.order_number} placed successfully!`);
     pollLatestOrder();
 }
 
@@ -867,7 +611,7 @@ function renderHistory(orders) {
             <div class="history-empty">
                 <span class="badge">Customer Account</span>
                 <h3>Sign in to view order history</h3>
-                <p>Orders linked to your phone or account appear here after signing in.</p>
+                <p>Orders linked to your mobile phone or account appear here after signing in.</p>
             </div>`;
         return;
     }
@@ -939,7 +683,7 @@ async function loadHistory() {
                     <div>
                         <span class="badge">Order History</span>
                         <h3>Unable to load order history.</h3>
-                        <p>${escapeHtml(result.message || 'Please refresh the page and try again.')}</p>
+                        <p>${escapeHtml(result.message || 'Please refresh the page.')}</p>
                     </div>
                 </article>`;
         }
@@ -1051,18 +795,25 @@ function setupEventListeners() {
         });
     });
 
-    // 2. Guest Skip / Save Account
-    const guestAuthSkipBtn = document.getElementById('guestAuthSkipBtn');
-    if (guestAuthSkipBtn) {
-        guestAuthSkipBtn.addEventListener('click', () => {
-            closeAuth();
-            const checkoutSec = document.getElementById('checkoutSection');
-            if (checkoutSec) {
-                checkoutSec.scrollIntoView({ behavior: 'smooth' });
-                setTimeout(() => document.getElementById('customerName')?.focus(), 350);
-            }
+    // 2. Auth Switch & Guest Skip
+    if (authSwitchBtn) {
+        authSwitchBtn.addEventListener('click', () => {
+            const isCurrentlySignIn = !signInForm.hidden;
+            setAuthTab(isCurrentlySignIn ? 'register' : 'signin');
         });
     }
+
+    const skipHandler = () => {
+        closeAuth();
+        const checkoutSec = document.getElementById('checkoutSection');
+        if (checkoutSec) {
+            checkoutSec.scrollIntoView({ behavior: 'smooth' });
+            setTimeout(() => document.getElementById('customerName')?.focus(), 350);
+        }
+    };
+
+    document.getElementById('guestAuthSkipBtn')?.addEventListener('click', skipHandler);
+    document.getElementById('guestAuthSkipBtn2')?.addEventListener('click', skipHandler);
 
     if (saveAccountCheckbox && guestPasswordWrap) {
         saveAccountCheckbox.addEventListener('change', () => {
@@ -1072,6 +823,11 @@ function setupEventListeners() {
             }
         });
     }
+
+    document.getElementById('forgotPwdLink')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        alert('Please approach our eatery staff or call hotline 0912-345-6789 to reset your customer password.');
+    });
 
     // 3. Category & Food Selection
     if (categoryTabs) {
@@ -1096,7 +852,7 @@ function setupEventListeners() {
         });
     }
 
-    // 4. Cart Controls & Upsell Quick Add
+    // 4. Cart Controls
     if (cartItems) {
         cartItems.addEventListener('click', event => {
             const minus = event.target.closest('[data-cart-minus]');
@@ -1121,15 +877,6 @@ function setupEventListeners() {
         });
     }
 
-    if (upsellItems) {
-        upsellItems.addEventListener('click', event => {
-            const upsellBtn = event.target.closest('[data-upsell-id]');
-            if (upsellBtn) {
-                quickAddUpsell(Number(upsellBtn.dataset.upsellId));
-            }
-        });
-    }
-
     // 5. Search & Filters
     if (searchInput) {
         searchInput.addEventListener('input', async () => {
@@ -1146,7 +893,7 @@ function setupEventListeners() {
         });
     }
 
-    // 6. Item Modal Controls & Dynamic Price Recalculation
+    // 6. Simple Item Modal Controls
     document.getElementById('modalMinus')?.addEventListener('click', () => {
         state.modalQty = Math.max(1, state.modalQty - 1);
         updateModalPrice();
@@ -1157,10 +904,6 @@ function setupEventListeners() {
         state.modalQty = Math.min(max, state.modalQty + 1);
         updateModalPrice();
     });
-
-    document.getElementById('portionOptions')?.addEventListener('change', updateModalPrice);
-    document.getElementById('riceOptions')?.addEventListener('change', updateModalPrice);
-    document.getElementById('extraOptions')?.addEventListener('change', updateModalPrice);
 
     document.getElementById('addToCartBtn')?.addEventListener('click', addSelectedItemToCart);
     document.getElementById('closeModal')?.addEventListener('click', () => {
@@ -1189,9 +932,7 @@ function setupEventListeners() {
     document.getElementById('backDetails')?.addEventListener('click', () => setStep(1));
     document.getElementById('checkoutForm')?.addEventListener('submit', placeOrder);
 
-    // 9. Auth Modal Toggling
-    document.getElementById('signInTab')?.addEventListener('click', () => setAuthTab('signin'));
-    document.getElementById('registerTab')?.addEventListener('click', () => setAuthTab('register'));
+    // 9. Auth Modal Listeners
     document.getElementById('closeAuth')?.addEventListener('click', closeAuth);
     document.getElementById('signInForm')?.addEventListener('submit', handleSignIn);
     document.getElementById('registerForm')?.addEventListener('submit', handleRegister);
@@ -1218,10 +959,9 @@ function setupEventListeners() {
 }
 
 // ==========================================================================
-// Landing Page Animations & Interactive Utilities
+// Landing Page Utilities & Store Status
 // ==========================================================================
 function initLandingFeatures() {
-    // Category Quick-Jump, Hero Quick-Add & Back to top
     document.addEventListener('click', async (event) => {
         const jumpBtn = event.target.closest('[data-category-jump]');
         if (jumpBtn) {
@@ -1262,7 +1002,7 @@ function initLandingFeatures() {
         const isOpen = currentHour >= 9 && currentHour < 21;
 
         if (isOpen) {
-            statusText.textContent = 'Kitchen Open Now';
+            statusText.textContent = 'Eatery Open Now';
             statusDot.style.background = 'var(--success)';
         } else {
             statusText.textContent = 'Closed (Opens at 9:00 AM)';
