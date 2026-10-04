@@ -23,9 +23,7 @@ function role_key($role = null)
         'inventory' => 'inventory',
         'inventory staff' => 'inventory',
         'kitchen' => 'kitchen',
-        'kitchen staff' => 'kitchen',
-        'manager' => 'manager',
-        'server' => 'server'
+        'kitchen staff' => 'kitchen'
     ];
 
     return $map[$role] ?? $role;
@@ -37,9 +35,7 @@ function role_home($role = null)
         'admin' => '/pages/dashboard.php',
         'cashier' => '/modules/pos/index.php',
         'inventory' => '/modules/inventory/index.php',
-        'kitchen' => '/modules/kitchen/index.php',
-        'server' => '/modules/serving/index.php',
-        'manager' => '/modules/bills/index.php'
+        'kitchen' => '/modules/kitchen/index.php'
     ];
 
     return $homes[role_key($role)] ?? '/pages/access_denied.php';

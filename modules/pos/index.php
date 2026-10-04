@@ -405,6 +405,231 @@ include ROOT_PATH . '/includes/header.php';
         box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
 
+    .receipt-header-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .btn-online-orders {
+        min-height: 34px;
+        padding: 0 10px;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        background: #ffffff;
+        color: #111111;
+        font-size: 0.72rem;
+        font-weight: 800;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        transition: border-color 0.15s ease, background 0.15s ease;
+    }
+
+    .btn-online-orders:hover {
+        border-color: #D8AF18;
+        background: #FFFBE6;
+    }
+
+    .online-orders-badge {
+        min-width: 20px;
+        height: 20px;
+        padding: 0 5px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 999px;
+        background: #F2C12E;
+        color: #111111;
+        font-size: 0.68rem;
+        font-weight: 900;
+    }
+
+    .online-orders-badge.has-pending {
+        background: #D97706;
+        color: #ffffff;
+    }
+
+    .online-orders-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 99998;
+        background: rgba(0, 0, 0, 0.48);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+    }
+
+    .online-orders-overlay[hidden] {
+        display: none;
+    }
+
+    .online-orders-modal {
+        width: min(760px, 100%);
+        max-height: min(720px, 90vh);
+        overflow: hidden;
+        background: #ffffff;
+        border-radius: 16px;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 28px 80px rgba(0, 0, 0, 0.28);
+        display: flex;
+        flex-direction: column;
+    }
+
+    .online-orders-modal-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 16px 18px;
+        border-bottom: 1px solid #e5e7eb;
+    }
+
+    .online-orders-modal-title {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 900;
+        color: #111111;
+    }
+
+    .online-orders-modal-subtitle {
+        margin: 3px 0 0;
+        font-size: 0.74rem;
+        color: #6b7280;
+    }
+
+    .online-orders-modal-actions {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .online-orders-modal-btn {
+        min-height: 34px;
+        padding: 0 10px;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        background: #ffffff;
+        color: #111111;
+        font-size: 0.72rem;
+        font-weight: 800;
+        cursor: pointer;
+    }
+
+    .online-orders-modal-btn:hover {
+        background: #f8fafc;
+    }
+
+    .online-orders-list {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+        padding: 12px;
+    }
+
+    .online-order-card {
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        padding: 12px;
+        margin-bottom: 10px;
+        background: #ffffff;
+    }
+
+    .online-order-card:last-child {
+        margin-bottom: 0;
+    }
+
+    .online-order-card-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 8px;
+    }
+
+    .online-order-number {
+        font-size: 0.9rem;
+        font-weight: 900;
+        color: #111111;
+    }
+
+    .online-order-meta {
+        margin-top: 2px;
+        font-size: 0.72rem;
+        color: #6b7280;
+    }
+
+    .online-order-status {
+        padding: 4px 8px;
+        border-radius: 999px;
+        font-size: 0.67rem;
+        font-weight: 900;
+        white-space: nowrap;
+    }
+
+    .online-order-status.pending {
+        background: #FEF3C7;
+        color: #B45309;
+    }
+
+    .online-order-status.preparing {
+        background: #DBEAFE;
+        color: #1D4ED8;
+    }
+
+    .online-order-status.ready {
+        background: #DCFCE7;
+        color: #15803D;
+    }
+
+    .online-order-lines {
+        margin: 8px 0 10px;
+        padding: 9px 10px;
+        border-radius: 8px;
+        background: #f8fafc;
+    }
+
+    .online-order-line {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        font-size: 0.76rem;
+        color: #374151;
+        padding: 3px 0;
+    }
+
+    .online-order-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding-top: 8px;
+        border-top: 1px solid #eef2f7;
+        font-size: 0.76rem;
+    }
+
+    .online-order-total {
+        font-size: 0.9rem;
+        font-weight: 900;
+        color: #111111;
+    }
+
+    .online-orders-empty {
+        padding: 48px 20px;
+        text-align: center;
+        color: #6b7280;
+        font-size: 0.82rem;
+    }
+
+    .online-orders-error {
+        padding: 24px 20px;
+        text-align: center;
+        color: #b91c1c;
+        font-size: 0.82rem;
+    }
+
     .receipt-brand {
         flex-shrink: 0;
         padding-bottom: 8px;
@@ -846,6 +1071,43 @@ include ROOT_PATH . '/includes/header.php';
         color: #0f172a;
     }
 
+    .discount-line {
+        display: grid !important;
+        grid-template-columns: 1fr auto auto;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .discount-control {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+    }
+
+    .discount-control input {
+        width: 58px;
+        height: 22px;
+        padding: 1px 6px;
+        font-size: 0.8rem;
+        border: 1px solid #cbd5e1;
+        border-radius: 4px;
+        text-align: right;
+        box-sizing: border-box;
+    }
+
+    .discount-control span {
+        font-size: 0.76rem;
+        font-weight: 700;
+        color: #475569;
+    }
+
+    .discount-amount {
+        min-width: 72px;
+        text-align: right;
+        font-weight: 700;
+        color: #475569;
+    }
+
     .receipt-cash-row {
         display: flex;
         align-items: center;
@@ -940,9 +1202,15 @@ include ROOT_PATH . '/includes/header.php';
         box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
     }
 
+    .btn-pay-toggle::before,
+    .btn-pay-toggle::after {
+        content: none !important;
+        display: none !important;
+    }
+
     .receipt-btn-group {
         display: grid;
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: 1fr;
         gap: 6px;
     }
 
@@ -967,17 +1235,6 @@ include ROOT_PATH . '/includes/header.php';
 
     .receipt-btn-group #checkoutBtn:hover {
         background: #eab308;
-    }
-
-    .receipt-btn-group #printBtn {
-        background: #ffffff;
-        color: #0f172a;
-        border: 1px solid #cbd5e1;
-    }
-
-    .receipt-btn-group #printBtn:hover {
-        background: #f8fafc;
-        border-color: #94a3b8;
     }
 
     .sub-tab {
@@ -1110,6 +1367,230 @@ include ROOT_PATH . '/includes/header.php';
         margin-top: 2px;
     }
 
+
+    .pos-keypad-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 1000;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 18px;
+        background: rgba(15, 23, 42, 0.46);
+    }
+
+    .pos-keypad-overlay.show {
+        display: flex;
+    }
+
+    .pos-keypad-modal {
+        width: min(360px, 100%);
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        box-shadow: 0 18px 45px rgba(15, 23, 42, 0.22);
+        padding: 16px;
+    }
+
+    .pos-keypad-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 12px;
+    }
+
+    .pos-keypad-head strong {
+        font-size: 1rem;
+        color: #0f172a;
+    }
+
+    .pos-keypad-close {
+        width: 34px;
+        height: 34px;
+        border: 0;
+        background: #f1f5f9;
+        color: #334155;
+        border-radius: 8px;
+        cursor: pointer;
+    }
+
+    .pos-keypad-display {
+        width: 100%;
+        height: 48px;
+        border: 1px solid #cbd5e1;
+        border-radius: 10px;
+        padding: 0 12px;
+        text-align: right;
+        font-size: 1.35rem;
+        font-weight: 800;
+        color: #0f172a;
+        background: #f8fafc;
+        margin-bottom: 12px;
+        box-sizing: border-box;
+    }
+
+    .pos-keypad-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+    }
+
+    .pos-keypad-key {
+        min-height: 52px;
+        border: 1px solid #dbe3ec;
+        border-radius: 10px;
+        background: #ffffff;
+        color: #0f172a;
+        font-size: 1.05rem;
+        font-weight: 800;
+        cursor: pointer;
+        touch-action: manipulation;
+    }
+
+    .pos-keypad-key:hover {
+        background: #f8fafc;
+    }
+
+    .pos-keypad-key.action {
+        background: #f1f5f9;
+        color: #334155;
+    }
+
+    .pos-keypad-key.primary {
+        background: #F2C12E;
+        border-color: #E0B028;
+        color: #111827;
+    }
+
+    .pos-keypad-key.wide {
+        grid-column: span 2;
+    }
+
+    .pos-keypad-error {
+        min-height: 18px;
+        margin: 6px 0 10px;
+        color: #dc2626;
+        font-size: 0.78rem;
+        text-align: center;
+    }
+
+    @media (max-width: 1200px) {
+        body:has(.pos-layout) {
+            overflow: auto;
+        }
+
+        .pos-layout {
+            grid-template-columns: minmax(0, 1fr) 340px;
+            height: auto;
+            max-height: none;
+            overflow: visible;
+        }
+
+        .pos-layout > section {
+            height: auto;
+            overflow: visible;
+        }
+
+        .menu-grid {
+            grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+            overflow-y: visible;
+            max-height: none;
+        }
+    }
+
+    @media (max-width: 900px) {
+        .pos-layout {
+            grid-template-columns: 1fr;
+        }
+
+        .receipt-panel {
+            position: static;
+            height: auto;
+            max-height: none;
+            overflow: visible;
+        }
+
+        .menu-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+        }
+    }
+
+    @media (max-width: 620px) {
+        .pos-layout {
+            gap: 12px;
+        }
+
+        .menu-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: 10px !important;
+            padding-right: 0;
+        }
+
+        .food-card {
+            min-height: 215px !important;
+        }
+
+        .food-card img {
+            height: 105px !important;
+            min-height: 105px !important;
+            max-height: 105px !important;
+        }
+
+        .receipt-form-top {
+            grid-template-columns: 1fr !important;
+        }
+
+        .receipt-header-row {
+            align-items: flex-start;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .receipt-header-actions {
+            width: 100%;
+        }
+
+        .btn-online-orders,
+        .btn-clear-cart {
+            flex: 1;
+        }
+
+        .receipt-cash-row {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .receipt-cash-row .field {
+            width: 100%;
+        }
+
+        .change-display {
+            justify-content: space-between !important;
+        }
+
+        .tabs {
+            overflow-x: auto;
+            white-space: nowrap;
+            padding-bottom: 4px;
+        }
+
+        .tabs .tab {
+            flex-shrink: 0;
+        }
+
+        .pos-keypad-overlay {
+            align-items: flex-end;
+            padding: 0;
+        }
+
+        .pos-keypad-modal {
+            width: 100%;
+            border-radius: 16px 16px 0 0;
+            padding-bottom: max(16px, env(safe-area-inset-bottom));
+        }
+    }
+
     @media print {
         body, html {
             overflow: visible !important;
@@ -1186,7 +1667,7 @@ include ROOT_PATH . '/includes/header.php';
                 }
 
                 $stock = max(0, (int)($item['stock'] ?? 0));
-                $isUnavailable = ($item['availability'] === 'Unavailable') || ($stock <= 0);
+                $isUnavailable = ($stock <= 0);
                 ?>
 
                 <article class="food-card <?= $isUnavailable ? 'unavailable' : '' ?>"
@@ -1299,9 +1780,16 @@ include ROOT_PATH . '/includes/header.php';
                     </div>
                 </div>
 
-                <button type="button" class="btn-clear-cart" id="clearCartBtn" onclick="window.clearAllOrder()" title="Clear all items in cart">
-                    <i class="bi bi-trash3"></i> Clear
-                </button>
+                <div class="receipt-header-actions">
+                    <button type="button" class="btn-online-orders" id="onlineOrdersBtn" title="View active online orders">
+                        <i class="bi bi-phone"></i> Online Orders
+                        <span id="onlineOrdersBadge" class="online-orders-badge">0</span>
+                    </button>
+
+                    <button type="button" class="btn-clear-cart" id="clearCartBtn" onclick="window.clearAllOrder()" title="Clear all items in cart">
+                        <i class="bi bi-trash3"></i> Clear
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -1317,7 +1805,7 @@ include ROOT_PATH . '/includes/header.php';
 
             <div class="field">
                 <label>Table No.</label>
-                <input id="tableNo" placeholder="For dine-in">
+                <input id="tableNo" type="text" inputmode="none" readonly maxlength="2" placeholder="1–10" data-keypad-type="table" aria-label="Table number">
             </div>
         </div>
 
@@ -1353,15 +1841,22 @@ include ROOT_PATH . '/includes/header.php';
                     <strong id="subtotal">₱0.00</strong>
                 </div>
 
-                <div>
+                <div class="discount-line">
                     <span>Discount</span>
-                    <input
-                        id="discount"
-                        type="number"
-                        min="0"
-                        value="0"
-                        style="width:75px; height:22px; padding:1px 6px; font-size:0.8rem; border:1px solid #cbd5e1; border-radius:4px;"
-                    >
+                    <div class="discount-control">
+                        <input
+                            id="discount"
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="0.01"
+                            value="0"
+                            inputmode="decimal"
+                            aria-label="Discount percentage"
+                        >
+                        <span>%</span>
+                    </div>
+                    <strong class="discount-amount" id="discountAmount">-₱0.00</strong>
                 </div>
 
                 <div>
@@ -1378,7 +1873,7 @@ include ROOT_PATH . '/includes/header.php';
             <div class="receipt-cash-row">
                 <div class="field" id="tenderCashWrap">
                     <label id="tenderLabel">Cash</label>
-                    <input id="cash" type="number" min="0" placeholder="0.00">
+                    <input id="cash" type="text" inputmode="none" readonly placeholder="0.00" data-keypad-type="cash" aria-label="Cash amount">
                 </div>
 
                 <div class="field" id="tenderGcashWrap" style="display: none;">
@@ -1388,8 +1883,10 @@ include ROOT_PATH . '/includes/header.php';
                         type="text"
                         placeholder="13-digit reference number"
                         maxlength="13"
-                        inputmode="numeric"
+                        inputmode="none"
                         autocomplete="off"
+                        readonly
+                        data-keypad-type="gcash"
                     >
                 </div>
 
@@ -1424,12 +1921,57 @@ include ROOT_PATH . '/includes/header.php';
                     <i class="bi bi-check-circle"></i>Checkout
                 </button>
 
-                <button class="btn" id="printBtn">
-                    <i class="bi bi-printer"></i>Print
-                </button>
             </div>
         </div>
     </aside>
+</div>
+
+<div class="pos-keypad-overlay" id="posKeypadOverlay" hidden>
+    <div class="pos-keypad-modal" role="dialog" aria-modal="true" aria-labelledby="posKeypadTitle">
+        <div class="pos-keypad-head">
+            <strong id="posKeypadTitle">Enter Number</strong>
+            <button type="button" class="pos-keypad-close" id="posKeypadClose" aria-label="Close">&times;</button>
+        </div>
+        <input class="pos-keypad-display" id="posKeypadDisplay" type="text" readonly aria-label="Keypad value">
+        <div class="pos-keypad-error" id="posKeypadError" aria-live="polite"></div>
+        <div class="pos-keypad-grid" id="posKeypadGrid">
+            <button type="button" class="pos-keypad-key" data-key="1">1</button>
+            <button type="button" class="pos-keypad-key" data-key="2">2</button>
+            <button type="button" class="pos-keypad-key" data-key="3">3</button>
+            <button type="button" class="pos-keypad-key" data-key="4">4</button>
+            <button type="button" class="pos-keypad-key" data-key="5">5</button>
+            <button type="button" class="pos-keypad-key" data-key="6">6</button>
+            <button type="button" class="pos-keypad-key" data-key="7">7</button>
+            <button type="button" class="pos-keypad-key" data-key="8">8</button>
+            <button type="button" class="pos-keypad-key" data-key="9">9</button>
+            <button type="button" class="pos-keypad-key action" data-action="clear">Clear</button>
+            <button type="button" class="pos-keypad-key" data-key="0">0</button>
+            <button type="button" class="pos-keypad-key action" data-action="backspace">⌫</button>
+            <button type="button" class="pos-keypad-key action" data-key="." data-decimal="true" hidden>.</button>
+            <button type="button" class="pos-keypad-key action" data-action="cancel">Cancel</button>
+            <button type="button" class="pos-keypad-key primary" data-action="done">Done</button>
+        </div>
+    </div>
+</div>
+
+<div class="online-orders-overlay" id="onlineOrdersOverlay" hidden>
+    <div class="online-orders-modal" role="dialog" aria-modal="true" aria-labelledby="onlineOrdersTitle">
+        <div class="online-orders-modal-head">
+            <div>
+                <h3 class="online-orders-modal-title" id="onlineOrdersTitle">Online Orders</h3>
+                <p class="online-orders-modal-subtitle">Active online orders from today</p>
+            </div>
+            <div class="online-orders-modal-actions">
+                <button type="button" class="online-orders-modal-btn" id="refreshOnlineOrdersBtn">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                </button>
+                <button type="button" class="online-orders-modal-btn" id="closeOnlineOrdersBtn">Close</button>
+            </div>
+        </div>
+        <div class="online-orders-list" id="onlineOrdersList">
+            <div class="online-orders-empty">Loading online orders...</div>
+        </div>
+    </div>
 </div>
 
 <div id="posPrintReceipt" class="pos-print-only"></div>

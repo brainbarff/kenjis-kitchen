@@ -7,14 +7,35 @@ header('Content-Type: application/json');
 
 $data = json_decode(file_get_contents('php://input'), true);
 $cart = $data['cart'] ?? [];
-$paymentMode = !empty($data['paymentMode']) ? ucfirst(trim($data['paymentMode'])) : 'Cash';
+$paymentMode = strtolower(trim((string)($data['paymentMode'] ?? 'cash')));
 $cash = (float) ($data['cash'] ?? 0);
-$total = (float) ($data['total'] ?? 0);
-$change = (float) ($data['change'] ?? 0);
+$gcashRef = trim((string)($data['gcashRef'] ?? ''));
+$orderType = trim((string)($data['orderType'] ?? ''));
+$tableNo = trim((string)($data['tableNo'] ?? ''));
+$discountPercent = (float)($data['discountPercent'] ?? $data['discount_percent'] ?? 0);
 
-if (!$cart || empty($data['orderType']) || ($paymentMode === 'Cash' && $cash < $total)) {
+if (!$cart || !in_array($paymentMode, ['cash', 'gcash'], true) || !in_array($orderType, ['DINE-IN', 'TAKE-OUT'], true)) {
     echo json_encode(['ok' => false, 'msg' => 'Invalid order details.']);
     exit;
+}
+
+if ($discountPercent < 0 || $discountPercent > 100) {
+    echo json_encode(['ok' => false, 'msg' => 'Discount must be between 0% and 100%.']);
+    exit;
+}
+
+if ($paymentMode === 'gcash' && !preg_match('/^\d{13}$/', $gcashRef)) {
+    echo json_encode(['ok' => false, 'msg' => 'Enter a valid 13-digit GCash reference number.']);
+    exit;
+}
+
+if ($orderType === 'DINE-IN' && (!ctype_digit($tableNo) || (int)$tableNo < 1 || (int)$tableNo > 10)) {
+    echo json_encode(['ok' => false, 'msg' => 'Dine-in table number must be from 1 to 10.']);
+    exit;
+}
+
+if ($orderType !== 'DINE-IN') {
+    $tableNo = '';
 }
 
 try {
@@ -25,7 +46,9 @@ try {
         $conn->query("ALTER TABLE orders ADD COLUMN notes TEXT NULL");
     }
 
-    $stockCheck = $conn->prepare("SELECT id, item_name, stock, availability, is_archived FROM menu_items WHERE id = ? FOR UPDATE");
+    $stockCheck = $conn->prepare("SELECT id, item_name, price, promo_price, promo_start, promo_end, stock, availability, is_archived FROM menu_items WHERE id = ? FOR UPDATE");
+    $normalized = [];
+    $subtotal = 0.0;
 
     foreach ($cart as $row) {
         $itemId = (int) ($row['id'] ?? 0);
@@ -57,6 +80,39 @@ try {
             echo json_encode(['ok' => false, 'msg' => 'Only ' . (int) $item['stock'] . ' pcs of ' . $item['item_name'] . ' are available.']);
             exit;
         }
+
+        $price = (float)$item['price'];
+        $today = date('Y-m-d');
+        if (
+            $item['promo_price'] !== null &&
+            $item['promo_start'] !== null &&
+            $item['promo_end'] !== null &&
+            $today >= $item['promo_start'] &&
+            $today <= $item['promo_end']
+        ) {
+            $price = (float)$item['promo_price'];
+        }
+
+        $lineTotal = round($price * $qty, 2);
+        $subtotal += $lineTotal;
+        $normalized[] = [
+            'id' => $itemId,
+            'name' => $item['item_name'],
+            'client_name' => trim((string)($row['name'] ?? '')),
+            'qty' => $qty,
+            'price' => $price
+        ];
+    }
+
+    $discount = round($subtotal * ($discountPercent / 100), 2);
+    $tax = 0.0;
+    $total = round(max($subtotal - $discount + $tax, 0), 2);
+    $change = $paymentMode === 'cash' ? round(max($cash - $total, 0), 2) : 0.0;
+
+    if ($paymentMode === 'cash' && $cash < $total) {
+        $conn->rollBack();
+        echo json_encode(['ok' => false, 'msg' => 'Insufficient cash tendered.']);
+        exit;
     }
 
     $queue = (int) $conn->query("SELECT COALESCE(MAX(queue_no), 0) + 1 q FROM orders WHERE DATE(created_at) = CURDATE()")->fetch()['q'];
@@ -70,12 +126,12 @@ try {
         $queue,
         $userId,
         'Walk-in Customer',
-        $data['orderType'],
-        $data['tableNo'] ?: null,
-        $data['subtotal'],
-        $data['discount'],
-        $data['tax'],
-        $data['total'],
+        $orderType,
+        $tableNo !== '' ? $tableNo : null,
+        $subtotal,
+        $discount,
+        $tax,
+        $total,
         $orderNote
     ]);
     $order_id = $conn->lastInsertId();
@@ -84,13 +140,10 @@ try {
     $deduct = $conn->prepare("UPDATE menu_items SET stock = stock - ? WHERE id = ? AND stock >= ?");
     $log = $conn->prepare("INSERT INTO inventory_logs (inventory_id, menu_item_id, user_id, action, quantity, remarks) VALUES (NULL, ?, ?, 'Order Deduction', ?, ?)");
 
-    foreach ($cart as $row) {
-        $itemId = (int) $row['id'];
-        $qty = (int) $row['qty'];
+    foreach ($normalized as $item) {
+        $item_stmt->execute([$order_id, $item['id'], $item['client_name'] !== '' ? $item['client_name'] : $item['name'], $item['qty'], $item['price']]);
 
-        $item_stmt->execute([$order_id, $itemId, $row['name'], $qty, $row['price']]);
-
-        $deduct->execute([$qty, $itemId, $qty]);
+        $deduct->execute([$item['qty'], $item['id'], $item['qty']]);
 
         if ($deduct->rowCount() !== 1) {
             $conn->rollBack();
@@ -98,15 +151,14 @@ try {
             exit;
         }
 
-        $log->execute([$itemId, $userId, $qty, 'Order ' . $order_no . ' auto-deduction']);
+        $log->execute([$item['id'], $userId, $item['qty'], 'Order ' . $order_no . ' auto-deduction']);
     }
 
+    $amountPaid = $paymentMode === 'gcash' ? $total : $cash;
+    $paymentMethod = $paymentMode === 'gcash' ? 'Gcash' : 'Cash';
 
-    $amountPaid = ($paymentMode === 'Gcash' || $paymentMode === 'GCash') ? $total : $cash;
-    $changeAmount = ($paymentMode === 'Gcash' || $paymentMode === 'GCash') ? 0 : $change;
-
-    $stmt = $conn->prepare("INSERT INTO payments (order_id, payment_method, amount_paid, change_amount) VALUES (?, ?, ?, ?)");
-    $stmt->execute([$order_id, $paymentMode, $amountPaid, $changeAmount]);
+    $stmt = $conn->prepare("INSERT INTO payments (order_id, payment_method, payment_reference, payment_status, amount_paid, change_amount) VALUES (?, ?, ?, 'Paid', ?, ?)");
+    $stmt->execute([$order_id, $paymentMethod, $paymentMode === 'gcash' ? $gcashRef : null, $amountPaid, $change]);
 
     $receipt_no = 'RCPT-' . date('Ymd') . '-' . str_pad($order_id, 5, '0', STR_PAD_LEFT);
     $stmt = $conn->prepare("INSERT INTO receipts (order_id, receipt_no) VALUES (?, ?)");

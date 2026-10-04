@@ -1,7 +1,7 @@
 <?php
 require_once dirname(__DIR__, 2) . '/includes/auth.php';
 require_once ROOT_PATH . '/config/db.php';
-require_role(['admin', 'cashier', 'server']);
+require_role(['admin', 'cashier']);
 
 header('Content-Type: application/json');
 

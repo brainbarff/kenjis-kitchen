@@ -52,11 +52,12 @@ if (isset($_GET['edit'])) {
     $edit = $stmt->fetch();
 }
 
-$roles = $conn->query("SELECT * FROM roles ORDER BY role_name")->fetchAll();
+$roles = $conn->query("SELECT * FROM roles WHERE role_name IN ('Admin','Cashier','Kitchen Staff','Inventory Staff','Customer (Online)') ORDER BY FIELD(role_name, 'Admin','Cashier','Kitchen Staff','Inventory Staff','Customer (Online)')")->fetchAll();
 $users = $conn->query("
     SELECT users.*, roles.role_name
     FROM users
     JOIN roles ON roles.id = users.role_id
+    WHERE roles.role_name IN ('Admin','Cashier','Kitchen Staff','Inventory Staff')
     ORDER BY users.created_at DESC
 ")->fetchAll();
 

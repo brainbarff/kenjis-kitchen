@@ -5,5 +5,5 @@ if (!empty($_SESSION['u_id'])) {
     redirect(role_home());
 }
 
-redirect('/login.php');
+redirect('login.php');
 ?>

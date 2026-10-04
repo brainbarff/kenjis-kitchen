@@ -24,8 +24,43 @@ if ($historyPage < 1) {
     $historyPage = 1;
 }
 
+$isAdmin = can_access('admin');
+$isInventory = can_access('inventory');
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
+
+    if ($action === 'archive_request') {
+        if (!$isInventory || $isAdmin) {
+            $_SESSION['flash_msg'] = 'Only Inventory Staff can submit an archive request.';
+            header('Location: index.php');
+            exit;
+        }
+
+        $id = (int) ($_POST['menu_item_id'] ?? 0);
+        $stmt = $conn->prepare("SELECT id, item_name, stock, is_archived FROM menu_items WHERE id = ? LIMIT 1");
+        $stmt->execute([$id]);
+        $item = $stmt->fetch();
+
+        if (!$item || (int) $item['is_archived'] === 1) {
+            $_SESSION['flash_msg'] = 'Menu item not found or already archived.';
+        } elseif ((int) $item['stock'] > 0) {
+            $_SESSION['flash_msg'] = 'Only menu items with 0 stock can be archived. Use Stock Out first.';
+        } else {
+            $pending = $conn->prepare("SELECT id FROM approval_requests WHERE request_type = 'Archive' AND menu_item_id = ? AND status = 'Pending' LIMIT 1");
+            $pending->execute([$id]);
+            if ($pending->fetch()) {
+                $_SESSION['flash_msg'] = 'An archive request for this menu item is already pending Admin approval.';
+            } else {
+                $request = $conn->prepare("INSERT INTO approval_requests (request_type, menu_item_id, remarks, requested_by) VALUES ('Archive', ?, 'Out-of-stock menu archive request', ?)");
+                $request->execute([$id, $_SESSION['u_id']]);
+                $_SESSION['flash_msg'] = 'Archive request submitted for Admin approval.';
+            }
+        }
+
+        header('Location: index.php?inventory_page=1&history_page=1');
+        exit;
+    }
 
     if ($action === 'stock') {
         $id = (int) ($_POST['menu_item_id'] ?? 0);
@@ -55,17 +90,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         try {
-            $conn->beginTransaction();
-
-            $stmt = $conn->prepare("SELECT id, item_name, stock, is_archived FROM menu_items WHERE id = ? FOR UPDATE");
+            $stmt = $conn->prepare("SELECT id, item_name, stock, is_archived FROM menu_items WHERE id = ? LIMIT 1");
             $stmt->execute([$id]);
             $item = $stmt->fetch();
 
             if (!$item || (int) $item['is_archived'] === 1) {
-                $conn->rollBack();
                 $_SESSION['flash_msg'] = 'Menu item not found or archived.';
                 header('Location: index.php');
                 exit;
+            }
+
+            $currentStock = (int) $item['stock'];
+
+            if ($type === 'Stock Out' && $qty > $currentStock) {
+                $_SESSION['flash_msg'] = 'Stock Out quantity cannot be greater than the current stock.';
+                header('Location: index.php');
+                exit;
+            }
+
+            if ($isInventory && !$isAdmin) {
+                $pendingStmt = $conn->prepare("SELECT id FROM approval_requests WHERE request_type = ? AND menu_item_id = ? AND status = 'Pending' LIMIT 1");
+                $pendingStmt->execute([$type, $id]);
+                if ($pendingStmt->fetch()) {
+                    $_SESSION['flash_msg'] = 'A ' . $type . ' request for this menu item is already pending Admin approval.';
+                    header('Location: index.php');
+                    exit;
+                }
+
+                $requestRemarks = $remarks !== '' ? $remarks : 'Inventory ' . $type . ' request.';
+                $requestStmt = $conn->prepare("INSERT INTO approval_requests (request_type, menu_item_id, quantity, remarks, requested_by) VALUES (?, ?, ?, ?, ?)");
+                $requestStmt->execute([$type, $id, $qty, substr($requestRemarks, 0, 255), $_SESSION['u_id']]);
+                $_SESSION['flash_msg'] = $type . ' request submitted. Stock will change after Admin approval.';
+                header('Location: index.php?inventory_page=1&history_page=1');
+                exit;
+            }
+
+            $conn->beginTransaction();
+
+            $lockStmt = $conn->prepare("SELECT id, item_name, stock, is_archived FROM menu_items WHERE id = ? FOR UPDATE");
+            $lockStmt->execute([$id]);
+            $item = $lockStmt->fetch();
+
+            if (!$item || (int) $item['is_archived'] === 1) {
+                throw new RuntimeException('Menu item not found or archived.');
             }
 
             $currentStock = (int) $item['stock'];
@@ -75,10 +142,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $logQuantity = $qty;
             } elseif ($type === 'Stock Out') {
                 if ($qty > $currentStock) {
-                    $conn->rollBack();
-                    $_SESSION['flash_msg'] = 'Stock Out quantity cannot be greater than the current stock.';
-                    header('Location: index.php');
-                    exit;
+                    throw new RuntimeException('Stock Out quantity cannot be greater than the current stock.');
                 }
                 $newStock = $currentStock - $qty;
                 $logQuantity = $qty;
@@ -87,24 +151,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $logQuantity = $newStock;
             }
 
-            $update = $conn->prepare("UPDATE menu_items SET stock = ? WHERE id = ? AND is_archived = 0");
-            $update->execute([$newStock, $id]);
+            $update = $conn->prepare("UPDATE menu_items SET stock = ?, availability = ? WHERE id = ? AND is_archived = 0");
+            $update->execute([$newStock, $newStock <= 0 ? 'Unavailable' : 'Available', $id]);
+            if ($update->rowCount() !== 1) {
+                throw new RuntimeException('Stock could not be updated.');
+            }
 
             $log = $conn->prepare("INSERT INTO inventory_logs (inventory_id, menu_item_id, user_id, action, quantity, remarks) VALUES (NULL, ?, ?, ?, ?, ?)");
             $log->execute([$id, $_SESSION['u_id'], $type, $logQuantity, $remarks]);
-
-            $availability = $conn->prepare("UPDATE menu_items SET availability = ? WHERE id = ? AND is_archived = 0");
-            $availability->execute([$newStock <= 0 ? 'Unavailable' : 'Available', $id]);
 
             $conn->commit();
             $_SESSION['flash_msg'] = 'Stock updated.';
             header('Location: index.php?inventory_page=1&history_page=1');
             exit;
-        } catch (Exception $e) {
+        } catch (Throwable $e) {
             if ($conn->inTransaction()) {
                 $conn->rollBack();
             }
-            $_SESSION['flash_msg'] = 'Unable to update stock.';
+            $_SESSION['flash_msg'] = $isInventory && !$isAdmin ? 'Unable to submit the stock request.' : 'Unable to update stock.';
             header('Location: index.php');
             exit;
         }
@@ -112,6 +176,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $items = $conn->query("SELECT menu_items.*, categories.category_name FROM menu_items JOIN categories ON categories.id = menu_items.category_id WHERE menu_items.is_archived = 0 ORDER BY menu_items.item_name, menu_items.id")->fetchAll();
+
+$pendingInventoryRequests = [];
+if ($isInventory && !$isAdmin) {
+    $pendingStmt = $conn->prepare("SELECT menu_item_id, request_type FROM approval_requests WHERE requested_by = ? AND status = 'Pending' AND request_type IN ('Stock In','Stock Out','Adjustment')");
+    $pendingStmt->execute([$_SESSION['u_id']]);
+    foreach ($pendingStmt->fetchAll() as $request) {
+        $pendingInventoryRequests[(int) $request['menu_item_id']] = $request['request_type'];
+    }
+}
+
+$pendingArchiveRequests = [];
+if ($isInventory && !$isAdmin) {
+    $pendingArchiveStmt = $conn->query("SELECT menu_item_id FROM approval_requests WHERE status = 'Pending' AND request_type = 'Archive'");
+    foreach ($pendingArchiveStmt->fetchAll() as $request) {
+        $pendingArchiveRequests[(int) $request['menu_item_id']] = true;
+    }
+}
 
 $low = $conn->query("SELECT COUNT(*) total FROM menu_items WHERE is_archived = 0 AND stock <= 5 AND stock > 0")->fetch();
 $out = $conn->query("SELECT COUNT(*) total FROM menu_items WHERE is_archived = 0 AND stock <= 0")->fetch();
@@ -505,7 +586,7 @@ include ROOT_PATH . '/includes/header.php';
                     <option value="Stock Out">Stock Out</option>
                     <option value="Adjustment">Adjustment</option>
                 </select>
-                <div id="actionHelp" class="action-help">Stock In adds newly received or restocked items to the current stock.</div>
+                <div id="actionHelp" class="action-help"><?= $isInventory && !$isAdmin ? 'Stock changes are submitted to Admin for approval before the menu stock is changed.' : 'Stock In adds newly received or restocked items to the current stock.' ?></div>
             </div>
 
             <div class="field">
@@ -518,10 +599,10 @@ include ROOT_PATH . '/includes/header.php';
         <div class="field">
             <label for="stockRemarks">Remarks</label>
             <textarea id="stockRemarks" name="remarks" class="remarks-input" rows="3" placeholder="Example: New delivery, damaged stock, sold out, manual correction"></textarea>
-            <p class="inventory-help-text">Add a short reason for the stock movement.</p>
+            <p class="inventory-help-text"><?= $isInventory && !$isAdmin ? 'Your request will remain pending until an Admin reviews it.' : 'Add a short reason for the stock movement.' ?></p>
         </div>
 
-        <button class="btn btn-secondary" type="submit" id="updateStockBtn"><i class="bi bi-arrow-left-right"></i>Update Stock</button>
+        <button class="btn btn-secondary" type="submit" id="updateStockBtn"><i class="bi bi-arrow-left-right"></i><?= $isInventory && !$isAdmin ? 'Submit Stock Request' : 'Update Stock' ?></button>
     </form>
 </section>
 
@@ -562,7 +643,7 @@ include ROOT_PATH . '/includes/header.php';
 
     <div class="table-wrap" style="margin-top:18px;">
         <table class="inventory-list-table">
-            <thead><tr><th>Menu Item</th><th>Category</th><th>Stock</th><th>Status</th></tr></thead>
+            <thead><tr><th>Menu Item</th><th>Category</th><th>Stock</th><th>Status</th><th>Action</th></tr></thead>
             <tbody>
                 <?php foreach ($inventoryItems as $row): ?>
                     <?php
@@ -584,7 +665,27 @@ include ROOT_PATH . '/includes/header.php';
                         <td><?= e($row['item_name']) ?></td>
                         <td><?= e($row['category_name']) ?></td>
                         <td><?= $stockValue ?> pcs</td>
-                        <td><span class="badge <?= $statusClass ?>"><?= $status ?></span></td>
+                        <td>
+                            <span class="badge <?= $statusClass ?>"><?= $status ?></span>
+                            <?php if ($isInventory && !$isAdmin && isset($pendingInventoryRequests[(int) $row['id']])): ?>
+                                <div style="margin-top:6px;"><span class="badge badge-warning">Approval Pending</span></div>
+                            <?php endif; ?>
+                        </td>
+                        <td>
+                            <?php if ($isInventory && !$isAdmin && $stockValue <= 0): ?>
+                                <?php if (isset($pendingArchiveRequests[(int) $row['id']])): ?>
+                                    <span class="badge badge-warning">Archive Pending</span>
+                                <?php else: ?>
+                                    <form method="post" style="margin:0;">
+                                        <input type="hidden" name="action" value="archive_request">
+                                        <input type="hidden" name="menu_item_id" value="<?= e($row['id']) ?>">
+                                        <button class="btn btn-danger" type="submit" data-confirm="Submit an archive request for this out-of-stock menu item?"><i class="bi bi-archive"></i>Request Archive</button>
+                                    </form>
+                                <?php endif; ?>
+                            <?php else: ?>
+                                <span class="muted">—</span>
+                            <?php endif; ?>
+                        </td>
                     </tr>
                 <?php endforeach; ?>
             </tbody>
@@ -666,7 +767,7 @@ include ROOT_PATH . '/includes/header.php';
 
             <div class="inventory-confirm-actions">
                 <button type="button" class="inventory-confirm-cancel" id="inventoryConfirmCancel">Cancel</button>
-                <button type="button" class="inventory-confirm-submit" id="inventoryConfirmSubmit">Confirm Update</button>
+                <button type="button" class="inventory-confirm-submit" id="inventoryConfirmSubmit"><?= $isInventory && !$isAdmin ? 'Submit Request' : 'Confirm Update' ?></button>
             </div>
         </div>
     </div>
@@ -724,7 +825,7 @@ document.addEventListener('DOMContentLoaded', () => {
             stockQuantity.removeAttribute('max');
             stockQuantity.disabled = false;
             stockQuantity.placeholder = 'Enter quantity to add';
-            actionHelp.textContent = 'Stock In adds newly received or restocked items to the current stock.';
+            actionHelp.textContent = <?= json_encode($isInventory && !$isAdmin ? 'Stock In requests an Admin-approved increase to the current stock.' : 'Stock In adds newly received or restocked items to the current stock.') ?>;
             quantityHelp.textContent = 'Enter the number of whole items to add.';
             if (stockQuantity.value !== '' && Number(stockQuantity.value) < 1) {
                 stockQuantity.value = '';
@@ -736,7 +837,7 @@ document.addEventListener('DOMContentLoaded', () => {
             quantityLabel.textContent = 'Quantity';
             stockQuantity.min = '1';
             stockQuantity.placeholder = 'Enter quantity to remove';
-            actionHelp.textContent = 'Stock Out removes items from the current stock. It can reduce the stock all the way to 0.';
+            actionHelp.textContent = <?= json_encode($isInventory && !$isAdmin ? 'Stock Out requests an Admin-approved removal from the current stock. It can reduce stock to 0.' : 'Stock Out removes items from the current stock. It can reduce the stock all the way to 0.') ?>;
 
             if (item) {
                 stockQuantity.max = String(item.stock);
@@ -746,7 +847,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     quantityHelp.textContent = 'This item has no stock available to remove.';
                 } else {
                     stockQuantity.disabled = false;
-                    quantityHelp.textContent = `Enter 1 to ${item.stock} to remove stock. You can remove all remaining stock to make the item Out of Stock.`;
+                    quantityHelp.textContent = <?= json_encode($isInventory && !$isAdmin ? 'Enter 1 to ' : '') ?> + item.stock + <?= json_encode($isInventory && !$isAdmin ? ' to request a stock removal. Admin approval is required.' : ' to remove stock. You can remove all remaining stock to make the item Out of Stock.') ?>;
                 }
             } else {
                 stockQuantity.removeAttribute('max');
@@ -765,8 +866,8 @@ document.addEventListener('DOMContentLoaded', () => {
         stockQuantity.removeAttribute('max');
         stockQuantity.disabled = false;
         stockQuantity.placeholder = 'Enter the correct total stock';
-        actionHelp.textContent = 'Adjustment replaces the recorded stock with the exact correct quantity.';
-        quantityHelp.textContent = 'Enter the correct total stock. This number becomes the stock shown in POS. Use Stock Out when removing stock.';
+        actionHelp.textContent = <?= json_encode($isInventory && !$isAdmin ? 'Adjustment requests an Admin-approved correction to the exact stock quantity.' : 'Adjustment replaces the recorded stock with the exact correct quantity.') ?>;
+        quantityHelp.textContent = <?= json_encode($isInventory && !$isAdmin ? 'Enter the corrected stock total for Admin review. Use Stock Out when removing stock.' : 'Enter the correct total stock. This number becomes the stock shown in POS. Use Stock Out when removing stock.') ?>;
     };
 
     itemInput.addEventListener('input', updateSelectedItem);

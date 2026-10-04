@@ -108,11 +108,6 @@ function displayCard(
                 }
             </div>
 
-            <div class="display-order-number">
-                ${safeText(
-                    order.order_no
-                )}
-            </div>
         </div>
     `;
 }

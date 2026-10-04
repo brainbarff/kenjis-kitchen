@@ -1,7 +1,7 @@
 <?php
 require_once dirname(__DIR__, 2) . '/includes/auth.php';
 require_once ROOT_PATH . '/config/db.php';
-require_role(['admin', 'manager']);
+require_role('admin');
 
 $page = 'reports';
 $title = 'Sales Report';
@@ -40,7 +40,7 @@ if ($salesPage < 1) {
 }
 
 $latestPayment = "
-    SELECT p1.order_id, p1.payment_method
+    SELECT p1.order_id, p1.payment_method, p1.payment_status, p1.payment_reference
     FROM payments p1
     INNER JOIN (
         SELECT order_id, MAX(id) AS max_id
@@ -216,17 +216,108 @@ $printMenuSalesStmt->bindValue(':print_menu_to', $reportTo, PDO::PARAM_STR);
 $printMenuSalesStmt->execute();
 $printMenuSales = $printMenuSalesStmt->fetchAll();
 
-$orderTypeSummaryStmt = $conn->prepare("    SELECT        CASE            WHEN UPPER(TRIM(o.order_type)) = 'DINE-IN' THEN 'Dine-In'            WHEN UPPER(TRIM(o.order_type)) = 'TAKE-OUT' THEN 'Take-Out'            ELSE 'Other'        END AS order_type_label,        COUNT(o.id) AS total_orders,        COALESCE(SUM(o.total), 0) AS total_sales    FROM orders o    INNER JOIN ($latestPayment) p ON p.order_id = o.id    WHERE o.paid_at IS NOT NULL      AND o.paid_at >= :order_type_from      AND o.paid_at < :order_type_to      AND o.status <> 'Cancelled'    GROUP BY order_type_label    ORDER BY FIELD(order_type_label, 'Dine-In', 'Take-Out', 'Other')");
+$orderTypeSummaryStmt = $conn->prepare("    SELECT        CASE            WHEN UPPER(TRIM(o.order_type)) = 'DINE-IN' THEN 'Dine-In'            WHEN UPPER(TRIM(o.order_type)) = 'TAKE-OUT' THEN 'Take-Out'            WHEN UPPER(TRIM(o.order_type)) = 'ONLINE' THEN 'Online'            ELSE 'Other'        END AS order_type_label,        COUNT(o.id) AS total_orders,        COALESCE(SUM(o.total), 0) AS total_sales    FROM orders o    INNER JOIN ($latestPayment) p ON p.order_id = o.id    WHERE o.paid_at IS NOT NULL      AND o.paid_at >= :order_type_from      AND o.paid_at < :order_type_to      AND o.status <> 'Cancelled'    GROUP BY order_type_label    ORDER BY FIELD(order_type_label, 'Dine-In', 'Take-Out', 'Online', 'Other')");
 $orderTypeSummaryStmt->bindValue(':order_type_from', $reportFrom, PDO::PARAM_STR);
 $orderTypeSummaryStmt->bindValue(':order_type_to', $reportTo, PDO::PARAM_STR);
 $orderTypeSummaryStmt->execute();
 $orderTypeSummary = $orderTypeSummaryStmt->fetchAll();
 
-$paymentSummaryStmt = $conn->prepare("    SELECT        CASE            WHEN LOWER(TRIM(p.payment_method)) = 'cash' THEN 'Cash'            WHEN LOWER(TRIM(p.payment_method)) = 'gcash' THEN 'GCash'            ELSE 'Other'        END AS payment_method_label,        COUNT(o.id) AS total_orders,        COALESCE(SUM(o.total), 0) AS total_sales    FROM orders o    INNER JOIN ($latestPayment) p ON p.order_id = o.id    WHERE o.paid_at IS NOT NULL      AND o.paid_at >= :payment_from      AND o.paid_at < :payment_to      AND o.status <> 'Cancelled'    GROUP BY payment_method_label    ORDER BY FIELD(payment_method_label, 'Cash', 'GCash', 'Other')");
+$paymentSummaryStmt = $conn->prepare("    SELECT        CASE            WHEN LOWER(TRIM(p.payment_method)) IN ('cash', 'pay on pickup', 'cash on delivery') THEN 'Cash'            WHEN LOWER(TRIM(p.payment_method)) = 'gcash' THEN 'GCash'            ELSE 'Other'        END AS payment_method_label,        COUNT(o.id) AS total_orders,        COALESCE(SUM(o.total), 0) AS total_sales    FROM orders o    INNER JOIN ($latestPayment) p ON p.order_id = o.id    WHERE o.paid_at IS NOT NULL      AND o.paid_at >= :payment_from      AND o.paid_at < :payment_to      AND o.status <> 'Cancelled'    GROUP BY payment_method_label    ORDER BY FIELD(payment_method_label, 'Cash', 'GCash', 'Other')");
 $paymentSummaryStmt->bindValue(':payment_from', $reportFrom, PDO::PARAM_STR);
 $paymentSummaryStmt->bindValue(':payment_to', $reportTo, PDO::PARAM_STR);
 $paymentSummaryStmt->execute();
 $paymentSummary = $paymentSummaryStmt->fetchAll();
+
+$onlineSummaryStmt = $conn->prepare("
+    SELECT
+        COUNT(*) AS online_orders,
+        COALESCE(SUM(CASE WHEN o.status = 'Pending' THEN 1 ELSE 0 END), 0) AS pending_online_orders
+    FROM orders o
+    WHERE o.order_channel = 'ONLINE'
+      AND o.created_at >= :online_from
+      AND o.created_at < :online_to
+      AND o.status <> 'Cancelled'
+");
+$onlineSummaryStmt->bindValue(':online_from', $reportFrom, PDO::PARAM_STR);
+$onlineSummaryStmt->bindValue(':online_to', $reportTo, PDO::PARAM_STR);
+$onlineSummaryStmt->execute();
+$onlineSummary = $onlineSummaryStmt->fetch();
+
+$onlineOrdersPerPage = 10;
+$onlineOrdersPage = isset($_GET['online_page']) ? (int) $_GET['online_page'] : 1;
+if ($onlineOrdersPage < 1) {
+    $onlineOrdersPage = 1;
+}
+
+$onlineCountStmt = $conn->prepare("
+    SELECT COUNT(*)
+    FROM orders o
+    WHERE o.order_channel = 'ONLINE'
+      AND o.created_at >= :online_count_from
+      AND o.created_at < :online_count_to
+      AND o.status <> 'Cancelled'
+");
+$onlineCountStmt->bindValue(':online_count_from', $reportFrom, PDO::PARAM_STR);
+$onlineCountStmt->bindValue(':online_count_to', $reportTo, PDO::PARAM_STR);
+$onlineCountStmt->execute();
+$totalOnlineOrders = (int) $onlineCountStmt->fetchColumn();
+$totalOnlinePages = max(1, (int) ceil($totalOnlineOrders / $onlineOrdersPerPage));
+if ($onlineOrdersPage > $totalOnlinePages) {
+    $onlineOrdersPage = $totalOnlinePages;
+}
+$onlineOrdersOffset = ($onlineOrdersPage - 1) * $onlineOrdersPerPage;
+
+$onlineOrdersStmt = $conn->prepare("
+    SELECT
+        o.id,
+        o.order_no,
+        o.customer_name,
+        o.order_type,
+        COALESCE(p.payment_method, '—') AS payment_method,
+        COALESCE(p.payment_status, 'Pending') AS payment_status,
+        p.payment_reference,
+        o.total,
+        o.status,
+        o.created_at
+    FROM orders o
+    LEFT JOIN ($latestPayment) p ON p.order_id = o.id
+    WHERE o.order_channel = 'ONLINE'
+      AND o.created_at >= :online_from_list
+      AND o.created_at < :online_to_list
+      AND o.status <> 'Cancelled'
+    ORDER BY o.created_at DESC, o.id DESC
+    LIMIT :online_limit OFFSET :online_offset
+");
+$onlineOrdersStmt->bindValue(':online_from_list', $reportFrom, PDO::PARAM_STR);
+$onlineOrdersStmt->bindValue(':online_to_list', $reportTo, PDO::PARAM_STR);
+$onlineOrdersStmt->bindValue(':online_limit', $onlineOrdersPerPage, PDO::PARAM_INT);
+$onlineOrdersStmt->bindValue(':online_offset', $onlineOrdersOffset, PDO::PARAM_INT);
+$onlineOrdersStmt->execute();
+$onlineOrders = $onlineOrdersStmt->fetchAll();
+
+$printOnlineOrdersStmt = $conn->prepare("
+    SELECT
+        o.order_no,
+        o.customer_name,
+        o.order_type,
+        COALESCE(p.payment_method, '—') AS payment_method,
+        COALESCE(p.payment_status, 'Pending') AS payment_status,
+        p.payment_reference,
+        o.total,
+        o.status,
+        o.created_at
+    FROM orders o
+    LEFT JOIN ($latestPayment) p ON p.order_id = o.id
+    WHERE o.order_channel = 'ONLINE'
+      AND o.created_at >= :online_print_from
+      AND o.created_at < :online_print_to
+      AND o.status <> 'Cancelled'
+    ORDER BY o.created_at DESC, o.id DESC
+");
+$printOnlineOrdersStmt->bindValue(':online_print_from', $reportFrom, PDO::PARAM_STR);
+$printOnlineOrdersStmt->bindValue(':online_print_to', $reportTo, PDO::PARAM_STR);
+$printOnlineOrdersStmt->execute();
+$printOnlineOrders = $printOnlineOrdersStmt->fetchAll();
 
 include ROOT_PATH . '/includes/header.php';
 ?>
@@ -234,7 +325,7 @@ include ROOT_PATH . '/includes/header.php';
 <section class="page-head">
     <div>
         <h2><?= $isSingleDay ? 'Daily Sales Report' : 'Sales Report' ?></h2>
-        <p class="muted">Sales from paid POS transactions for the selected date or date range.</p>
+        <p class="muted">Paid sales for the selected period, with online order activity shown separately.</p>
     </div>
     <div class="actions">
         <a class="btn btn-secondary" href="sales_performance.php?from_date=<?= e($fromDate) ?>&to_date=<?= e($toDate) ?>">
@@ -296,7 +387,27 @@ include ROOT_PATH . '/includes/header.php';
         </div>
         <i class="bi bi-phone"></i>
     </article>
+
+    <article class="card stat">
+        <div>
+            <span class="muted">Online Orders</span>
+            <strong><?= e($onlineSummary['online_orders']) ?></strong>
+        </div>
+        <i class="bi bi-globe2"></i>
+    </article>
+
+    <article class="card stat">
+        <div>
+            <span class="muted">Pending Online</span>
+            <strong><?= e($onlineSummary['pending_online_orders']) ?></strong>
+        </div>
+        <i class="bi bi-hourglass-split"></i>
+    </article>
 </section>
+
+<style>
+.online-payment-action { padding:7px 10px; font-size:0.78rem; white-space:nowrap; }
+</style>
 
 <section class="card" style="margin-top:24px;">
     <div style="margin-bottom:16px;">
@@ -451,8 +562,73 @@ include ROOT_PATH . '/includes/header.php';
 <section class="card" style="margin-top:24px;">
     <div style="display:flex; justify-content:space-between; align-items:center; gap:16px; margin-bottom:16px; flex-wrap:wrap;">
         <div>
+            <h2 style="font-size:24px; margin-bottom:4px;">Online Order Activity</h2>
+            <p class="muted">Online orders created during the selected period, including payment and order status.</p>
+        </div>
+
+        <?php if ($totalOnlineOrders > 0): ?>
+            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:flex-end;">
+                <a class="btn btn-secondary" href="?from_date=<?= e($fromDate) ?>&to_date=<?= e($toDate) ?>&page=<?= $salesPage ?>&menu_page=<?= $menuSalesPage ?>&online_page=<?= $onlineOrdersPage - 1 ?>" <?= $onlineOrdersPage <= 1 ? 'style="pointer-events:none;opacity:0.5;"' : '' ?>><i class="bi bi-chevron-left"></i>Previous</a>
+                <strong style="white-space:nowrap;">Page <?= $onlineOrdersPage ?> of <?= $totalOnlinePages ?></strong>
+                <a class="btn btn-secondary" href="?from_date=<?= e($fromDate) ?>&to_date=<?= e($toDate) ?>&page=<?= $salesPage ?>&menu_page=<?= $menuSalesPage ?>&online_page=<?= $onlineOrdersPage + 1 ?>" <?= $onlineOrdersPage >= $totalOnlinePages ? 'style="pointer-events:none;opacity:0.5;"' : '' ?>>Next<i class="bi bi-chevron-right"></i></a>
+            </div>
+        <?php endif; ?>
+    </div>
+
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Order Number</th>
+                    <th>Customer</th>
+                    <th>Type</th>
+                    <th>Payment</th>
+                    <th>Payment Status</th>
+                    <th>Total</th>
+                    <th>Order Status</th>
+                    <th>Payment Action</th>
+                    <th>Date / Time</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($onlineOrders as $order): ?>
+                    <tr>
+                        <td><?= e($order['order_no']) ?></td>
+                        <td><?= e($order['customer_name'] ?: 'Online Customer') ?></td>
+                        <td><?= e($order['order_type']) ?></td>
+                        <td><?= e($order['payment_method']) ?><?php if (!empty($order['payment_reference'])): ?><br><small class="muted">Ref: <?= e($order['payment_reference']) ?></small><?php endif; ?></td>
+                        <td><?= e($order['payment_status']) ?></td>
+                        <td><?= money($order['total']) ?></td>
+                        <td><?= e($order['status']) ?></td>
+                        <td>
+                            <?php if (strcasecmp((string)$order['payment_status'], 'Paid') === 0): ?>
+                                <span class="muted">Paid</span>
+                            <?php else: ?>
+                                <button type="button" class="btn btn-secondary online-payment-action" data-order-id="<?= e($order['id'] ?? '') ?>" data-payment-method="<?= e($order['payment_method']) ?>">
+                                    <i class="bi bi-check2-circle"></i>
+                                    <?= strcasecmp((string)$order['payment_method'], 'GCash') === 0 ? 'Verify GCash' : 'Mark Paid' ?>
+                                </button>
+                            <?php endif; ?>
+                        </td>
+                        <td><?= e(date('M j, Y h:i A', strtotime($order['created_at']))) ?></td>
+                    </tr>
+                <?php endforeach; ?>
+
+                <?php if (!$onlineOrders): ?>
+                    <tr>
+                        <td colspan="9" class="muted" style="text-align:center; padding:28px;">No online orders found for this date range.</td>
+                    </tr>
+                <?php endif; ?>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<section class="card" style="margin-top:24px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:16px; margin-bottom:16px; flex-wrap:wrap;">
+        <div>
             <h2 style="font-size:24px; margin-bottom:4px;">Sales Details</h2>
-            <p class="muted"><?= $isSingleDay ? e(date('F j, Y', strtotime($fromDate))) : e(date('F j, Y', strtotime($fromDate)) . ' - ' . date('F j, Y', strtotime($toDate))) ?></p>
+            <p class="muted">Paid transactions only<?= $isSingleDay ? ' · ' . e(date('F j, Y', strtotime($fromDate))) : ' · ' . e(date('F j, Y', strtotime($fromDate)) . ' - ' . date('F j, Y', strtotime($toDate))) ?></p>
         </div>
 
         <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:flex-end;">
@@ -505,7 +681,42 @@ include ROOT_PATH . '/includes/header.php';
         <div><span>Total Orders</span><strong><?= e($summary['total_orders']) ?></strong></div>
         <div><span>Cash Sales</span><strong><?= money($summary['cash_sales']) ?></strong></div>
         <div><span>GCash Sales</span><strong><?= money($summary['gcash_sales']) ?></strong></div>
+        <div><span>Online Orders</span><strong><?= e($onlineSummary['online_orders']) ?></strong></div>
+        <div><span>Pending Online</span><strong><?= e($onlineSummary['pending_online_orders']) ?></strong></div>
     </div>
+
+    <h2>Online Order Activity</h2>
+    <table style="margin-bottom:24px;">
+        <thead>
+            <tr>
+                <th>Order Number</th>
+                <th>Customer</th>
+                <th>Type</th>
+                <th>Payment</th>
+                <th>Payment Status</th>
+                <th>Total</th>
+                <th>Order Status</th>
+                <th>Date / Time</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php foreach ($printOnlineOrders as $order): ?>
+                <tr>
+                    <td><?= e($order['order_no']) ?></td>
+                    <td><?= e($order['customer_name'] ?: 'Online Customer') ?></td>
+                    <td><?= e($order['order_type']) ?></td>
+                    <td><?= e($order['payment_method']) ?></td>
+                    <td><?= e($order['payment_status']) ?></td>
+                    <td><?= money($order['total']) ?></td>
+                    <td><?= e($order['status']) ?></td>
+                    <td><?= e(date('M j, Y h:i A', strtotime($order['created_at']))) ?></td>
+                </tr>
+            <?php endforeach; ?>
+            <?php if (!$printOnlineOrders): ?>
+                <tr><td colspan="8">No online orders found for this date range.</td></tr>
+            <?php endif; ?>
+        </tbody>
+    </table>
 
     <h2>Best-Selling Menu Items</h2>
     <table style="margin-bottom:24px;">
@@ -682,6 +893,45 @@ function printReport() {
         printWindow.close();
     }, 300);
 }
+</script>
+
+<script>
+document.querySelectorAll('.online-payment-action').forEach(function(button) {
+    button.addEventListener('click', async function() {
+        const orderId = this.dataset.orderId;
+        const method = this.dataset.paymentMethod || 'payment';
+        const message = method.toLowerCase() === 'gcash'
+            ? 'Verify this GCash payment and mark it as paid?'
+            : 'Mark this cash payment as paid?';
+
+        if (!confirm(message)) {
+            return;
+        }
+
+        this.disabled = true;
+
+        try {
+            const response = await fetch('complete_online_payment.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ order_id: Number(orderId) })
+            });
+            const result = await response.json();
+
+            if (!result.ok) {
+                alert(result.message || 'Payment could not be completed.');
+                this.disabled = false;
+                return;
+            }
+
+            alert(result.message || 'Payment updated successfully.');
+            window.location.reload();
+        } catch (error) {
+            alert('Unable to update the payment right now.');
+            this.disabled = false;
+        }
+    });
+});
 </script>
 
 <?php include ROOT_PATH . '/includes/footer.php'; ?>

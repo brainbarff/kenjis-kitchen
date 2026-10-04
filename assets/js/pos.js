@@ -537,13 +537,190 @@ window.setPaymentMode = function(mode) {
 
         if (gcashRefInput) {
             setTimeout(() => {
-                gcashRefInput.focus();
+                openKeypad(gcashRefInput);
             }, 50);
         }
     }
 
     renderCart();
 };
+
+// POS on-screen numeric keypad
+const keypadOverlay = document.getElementById('posKeypadOverlay');
+const keypadTitle = document.getElementById('posKeypadTitle');
+const keypadDisplay = document.getElementById('posKeypadDisplay');
+const keypadError = document.getElementById('posKeypadError');
+const keypadGrid = document.getElementById('posKeypadGrid');
+const keypadClose = document.getElementById('posKeypadClose');
+let keypadTarget = null;
+let keypadOriginalValue = '';
+let keypadType = '';
+let keypadValue = '';
+
+function setKeypadError(message = '') {
+    if (keypadError) keypadError.textContent = message;
+}
+
+function renderKeypad() {
+    if (keypadDisplay) keypadDisplay.value = keypadValue;
+    const decimalButton = keypadGrid?.querySelector('[data-decimal="true"]');
+    if (decimalButton) decimalButton.hidden = keypadType !== 'cash';
+}
+
+function openKeypad(input) {
+    if (!keypadOverlay || !input) return;
+    keypadTarget = input;
+    keypadOriginalValue = input.value || '';
+    keypadType = input.dataset.keypadType || 'number';
+    keypadValue = keypadOriginalValue;
+    setKeypadError('');
+
+    const titles = {
+        table: 'Enter Table Number',
+        cash: 'Enter Cash Amount',
+        gcash: 'Enter GCash Reference'
+    };
+
+    if (keypadTitle) keypadTitle.textContent = titles[keypadType] || 'Enter Number';
+    renderKeypad();
+    keypadOverlay.hidden = false;
+    keypadOverlay.classList.add('show');
+}
+
+function closeKeypad(save = false) {
+    if (!keypadOverlay) return;
+
+    if (save && keypadTarget) {
+        keypadTarget.value = keypadValue;
+        keypadTarget.dispatchEvent(new Event('input', { bubbles: true }));
+        keypadTarget.dispatchEvent(new Event('change', { bubbles: true }));
+    } else if (keypadTarget) {
+        keypadTarget.value = keypadOriginalValue;
+    }
+
+    keypadOverlay.classList.remove('show');
+    keypadOverlay.hidden = true;
+    keypadTarget = null;
+    keypadType = '';
+    keypadValue = '';
+    keypadOriginalValue = '';
+    setKeypadError('');
+}
+
+function appendKeypadValue(key) {
+    setKeypadError('');
+
+    if (keypadType === 'table') {
+        if (!/^\d$/.test(key) || keypadValue.length >= 2) return;
+        const next = keypadValue + key;
+        const numeric = Number(next);
+        if (numeric >= 1 && numeric <= 10) {
+            keypadValue = next;
+        }
+        renderKeypad();
+        return;
+    }
+
+    if (keypadType === 'gcash') {
+        if (!/^\d$/.test(key) || keypadValue.length >= 13) return;
+        keypadValue += key;
+        renderKeypad();
+        return;
+    }
+
+    if (keypadType === 'cash') {
+        if (key === '.' && keypadValue.includes('.')) return;
+        if (!/^\d$/.test(key) && key !== '.') return;
+        const parts = keypadValue.split('.');
+        if (!keypadValue.includes('.') && keypadValue.length >= 8 && key !== '.') return;
+        if (keypadValue.includes('.') && parts[1].length >= 2) return;
+        if (key === '.' && keypadValue === '') keypadValue = '0';
+        keypadValue += key;
+        renderKeypad();
+    }
+}
+
+function validateKeypadValue() {
+    if (keypadType === 'table') {
+        const value = Number(keypadValue);
+        if (!Number.isInteger(value) || value < 1 || value > 10) {
+            setKeypadError('Table number must be from 1 to 10.');
+            return false;
+        }
+    }
+
+    if (keypadType === 'cash') {
+        if (keypadValue === '' || Number.isNaN(Number(keypadValue)) || Number(keypadValue) < 0) {
+            setKeypadError('Enter a valid cash amount.');
+            return false;
+        }
+    }
+
+    if (keypadType === 'gcash') {
+        if (!/^\d{13}$/.test(keypadValue)) {
+            setKeypadError('GCash reference must contain exactly 13 digits.');
+            return false;
+        }
+    }
+
+    return true;
+}
+
+if (keypadGrid) {
+    keypadGrid.addEventListener('click', event => {
+        const button = event.target.closest('.pos-keypad-key');
+        if (!button) return;
+
+        const key = button.dataset.key;
+        const action = button.dataset.action;
+
+        if (key !== undefined) {
+            appendKeypadValue(key);
+            return;
+        }
+
+        if (action === 'clear') {
+            keypadValue = '';
+            setKeypadError('');
+            renderKeypad();
+            return;
+        }
+
+        if (action === 'backspace') {
+            keypadValue = keypadValue.slice(0, -1);
+            setKeypadError('');
+            renderKeypad();
+            return;
+        }
+
+        if (action === 'cancel') {
+            closeKeypad(false);
+            return;
+        }
+
+        if (action === 'done' && validateKeypadValue()) {
+            closeKeypad(true);
+        }
+    });
+}
+
+if (keypadClose) {
+    keypadClose.addEventListener('click', () => closeKeypad(false));
+}
+
+if (keypadOverlay) {
+    keypadOverlay.addEventListener('click', event => {
+        if (event.target === keypadOverlay) closeKeypad(false);
+    });
+}
+
+[
+    document.getElementById('tableNo'),
+    document.getElementById('cash'),
+    document.getElementById('gcashRef')
+].filter(Boolean).forEach(input => {
+    input.addEventListener('click', () => openKeypad(input));
+});
 
 if (gcashRefInput) {
     gcashRefInput.addEventListener('input', () => {
@@ -875,52 +1052,38 @@ function totals() {
         cart.reduce(
             (sum, item) =>
                 sum +
-                (
-                    item.price *
-                    item.qty
-                ),
+                (item.price * item.qty),
             0
         );
 
-    const discount =
-        Number(
-            discountInput?.value || 0
-        );
+    const discountPercent = Math.min(
+        Math.max(
+            Number(discountInput?.value || 0),
+            0
+        ),
+        100
+    );
+
+    const discount = Math.round(
+        (subtotal * discountPercent / 100 + Number.EPSILON) * 100
+    ) / 100;
 
     const tax = 0;
+    const total = Math.max(subtotal - discount + tax, 0);
 
-    const total =
-        Math.max(
-            subtotal -
-                discount +
-                tax,
-            0
-        );
-
-    let cash =
-        Number(
-            cashInput?.value || 0
-        );
-
-    if (
-        currentPaymentMode ===
-        'gcash'
-    ) {
+    let cash = Number(cashInput?.value || 0);
+    if (currentPaymentMode === 'gcash') {
         cash = total;
     }
 
     return {
         subtotal,
+        discountPercent,
         discount,
         tax,
         total,
         cash,
-        change:
-            Math.max(
-                cash -
-                    total,
-                0
-            )
+        change: Math.max(cash - total, 0)
     };
 }
 
@@ -940,6 +1103,11 @@ function updateTotalsDisplay() {
     const grandTotalElement =
         document.getElementById(
             'grandTotal'
+        );
+
+    const discountAmountElement =
+        document.getElementById(
+            'discountAmount'
         );
 
     const changeElement =
@@ -966,6 +1134,13 @@ function updateTotalsDisplay() {
             peso.format(
                 data.total
             );
+    }
+
+    if (discountAmountElement) {
+        discountAmountElement.textContent =
+            data.discount > 0
+                ? '-' + peso.format(data.discount)
+                : '-₱0.00';
     }
 
     if (changeElement) {
@@ -1351,6 +1526,9 @@ if (discountInput) {
     discountInput.addEventListener(
         'input',
         () => {
+            const value = Number(discountInput.value || 0);
+            if (value > 100) discountInput.value = '100';
+            if (value < 0) discountInput.value = '0';
             renderCart();
         }
     );
@@ -1797,7 +1975,7 @@ function generatePrintReceiptHtml(
                                 <td style="
                                     padding: 1px 0;
                                 ">
-                                    Discount:
+                                    Discount (${Number(orderData.discountPercent || 0).toFixed(2).replace(/\.00$/, '')}%):
                                 </td>
 
                                 <td style="
@@ -2210,13 +2388,12 @@ if (checkoutBtn) {
             }
 
             if (
-                data.discount < 0 ||
-                data.discount >
-                    data.subtotal
+                data.discountPercent < 0 ||
+                data.discountPercent > 100
             ) {
                 showPosAlert(
                     'Invalid Discount',
-                    'The discount cannot be negative or greater than the order subtotal.'
+                    'The discount must be between 0% and 100%.'
                 );
                 return;
             }
@@ -2261,7 +2438,13 @@ if (checkoutBtn) {
                     'gcash'
                         ? gcashRef
                         : null,
-                ...data
+                discountPercent: data.discountPercent,
+                discount: data.discount,
+                subtotal: data.subtotal,
+                tax: data.tax,
+                total: data.total,
+                cash: data.cash,
+                change: data.change
             };
 
             checkoutBtn.disabled =
@@ -2325,6 +2508,8 @@ if (checkoutBtn) {
                             [...cart],
                         subtotal:
                             data.subtotal,
+                        discountPercent:
+                            data.discountPercent,
                         discount:
                             data.discount,
                         total:
@@ -2469,5 +2654,173 @@ if (printBtn) {
         }
     );
 }
+
+
+const onlineOrdersBtn = document.getElementById('onlineOrdersBtn');
+const onlineOrdersBadge = document.getElementById('onlineOrdersBadge');
+const onlineOrdersOverlay = document.getElementById('onlineOrdersOverlay');
+const onlineOrdersList = document.getElementById('onlineOrdersList');
+const closeOnlineOrdersBtn = document.getElementById('closeOnlineOrdersBtn');
+const refreshOnlineOrdersBtn = document.getElementById('refreshOnlineOrdersBtn');
+
+let onlineOrdersTimer = null;
+let lastPendingOnlineCount = 0;
+
+function formatOnlineOrderDate(value) {
+    if (!value) return '';
+    const date = new Date(String(value).replace(' ', 'T'));
+    if (Number.isNaN(date.getTime())) return String(value);
+    return date.toLocaleString('en-PH', {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit'
+    });
+}
+
+function onlineOrderStatusClass(status) {
+    if (status === 'Pending') return 'pending';
+    if (status === 'Preparing') return 'preparing';
+    if (status === 'Ready') return 'ready';
+    return '';
+}
+
+function renderOnlineOrders(orders) {
+    if (!onlineOrdersList) return;
+
+    if (!orders.length) {
+        onlineOrdersList.innerHTML = `
+            <div class="online-orders-empty">
+                <i class="bi bi-phone" style="font-size:2rem; display:block; margin-bottom:8px;"></i>
+                No active online orders today.
+            </div>
+        `;
+        return;
+    }
+
+    onlineOrdersList.innerHTML = orders.map(order => {
+        const statusClass = onlineOrderStatusClass(order.status);
+        const items = Array.isArray(order.items) ? order.items : [];
+        const itemHtml = items.map(item => `
+            <div class="online-order-line">
+                <span>${escapeHtml(item.quantity)}x ${escapeHtml(item.item_name)}</span>
+                <strong>${peso.format(Number(item.price || 0) * Number(item.quantity || 0))}</strong>
+            </div>
+        `).join('');
+
+        const fulfillment = order.order_type === 'ONLINE' ? 'Delivery' : 'Take-Out';
+        return `
+            <div class="online-order-card">
+                <div class="online-order-card-head">
+                    <div>
+                        <div class="online-order-number">#${escapeHtml(order.queue_no)} · ${escapeHtml(order.order_no)}</div>
+                        <div class="online-order-meta">
+                            ${escapeHtml(order.customer_name || 'Online Customer')} · ${escapeHtml(fulfillment)} · ${escapeHtml(formatOnlineOrderDate(order.created_at))}
+                        </div>
+                    </div>
+                    <span class="online-order-status ${statusClass}">${escapeHtml(order.status)}</span>
+                </div>
+
+                ${order.delivery_address ? `
+                    <div class="online-order-meta" style="margin-bottom:8px;">
+                        <strong>Delivery:</strong> ${escapeHtml(order.delivery_address)}
+                        ${order.customer_phone ? ` · ${escapeHtml(order.customer_phone)}` : ''}
+                    </div>
+                ` : ''}
+
+                <div class="online-order-lines">
+                    ${itemHtml || '<div class="online-order-meta">No item details available.</div>'}
+                </div>
+
+                <div class="online-order-footer">
+                    <span>${escapeHtml(order.payment_method || 'Payment not set')}</span>
+                    <span class="online-order-total">${peso.format(Number(order.total || 0))}</span>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+async function loadOnlineOrders(showLoading = false) {
+    if (!onlineOrdersList) return;
+
+    if (showLoading) {
+        onlineOrdersList.innerHTML = '<div class="online-orders-empty">Loading online orders...</div>';
+    }
+
+    try {
+        const res = await fetch('fetch_online_orders.php', {
+            method: 'GET',
+            headers: { 'Accept': 'application/json' },
+            cache: 'no-store'
+        });
+
+        const json = await res.json();
+        if (!res.ok || !json.ok) {
+            throw new Error(json.msg || 'Unable to load online orders.');
+        }
+
+        const orders = Array.isArray(json.orders) ? json.orders : [];
+        const pendingCount = Number(json.pending_count || 0);
+
+        if (onlineOrdersBadge) {
+            onlineOrdersBadge.textContent = String(pendingCount);
+            onlineOrdersBadge.classList.toggle('has-pending', pendingCount > 0);
+        }
+
+        if (pendingCount > lastPendingOnlineCount && pendingCount > 0) {
+            onlineOrdersBtn?.classList.add('has-new-order');
+            setTimeout(() => onlineOrdersBtn?.classList.remove('has-new-order'), 2500);
+        }
+
+        lastPendingOnlineCount = pendingCount;
+        renderOnlineOrders(orders);
+    } catch (error) {
+        console.error('Online order queue error:', error);
+        if (onlineOrdersList) {
+            onlineOrdersList.innerHTML = `<div class="online-orders-error">${escapeHtml(error.message || 'Unable to load online orders.')}</div>`;
+        }
+    }
+}
+
+function openOnlineOrdersModal() {
+    if (!onlineOrdersOverlay) return;
+    onlineOrdersOverlay.hidden = false;
+    loadOnlineOrders(true);
+}
+
+function closeOnlineOrdersModal() {
+    if (!onlineOrdersOverlay) return;
+    onlineOrdersOverlay.hidden = true;
+}
+
+if (onlineOrdersBtn) {
+    onlineOrdersBtn.addEventListener('click', openOnlineOrdersModal);
+}
+
+if (closeOnlineOrdersBtn) {
+    closeOnlineOrdersBtn.addEventListener('click', closeOnlineOrdersModal);
+}
+
+if (refreshOnlineOrdersBtn) {
+    refreshOnlineOrdersBtn.addEventListener('click', () => loadOnlineOrders(true));
+}
+
+if (onlineOrdersOverlay) {
+    onlineOrdersOverlay.addEventListener('click', event => {
+        if (event.target === onlineOrdersOverlay) {
+            closeOnlineOrdersModal();
+        }
+    });
+}
+
+document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && onlineOrdersOverlay && !onlineOrdersOverlay.hidden) {
+        closeOnlineOrdersModal();
+    }
+});
+
+loadOnlineOrders(false);
+onlineOrdersTimer = setInterval(() => loadOnlineOrders(false), 5000);
 
 renderCart();

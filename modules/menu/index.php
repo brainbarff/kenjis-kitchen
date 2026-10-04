@@ -1,7 +1,10 @@
 <?php
 require_once dirname(__DIR__, 2) . '/includes/auth.php';
 require_once ROOT_PATH . '/config/db.php';
-require_role('admin');
+require_role(['admin', 'inventory']);
+
+$isAdmin = can_access('admin');
+$isInventory = can_access('inventory');
 
 $page = 'menu';
 $title = 'Menu Management';
@@ -22,6 +25,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
     if ($action === 'category') {
+        if (!$isAdmin) {
+            $_SESSION['flash_msg'] = 'Only Admin can add categories.';
+            header('Location: index.php');
+            exit;
+        }
+
         $name = trim($_POST['category_name'] ?? '');
         if ($name) {
             $stmt = $conn->prepare("INSERT INTO categories (category_name) VALUES (?)");
@@ -33,6 +42,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($action === 'item') {
+        if (!$isAdmin) {
+            $_SESSION['flash_msg'] = 'Only Admin can add menu items.';
+            header('Location: index.php');
+            exit;
+        }
+
         $image = upload_menu_image($_FILES['image'] ?? []);
         $stmt = $conn->prepare("
             INSERT INTO menu_items (category_id, item_name, description, price, image, availability, promo_price, promo_start, promo_end)
@@ -56,29 +71,119 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 if (isset($_GET['toggle'])) {
+    if (!$isAdmin) {
+        $_SESSION['flash_msg'] = 'Only Admin can change menu availability.';
+        header('Location: index.php');
+        exit;
+    }
+
     $id = (int) $_GET['toggle'];
-    $stmt = $conn->prepare("UPDATE menu_items SET availability = IF(availability = 'Available', 'Unavailable', 'Available') WHERE id = ? AND is_archived = 0");
+    $stmt = $conn->prepare("SELECT id, item_name, stock, availability FROM menu_items WHERE id = ? AND is_archived = 0 LIMIT 1");
     $stmt->execute([$id]);
+    $item = $stmt->fetch();
+
+    if (!$item) {
+        $_SESSION['flash_msg'] = 'Menu item not found.';
+    } elseif ($item['availability'] === 'Available' && (int) $item['stock'] > 0) {
+        $_SESSION['flash_msg'] = $item['item_name'] . ' still has ' . (int) $item['stock'] . ' pcs in stock. Use Inventory → Stock Out first before marking it Out of Stock.';
+    } elseif ($item['availability'] === 'Available') {
+        $update = $conn->prepare("UPDATE menu_items SET availability = 'Unavailable' WHERE id = ? AND is_archived = 0 AND stock = 0");
+        $update->execute([$id]);
+        $_SESSION['flash_msg'] = 'Menu item marked unavailable because stock is 0.';
+    } elseif ((int) $item['stock'] <= 0) {
+        $_SESSION['flash_msg'] = 'This item is still Out of Stock. Add stock first before making it available.';
+    } else {
+        $update = $conn->prepare("UPDATE menu_items SET availability = 'Available' WHERE id = ? AND is_archived = 0 AND stock > 0");
+        $update->execute([$id]);
+        $_SESSION['flash_msg'] = 'Menu item is available again.';
+    }
+
     header('Location: index.php');
     exit;
 }
 
 if (isset($_GET['archive'])) {
     $id = (int) $_GET['archive'];
-    $stmt = $conn->prepare("UPDATE menu_items SET is_archived = 1 WHERE id = ? AND is_archived = 0");
-    $stmt->execute([$id]);
-    $_SESSION['flash_msg'] = 'Menu item archived.';
-    header('Location: index.php');
-    exit;
+
+    if (!$isInventory && !$isAdmin) {
+        $_SESSION['flash_msg'] = 'You do not have permission to archive menu items.';
+        header('Location: index.php');
+        exit;
+    }
+
+    $check = $conn->prepare("SELECT id, item_name, stock FROM menu_items WHERE id = ? AND is_archived = 0 LIMIT 1");
+    $check->execute([$id]);
+    $item = $check->fetch();
+
+    if (!$item) {
+        $_SESSION['flash_msg'] = 'Menu item not found or already archived.';
+        header('Location: index.php');
+        exit;
+    }
+
+    if ($isAdmin) {
+        $update = $conn->prepare("UPDATE menu_items SET is_archived = 1, availability = 'Unavailable' WHERE id = ?");
+        $update->execute([$id]);
+        $_SESSION['flash_msg'] = 'Menu item "' . $item['item_name'] . '" has been moved to Archived Items.';
+        header('Location: index.php?archived=1');
+        exit;
+    } else {
+        if ((int) $item['stock'] > 0) {
+            $_SESSION['flash_msg'] = 'Only menu items with 0 stock can be archived. Use Stock Out first.';
+        } else {
+            $pending = $conn->prepare("SELECT id FROM approval_requests WHERE request_type = 'Archive' AND menu_item_id = ? AND status = 'Pending' LIMIT 1");
+            $pending->execute([$id]);
+            if ($pending->fetch()) {
+                $_SESSION['flash_msg'] = 'An archive request for this menu item is already pending Admin approval.';
+            } else {
+                $request = $conn->prepare("INSERT INTO approval_requests (request_type, menu_item_id, remarks, requested_by) VALUES ('Archive', ?, 'Out-of-stock menu archive request', ?)");
+                $request->execute([$id, $_SESSION['u_id']]);
+                $_SESSION['flash_msg'] = 'Archive request submitted for Admin approval.';
+            }
+        }
+        header('Location: index.php');
+        exit;
+    }
 }
 
 if (isset($_GET['restore'])) {
     $id = (int) $_GET['restore'];
-    $stmt = $conn->prepare("UPDATE menu_items SET is_archived = 0 WHERE id = ? AND is_archived = 1");
-    $stmt->execute([$id]);
-    $_SESSION['flash_msg'] = 'Menu item restored.';
-    header('Location: index.php?archived=1');
-    exit;
+
+    if (!$isInventory && !$isAdmin) {
+        $_SESSION['flash_msg'] = 'You do not have permission to restore menu items.';
+        header('Location: index.php?archived=1');
+        exit;
+    }
+
+    $check = $conn->prepare("SELECT id, item_name, stock FROM menu_items WHERE id = ? AND is_archived = 1 LIMIT 1");
+    $check->execute([$id]);
+    $item = $check->fetch();
+
+    if (!$item) {
+        $_SESSION['flash_msg'] = 'Menu item not found or already active.';
+        header('Location: index.php?archived=1');
+        exit;
+    }
+
+    if ($isAdmin) {
+        $update = $conn->prepare("UPDATE menu_items SET is_archived = 0, availability = IF(stock > 0, 'Available', 'Unavailable') WHERE id = ?");
+        $update->execute([$id]);
+        $_SESSION['flash_msg'] = 'Menu item "' . $item['item_name'] . '" has been restored to active menu items.';
+        header('Location: index.php');
+        exit;
+    } else {
+        $pending = $conn->prepare("SELECT id FROM approval_requests WHERE request_type = 'Unarchive' AND menu_item_id = ? AND status = 'Pending' LIMIT 1");
+        $pending->execute([$id]);
+        if ($pending->fetch()) {
+            $_SESSION['flash_msg'] = 'An unarchive request for this menu item is already pending Admin approval.';
+        } else {
+            $request = $conn->prepare("INSERT INTO approval_requests (request_type, menu_item_id, remarks, requested_by) VALUES ('Unarchive', ?, 'Menu unarchive request', ?)");
+            $request->execute([$id, $_SESSION['u_id']]);
+            $_SESSION['flash_msg'] = 'Unarchive request submitted for Admin approval.';
+        }
+        header('Location: index.php?archived=1');
+        exit;
+    }
 }
 
 $categories = $conn->query("SELECT * FROM categories ORDER BY category_name")->fetchAll();
@@ -121,6 +226,14 @@ $itemsStmt->execute();
 $items = $itemsStmt->fetchAll();
 
 $archivedCount = (int) $conn->query("SELECT COUNT(*) FROM menu_items WHERE is_archived = 1")->fetchColumn();
+
+$pendingMenuRequests = [];
+if ($isInventory || $isAdmin) {
+    $pendingStmt = $conn->query("SELECT menu_item_id, request_type FROM approval_requests WHERE status = 'Pending' AND request_type IN ('Archive','Unarchive')");
+    foreach ($pendingStmt->fetchAll() as $pendingRow) {
+        $pendingMenuRequests[(int) $pendingRow['menu_item_id']] = $pendingRow['request_type'];
+    }
+}
 
 $buildQuery = static function (array $params): string {
     $params = array_filter($params, static function ($value) {
@@ -237,9 +350,56 @@ include ROOT_PATH . '/includes/header.php';
         justify-content: space-between;
     }
 }
+
+.menu-item-cell {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 220px;
+}
+
+.menu-item-thumb {
+    width: 52px;
+    height: 52px;
+    flex: 0 0 52px;
+    border-radius: 10px;
+    object-fit: cover;
+    border: 1px solid var(--border);
+    background: var(--soft);
+}
+
+.menu-item-copy {
+    min-width: 0;
+}
+
+.menu-item-copy strong {
+    display: block;
+}
+
+.menu-item-copy .muted {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.menu-action-icon {
+    width: 42px;
+    min-width: 42px;
+    height: 42px;
+    padding: 0;
+    border-radius: 10px;
+}
+
+.menu-action-disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
 </style>
 
 <?php if ($msg): ?><div class="alert alert-success"><?= e($msg) ?></div><?php endif; ?>
+<?php if ($isAdmin): ?>
 <div class="grid grid-2">
     <section class="card">
         <h2>Add Menu Item</h2>
@@ -252,7 +412,7 @@ include ROOT_PATH . '/includes/header.php';
             <div class="field"><label>Description</label><textarea name="description"></textarea></div>
             <div class="grid grid-2">
                 <div class="field"><label>Price</label><input type="number" step="0.01" name="price" required></div>
-                <div class="field"><label>Availability</label><select name="availability"><option>Available</option><option>Unavailable</option></select></div>
+                <div class="field"><label>Availability</label><input value="Available" disabled><small class="muted">Availability follows stock. New menu items start with default stock.</small></div>
             </div>
             <div class="grid grid-3">
                 <div class="field"><label>Promo Price</label><input type="number" step="0.01" name="promo_price"></div>
@@ -273,6 +433,7 @@ include ROOT_PATH . '/includes/header.php';
         </form>
     </section>
 </div>
+<?php endif; ?>
 
 <section class="card" style="margin-top:24px">
     <div class="menu-card-head">
@@ -289,7 +450,7 @@ include ROOT_PATH . '/includes/header.php';
 
         <?php if ($showArchived): ?>
             <a class="btn btn-secondary" href="index.php"><i class="bi bi-arrow-left"></i>Active Items</a>
-        <?php elseif ($archivedCount > 0): ?>
+        <?php else: ?>
             <a class="btn btn-secondary" href="?archived=1"><i class="bi bi-archive"></i>Archived Items (<?= $archivedCount ?>)</a>
         <?php endif; ?>
     </div>
@@ -322,17 +483,48 @@ include ROOT_PATH . '/includes/header.php';
                 <?php if ($items): ?>
                     <?php foreach ($items as $row): ?>
                     <tr>
-                        <td><strong><?= e($row['item_name']) ?></strong><br><span class="muted"><?= e($row['description']) ?></span></td>
+                        <td>
+                            <div class="menu-item-cell">
+                                <?php if (!empty($row['image'])): ?>
+                                    <img class="menu-item-thumb" src="<?= BASE_URL ?>/uploads/menu/<?= e($row['image']) ?>" alt="<?= e($row['item_name']) ?>">
+                                <?php else: ?>
+                                    <img class="menu-item-thumb" src="<?= BASE_URL ?>/assets/img/food-placeholder.svg" alt="">
+                                <?php endif; ?>
+                                <div class="menu-item-copy">
+                                    <strong><?= e($row['item_name']) ?></strong>
+                                    <span class="muted"><?= e($row['description']) ?></span>
+                                </div>
+                            </div>
+                        </td>
                         <td><?= e($row['category_name']) ?></td>
                         <td><?= money($row['price']) ?></td>
                         <td><?= $row['promo_price'] ? money($row['promo_price']) : '<span class="muted">None</span>' ?></td>
-                        <td><span class="badge <?= $row['availability'] === 'Available' && !$showArchived ? 'badge-success' : 'badge-muted' ?>"><?= $showArchived ? 'Archived' : e($row['availability']) ?></span></td>
+                        <td><?php if ($showArchived): ?><span class="badge badge-muted">Archived</span><?php elseif ((int) $row['stock'] <= 0): ?><span class="badge badge-danger">Out of Stock</span><?php elseif ((int) $row['stock'] <= 5): ?><span class="badge badge-warning">Low Stock</span><?php else: ?><span class="badge badge-success">Available</span><?php endif; ?></td>
                         <td class="actions">
                             <?php if ($showArchived): ?>
-                                <a class="btn btn-secondary" data-confirm="Restore this menu item?" href="?archived=1&restore=<?= e($row['id']) ?>"><i class="bi bi-arrow-counterclockwise"></i></a>
+                                <?php if (($pendingMenuRequests[(int) $row['id']] ?? '') === 'Unarchive'): ?>
+                                    <span class="badge badge-warning">Awaiting Admin Approval</span>
+                                <?php elseif ($isAdmin): ?>
+                                    <a class="btn btn-secondary" title="Restore to Active Items" data-confirm="Restore <?= e($row['item_name']) ?> to active menu items?" href="?archived=1&restore=<?= e($row['id']) ?>"><i class="bi bi-arrow-counterclockwise"></i>Restore</a>
+                                <?php elseif ($isInventory): ?>
+                                    <a class="btn btn-secondary menu-action-icon" title="Request Unarchive" aria-label="Request Unarchive" data-confirm="Submit this unarchive request for Admin approval?" href="?archived=1&restore=<?= e($row['id']) ?>"><i class="bi bi-arrow-counterclockwise"></i></a>
+                                <?php else: ?>
+                                    <span class="badge badge-muted" title="Unarchive requires Inventory Staff request and Admin approval.">Admin Approval Required</span>
+                                <?php endif; ?>
                             <?php else: ?>
-                                <a class="btn btn-secondary" href="?toggle=<?= e($row['id']) ?>"><i class="bi bi-arrow-repeat"></i></a>
-                                <a class="btn btn-danger" data-confirm="Archive this menu item?" href="?archive=<?= e($row['id']) ?>"><i class="bi bi-archive"></i></a>
+                                <?php if ($isAdmin): ?>
+                                    <a class="btn btn-secondary" href="?toggle=<?= e($row['id']) ?>"><i class="bi bi-arrow-repeat"></i>Availability</a>
+                                    <a class="btn btn-secondary" title="Archive Menu Item" data-confirm="Archive <?= e($row['item_name']) ?>? It will be moved to archived items." href="?archive=<?= e($row['id']) ?>"><i class="bi bi-archive"></i>Archive</a>
+                                <?php elseif ($isInventory): ?>
+                                    <?php $stockValue = (int) $row['stock']; ?>
+                                    <?php if (($pendingMenuRequests[(int) $row['id']] ?? '') === 'Archive'): ?>
+                                        <span class="badge badge-warning">Awaiting Admin Approval</span>
+                                    <?php elseif ($stockValue <= 0): ?>
+                                        <a class="btn btn-secondary" title="Request Archive" aria-label="Request Archive" data-confirm="Submit this archive request for Admin approval?" href="?archive=<?= e($row['id']) ?>"><i class="bi bi-archive"></i>Archive</a>
+                                    <?php else: ?>
+                                        <span class="btn btn-secondary menu-action-disabled" title="Archive requires 0 stock. Use Stock Out first." aria-label="Archive requires 0 stock"><i class="bi bi-archive"></i>Archive</span>
+                                    <?php endif; ?>
+                                <?php endif; ?>
                             <?php endif; ?>
                         </td>
                     </tr>

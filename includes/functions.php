@@ -16,6 +16,7 @@ function active_link($key)
 
 function redirect($path)
 {
+    $path = '/' . ltrim($path, '/');
     header('Location: ' . BASE_URL . $path);
     exit;
 }

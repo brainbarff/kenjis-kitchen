@@ -27,7 +27,6 @@ include ROOT_PATH . '/includes/header.php';
             <thead><tr><th>Device / Hardware</th><th>Connection</th><th>System Use</th><th>Status</th></tr></thead>
             <tbody>
                 <tr><td>Thermal Receipt Printer</td><td>USB / Bluetooth / Wi-Fi</td><td>Receipt and order slip printing</td><td><span class="badge badge-warning">Planned Integration</span></td></tr>
-                <tr><td>Wireless Barcode Reader</td><td>Bluetooth / USB</td><td>Inventory and product lookup</td><td><span class="badge badge-warning">Planned Integration</span></td></tr>
                 <tr><td>KDS Smart Display</td><td>Wi-Fi Browser</td><td>Kitchen order queue</td><td><span class="badge badge-success">Web Ready</span></td></tr>
                 <tr><td>Customer Mobile Phone</td><td>Browser</td><td>Online ordering and tracking</td><td><span class="badge badge-success">Responsive</span></td></tr>
             </tbody>
