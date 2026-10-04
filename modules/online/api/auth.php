@@ -60,8 +60,8 @@ if ($action === 'register') {
     if (!preg_match('/^[\p{L}\s\.\'\-]{2,100}$/u', $fullName)) {
         online_json(['status' => 'error', 'message' => 'Enter a valid full name.'], 400);
     }
-    if (!filter_var($email, FILTER_VALIDATE_EMAIL) || !preg_match('/@gmail\.com$/i', $email)) {
-        online_json(['status' => 'error', 'message' => 'Please use a valid Gmail address ending in @gmail.com.'], 400);
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        online_json(['status' => 'error', 'message' => 'Please enter a valid email address.'], 400);
     }
     if (!preg_match('/^09[0-9]{9}$/', $phone)) {
         online_json(['status' => 'error', 'message' => 'Enter a valid 11-digit Philippine mobile number starting with 09.'], 400);
@@ -76,7 +76,7 @@ if ($action === 'register') {
     $check = $conn->prepare('SELECT id FROM users WHERE email = ? OR username = ? LIMIT 1');
     $check->execute([$email, $email]);
     if ($check->fetch()) {
-        online_json(['status' => 'error', 'message' => 'An account with this Gmail address already exists. Please sign in.'], 409);
+        online_json(['status' => 'error', 'message' => 'An account with this email address already exists. Please sign in.'], 409);
     }
 
     $roleStmt = $conn->prepare("SELECT id FROM roles WHERE role_name = 'Customer (Online)' LIMIT 1");
@@ -118,7 +118,7 @@ if ($action === 'login') {
     $password = (string)($data['password'] ?? '');
 
     if (!filter_var($email, FILTER_VALIDATE_EMAIL) || $password === '') {
-        online_json(['status' => 'error', 'message' => 'Enter your Gmail address and password.'], 400);
+        online_json(['status' => 'error', 'message' => 'Enter your email address and password.'], 400);
     }
 
     $stmt = $conn->prepare("SELECT u.id, u.full_name, u.email, u.phone, u.customer_address, u.password, u.status, r.role_name FROM users u JOIN roles r ON r.id = u.role_id WHERE (LOWER(u.email) = ? OR LOWER(u.username) = ?) LIMIT 1");

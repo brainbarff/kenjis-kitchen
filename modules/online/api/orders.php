@@ -15,13 +15,72 @@ function order_json($data, $code = 200)
     exit;
 }
 
-function require_customer_id()
+function resolve_or_create_customer($conn, $name, $phone, $address, $email = '', $password = '')
 {
     $id = (int)($_SESSION['customer_user_id'] ?? 0);
-    if ($id <= 0) {
-        order_json(['status' => 'error', 'message' => 'Please sign in or register before placing an order.'], 401);
+    if ($id > 0) {
+        $update = $conn->prepare("UPDATE users SET full_name = ?, phone = ?, customer_address = CASE WHEN ? = '' THEN customer_address ELSE ? END WHERE id = ? AND status = 'Active'");
+        $update->execute([$name, $phone, $address, $address, $id]);
+        return $id;
     }
-    return $id;
+
+    // Guest checkout: check if user already exists with this phone or email
+    if ($email !== '') {
+        $find = $conn->prepare("SELECT id FROM users WHERE email = ? LIMIT 1");
+        $find->execute([$email]);
+        $existingId = $find->fetchColumn();
+        if ($existingId) {
+            $_SESSION['customer_user_id'] = (int)$existingId;
+            return (int)$existingId;
+        }
+    }
+
+    $find = $conn->prepare("SELECT id FROM users WHERE phone = ? LIMIT 1");
+    $find->execute([$phone]);
+    $existingId = $find->fetchColumn();
+    if ($existingId) {
+        $_SESSION['customer_user_id'] = (int)$existingId;
+        return (int)$existingId;
+    }
+
+    // Auto-create guest customer account
+    $roleStmt = $conn->prepare("SELECT id FROM roles WHERE role_name = 'Customer (Online)' LIMIT 1");
+    $roleStmt->execute();
+    $roleId = (int)$roleStmt->fetchColumn();
+    if (!$roleId) $roleId = 7;
+
+    $username = $email !== '' ? $email : ('guest_' . $phone);
+    $checkUser = $conn->prepare("SELECT id FROM users WHERE username = ? LIMIT 1");
+    $checkUser->execute([$username]);
+    if ($checkUser->fetchColumn()) {
+        $username = 'guest_' . $phone . '_' . substr(uniqid(), -4);
+    }
+
+    $pwdHash = $password !== '' && strlen($password) >= 6 
+        ? password_hash($password, PASSWORD_DEFAULT) 
+        : password_hash(bin2hex(random_bytes(12)), PASSWORD_DEFAULT);
+
+    $insert = $conn->prepare("INSERT INTO users (full_name, username, email, phone, customer_address, password, role_id, status) VALUES (?, ?, ?, ?, ?, ?, ?, 'Active')");
+    $insert->execute([
+        $name,
+        $username,
+        $email !== '' ? $email : ($username . '@guest.local'),
+        $phone,
+        $address !== '' ? $address : null,
+        $pwdHash,
+        $roleId
+    ]);
+
+    $newId = (int)$conn->lastInsertId();
+    $_SESSION['customer_user_id'] = $newId;
+    $_SESSION['customer_user'] = [
+        'id' => $newId,
+        'full_name' => $name,
+        'email' => $email,
+        'phone' => $phone,
+        'customer_address' => $address
+    ];
+    return $newId;
 }
 
 $action = $_GET['action'] ?? '';
@@ -53,7 +112,6 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     order_json(['status' => 'error', 'message' => 'Invalid request method.'], 405);
 }
 
-$customerId = require_customer_id();
 $data = json_decode(file_get_contents('php://input'), true);
 if (!is_array($data) || !is_array($data['items'] ?? null) || count($data['items']) < 1 || count($data['items']) > 50) {
     order_json(['status' => 'error', 'message' => 'Your cart is empty or invalid.'], 400);
@@ -72,6 +130,8 @@ if (!in_array($paymentMethod, ['CASH', 'GCASH'], true)) {
 $name = trim(strip_tags((string)($data['customer_name'] ?? '')));
 $phone = preg_replace('/[^0-9]/', '', (string)($data['customer_phone'] ?? ''));
 $address = trim(strip_tags((string)($data['delivery_address'] ?? '')));
+$email = strtolower(trim((string)($data['customer_email'] ?? '')));
+$password = (string)($data['account_password'] ?? '');
 $notes = trim(strip_tags((string)($data['notes'] ?? '')));
 $paymentReference = trim((string)($data['payment_reference'] ?? ''));
 
@@ -79,7 +139,7 @@ if ($name === '' || mb_strlen($name) > 100) {
     order_json(['status' => 'error', 'message' => 'Enter a valid customer name.'], 400);
 }
 if (!preg_match('/^09[0-9]{9}$/', $phone)) {
-    order_json(['status' => 'error', 'message' => 'Enter a valid 11-digit Philippine mobile number.'], 400);
+    order_json(['status' => 'error', 'message' => 'Enter a valid 11-digit Philippine mobile number starting with 09.'], 400);
 }
 if ($fulfillment === 'DELIVERY' && ($address === '' || mb_strlen($address) > 500)) {
     order_json(['status' => 'error', 'message' => 'A delivery address is required.'], 400);
@@ -97,11 +157,7 @@ if ($paymentMethod === 'CASH') {
 try {
     $conn->beginTransaction();
 
-    $profile = $conn->prepare("UPDATE users SET full_name = ?, phone = ?, customer_address = CASE WHEN ? = '' THEN customer_address ELSE ? END WHERE id = ? AND status = 'Active'");
-    $profile->execute([$name, $phone, $address, $address, $customerId]);
-    if ($profile->rowCount() < 0) {
-        throw new RuntimeException('Unable to update customer profile.');
-    }
+    $customerId = resolve_or_create_customer($conn, $name, $phone, $address, $email, $password);
 
     $menuStmt = $conn->prepare("SELECT id, item_name, price, promo_price, promo_start, promo_end, availability, is_archived, stock FROM menu_items WHERE id = ? FOR UPDATE");
     $seen = [];
@@ -114,10 +170,12 @@ try {
         if (!$menuId || !$qty || $qty < 1 || $qty > 99) {
             throw new InvalidArgumentException('One or more cart quantities are invalid.');
         }
-        if (isset($seen[$menuId])) {
-            throw new InvalidArgumentException('Duplicate menu items were detected in your cart.');
+
+        $addonPrice = max(0, min(500, (float)($entry['addon_price'] ?? 0)));
+        $customization = trim(strip_tags((string)($entry['customization'] ?? '')));
+        if (mb_strlen($customization) > 255) {
+            $customization = mb_substr($customization, 0, 255);
         }
-        $seen[$menuId] = true;
 
         $menuStmt->execute([$menuId]);
         $product = $menuStmt->fetch();
@@ -128,24 +186,27 @@ try {
             throw new RuntimeException($product['item_name'] . ' does not have enough stock.');
         }
 
-        $price = (float)$product['price'];
+        $basePrice = (float)$product['price'];
         $today = date('Y-m-d');
         if ($product['promo_price'] !== null && $product['promo_start'] !== null && $product['promo_end'] !== null && $today >= $product['promo_start'] && $today <= $product['promo_end']) {
-            $price = (float)$product['promo_price'];
+            $basePrice = (float)$product['promo_price'];
         }
 
-        $lineTotal = round($price * $qty, 2);
+        $unitPrice = round($basePrice + $addonPrice, 2);
+        $lineTotal = round($unitPrice * $qty, 2);
         $subtotal += $lineTotal;
         $normalized[] = [
             'id' => $menuId,
             'name' => $product['item_name'],
             'qty' => $qty,
-            'price' => $price,
+            'price' => $unitPrice,
+            'notes' => $customization !== '' ? $customization : null,
             'line_total' => $lineTotal
         ];
     }
 
-    $total = round($subtotal, 2);
+    $deliveryFee = ($fulfillment === 'DELIVERY' && $subtotal < 500) ? 45.0 : 0.0;
+    $total = round($subtotal + $deliveryFee, 2);
     $queueStmt = $conn->query("SELECT COALESCE(MAX(queue_no), 0) + 1 FROM orders WHERE DATE(created_at) = CURDATE()");
     $queueNo = (int)$queueStmt->fetchColumn();
     $orderNo = 'ONL-' . date('Ymd') . '-' . str_pad((string)$queueNo, 4, '0', STR_PAD_LEFT);
@@ -155,12 +216,12 @@ try {
     $orderStmt->execute([$orderNo, $queueNo, $customerId, $name, $phone, $orderType, $fulfillment === 'DELIVERY' ? $address : null, $subtotal, $total, $notes !== '' ? $notes : null]);
     $orderId = (int)$conn->lastInsertId();
 
-    $itemStmt = $conn->prepare("INSERT INTO order_items (order_id, menu_item_id, item_name, quantity, price, notes) VALUES (?, ?, ?, ?, ?, NULL)");
+    $itemStmt = $conn->prepare("INSERT INTO order_items (order_id, menu_item_id, item_name, quantity, price, notes) VALUES (?, ?, ?, ?, ?, ?)");
     $stockStmt = $conn->prepare("UPDATE menu_items SET stock = stock - ? WHERE id = ? AND stock >= ? AND is_archived = 0 AND availability = 'Available'");
     $logStmt = $conn->prepare("INSERT INTO inventory_logs (inventory_id, menu_item_id, user_id, action, quantity, remarks) VALUES (NULL, ?, ?, 'Order Deduction', ?, ?)");
 
     foreach ($normalized as $item) {
-        $itemStmt->execute([$orderId, $item['id'], $item['name'], $item['qty'], $item['price']]);
+        $itemStmt->execute([$orderId, $item['id'], $item['name'], $item['qty'], $item['price'], $item['notes']]);
         $stockStmt->execute([$item['qty'], $item['id'], $item['qty']]);
         if ($stockStmt->rowCount() !== 1) {
             throw new RuntimeException('Stock changed while placing your order. Please try again.');
@@ -168,7 +229,7 @@ try {
         $logStmt->execute([$item['id'], $customerId, $item['qty'], 'Online order ' . $orderNo]);
     }
 
-    $paymentStatus = $paymentMethod === 'GCASH' ? 'Pending' : 'Pending';
+    $paymentStatus = 'Pending';
     $paymentLabel = $paymentMethod === 'GCASH' ? 'GCash' : ($fulfillment === 'PICKUP' ? 'Pay on Pickup' : 'Cash on Delivery');
     $payStmt = $conn->prepare("INSERT INTO payments (order_id, payment_method, payment_reference, payment_status, amount_paid, change_amount) VALUES (?, ?, ?, ?, ?, 0)");
     $payStmt->execute([$orderId, $paymentLabel, $paymentReference !== '' ? $paymentReference : null, $paymentStatus, 0]);

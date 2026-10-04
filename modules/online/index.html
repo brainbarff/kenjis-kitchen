@@ -357,6 +357,9 @@
                 <div class="food-grid" id="foodGrid"></div>
             </div>
 
+            <!-- Slide-Over Cart Backdrop -->
+            <div class="cart-backdrop" id="cartBackdrop" hidden></div>
+
             <aside class="cart-panel" id="cartPanel">
                 <div class="cart-head">
                     <div>
@@ -366,7 +369,24 @@
                     <button class="icon-btn close-cart" id="closeCart" aria-label="Close cart"><i class="bi bi-x-lg"></i></button>
                 </div>
 
+                <!-- Free Delivery Threshold Tracker -->
+                <div class="free-delivery-tracker" id="freeDeliveryTracker">
+                    <div class="tracker-header">
+                        <i class="bi bi-scooter text-yellow"></i>
+                        <span id="deliveryProgressText">Add ₱500.00 more to unlock FREE Delivery!</span>
+                    </div>
+                    <div class="tracker-progress-bg">
+                        <div class="tracker-progress-fill" id="deliveryProgressFill" style="width: 0%;"></div>
+                    </div>
+                </div>
+
                 <div class="cart-items" id="cartItems"></div>
+
+                <!-- Upsell Add-ons in Cart -->
+                <div class="cart-upsell-section" id="cartUpsellSection">
+                    <div class="upsell-title"><i class="bi bi-stars"></i> Popular Add-ons</div>
+                    <div class="upsell-items" id="upsellItems"></div>
+                </div>
 
                 <div class="cost-card">
                     <div><span>Subtotal</span><strong id="subtotalText">PHP 0.00</strong></div>
@@ -393,6 +413,12 @@
 
             <form class="checkout-card" id="checkoutForm">
                 <div class="checkout-step" id="stepOne">
+                    <!-- Guest Checkout Banner Notice -->
+                    <div class="guest-notice" id="guestNotice">
+                        <i class="bi bi-person-check-fill"></i>
+                        <span id="guestNoticeText">Ordering as <strong>Guest</strong>. <a href="#" id="checkoutSignInLink">Sign in</a> to load your saved profile.</span>
+                    </div>
+
                     <div class="form-grid">
                         <label>
                             <span>Full Name</span>
@@ -404,6 +430,28 @@
                             <input type="tel" id="phoneNumber" placeholder="09XXXXXXXXX">
                             <small class="field-error" id="phoneError"></small>
                         </label>
+                    </div>
+
+                    <label id="emailWrap">
+                        <span>Email Address <small>(Optional, for digital receipt)</small></span>
+                        <input type="email" id="customerEmail" placeholder="juan@example.com">
+                        <small class="field-error" id="emailError"></small>
+                    </label>
+
+                    <div class="guest-account-opt" id="guestAccountOpt">
+                        <label class="checkbox-choice">
+                            <input type="checkbox" id="saveAccountCheckbox">
+                            <span>Save my info & create an account for next time</span>
+                        </label>
+                        <div class="guest-password-wrap" id="guestPasswordWrap" hidden>
+                            <label>
+                                <span>Create Password</span>
+                                <div class="password-box">
+                                    <input type="password" id="guestPassword" placeholder="Minimum 6 characters" minlength="6">
+                                    <button type="button" class="toggle-password" data-target="guestPassword"><i class="bi bi-eye"></i></button>
+                                </div>
+                            </label>
+                        </div>
                     </div>
 
                     <div class="option-row">
@@ -419,7 +467,7 @@
 
                     <label id="addressWrap">
                         <span>Delivery Address</span>
-                        <textarea id="deliveryAddress" placeholder="Street, barangay, city"></textarea>
+                        <textarea id="deliveryAddress" placeholder="Street, barangay, city, landmarks"></textarea>
                         <small class="field-error" id="addressError"></small>
                     </label>
 
@@ -557,34 +605,52 @@
     <div class="modal-backdrop" id="itemModal" hidden>
         <section class="item-modal">
             <button class="icon-btn modal-close" id="closeModal" aria-label="Close item modal"><i class="bi bi-x-lg"></i></button>
-            <img id="modalImage" alt="">
+            <div class="modal-img-wrap">
+                <img id="modalImage" alt="">
+            </div>
             <div class="modal-body">
-                <span class="badge" id="modalCategory"></span>
+                <div class="modal-header-meta">
+                    <span class="badge" id="modalCategory"></span>
+                    <span class="stock-pill" id="modalStockPill">In Stock</span>
+                </div>
                 <h2 id="modalTitle"></h2>
                 <p id="modalDescription"></p>
 
-                <fieldset>
-                    <legend>Portion Size</legend>
+                <fieldset id="portionFieldset">
+                    <legend><i class="bi bi-aspect-ratio"></i> Portion Size</legend>
                     <div class="option-list" id="portionOptions"></div>
                 </fieldset>
 
-                <fieldset>
-                    <legend>Extras</legend>
+                <fieldset id="riceFieldset">
+                    <legend><i class="bi bi-bowl"></i> Rice Selection</legend>
+                    <div class="option-list" id="riceOptions"></div>
+                </fieldset>
+
+                <fieldset id="extraFieldset">
+                    <legend><i class="bi bi-plus-circle"></i> Add-ons & Extras</legend>
                     <div class="option-list" id="extraOptions"></div>
                 </fieldset>
 
+                <div class="modal-notes-wrap">
+                    <label>
+                        <span><i class="bi bi-chat-left-text"></i> Special Cooking Instructions <small>(Optional)</small></span>
+                        <textarea id="modalSpecialNotes" placeholder="e.g. Gravy on the side, separate chili, egg well-done..." maxlength="200"></textarea>
+                    </label>
+                </div>
+
                 <div class="modal-bottom">
                     <div class="quantity-control">
-                        <button id="modalMinus" type="button">-</button>
+                        <button id="modalMinus" type="button" aria-label="Decrease quantity">-</button>
                         <strong id="modalQty">1</strong>
-                        <button id="modalPlus" type="button">+</button>
+                        <button id="modalPlus" type="button" aria-label="Increase quantity">+</button>
                     </div>
-                    <button class="primary-btn" id="addToCartBtn">Add to Order - <span id="modalPrice">PHP 0.00</span></button>
+                    <button class="primary-btn" id="addToCartBtn">
+                        <i class="bi bi-bag-plus"></i> Add to Order - <span id="modalPrice">PHP 0.00</span>
+                    </button>
                 </div>
             </div>
         </section>
     </div>
-
 
     <div class="modal-backdrop" id="authModal" hidden>
         <section class="auth-modal">
@@ -592,7 +658,7 @@
             <div class="modal-body">
                 <span class="badge">Customer Account</span>
                 <h2 id="authTitle">Sign In</h2>
-                <p id="authSubtitle">Sign in to place and track your online orders.</p>
+                <p id="authSubtitle">Sign in to track orders, save delivery addresses, and enjoy faster checkout.</p>
 
                 <div class="auth-tabs">
                     <button type="button" class="auth-tab active" id="signInTab">Sign In</button>
@@ -600,20 +666,54 @@
                 </div>
 
                 <form id="signInForm" class="auth-form">
-                    <label><span>Gmail Address</span><input type="email" id="signInEmail" placeholder="you@gmail.com" required></label>
-                    <label><span>Password</span><input type="password" id="signInPassword" required></label>
+                    <label>
+                        <span>Email Address</span>
+                        <input type="email" id="signInEmail" placeholder="you@example.com" required>
+                    </label>
+                    <label>
+                        <span>Password</span>
+                        <div class="password-box">
+                            <input type="password" id="signInPassword" placeholder="Enter your password" required>
+                            <button type="button" class="toggle-password" data-target="signInPassword" aria-label="Show password">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                        </div>
+                    </label>
                     <small class="field-error" id="signInError"></small>
-                    <button class="primary-btn" type="submit">Sign In</button>
+                    <button class="primary-btn" type="submit"><i class="bi bi-box-arrow-in-right"></i> Sign In</button>
+                    <button type="button" class="guest-skip-btn" id="guestAuthSkipBtn">
+                        <i class="bi bi-person"></i> Continue as Guest
+                    </button>
                 </form>
 
                 <form id="registerForm" class="auth-form" hidden>
-                    <label><span>Full Name</span><input type="text" id="registerName" placeholder="Juan Dela Cruz" required></label>
-                    <label><span>Gmail Address</span><input type="email" id="registerEmail" placeholder="you@gmail.com" required></label>
-                    <label><span>Phone Number</span><input type="tel" id="registerPhone" placeholder="09XXXXXXXXX" maxlength="11" required></label>
-                    <label><span>Address</span><textarea id="registerAddress" placeholder="For delivery orders"></textarea></label>
-                    <label><span>Password</span><input type="password" id="registerPassword" minlength="6" required></label>
+                    <label>
+                        <span>Full Name</span>
+                        <input type="text" id="registerName" placeholder="Juan Dela Cruz" required>
+                    </label>
+                    <label>
+                        <span>Email Address</span>
+                        <input type="email" id="registerEmail" placeholder="you@example.com" required>
+                    </label>
+                    <label>
+                        <span>Phone Number</span>
+                        <input type="tel" id="registerPhone" placeholder="09XXXXXXXXX" maxlength="11" required>
+                    </label>
+                    <label>
+                        <span>Default Delivery Address <small>(Optional)</small></span>
+                        <textarea id="registerAddress" placeholder="Street, barangay, city, landmarks"></textarea>
+                    </label>
+                    <label>
+                        <span>Password</span>
+                        <div class="password-box">
+                            <input type="password" id="registerPassword" minlength="6" placeholder="At least 6 characters" required>
+                            <button type="button" class="toggle-password" data-target="registerPassword" aria-label="Show password">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                        </div>
+                    </label>
                     <small class="field-error" id="registerError"></small>
-                    <button class="primary-btn" type="submit">Create Account</button>
+                    <button class="primary-btn" type="submit"><i class="bi bi-person-plus-fill"></i> Create Account</button>
                 </form>
             </div>
         </section>
