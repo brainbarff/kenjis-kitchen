@@ -24,6 +24,7 @@ const printArea =
 
 let readyOrders = [];
 let isLoading = false;
+let knownReadyOrderIds = null;
 
 const servingApi = {
     async getReadyOrders() {
@@ -424,6 +425,11 @@ async function loadReadyOrders() {
             Array.isArray(data.orders)
                 ? data.orders
                 : [];
+        const currentIds = new Set(readyOrders.map(order => String(order.id)));
+        if (knownReadyOrderIds !== null && [...currentIds].some(id => !knownReadyOrderIds.has(id))) {
+            window.KenjiOrderSounds?.play('serving');
+        }
+        knownReadyOrderIds = currentIds;
 
         renderOrders();
     } catch (error) {

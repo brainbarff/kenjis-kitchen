@@ -1,31 +1,38 @@
 <?php
 // database/seed_users.php
+// Re-seeds all staff accounts with the default password: password123
+// Run via browser: http://localhost/kenjis-kitchen/database/seed_users.php
+if (PHP_SAPI !== 'cli') {
+    http_response_code(403);
+    exit('Forbidden: CLI execution only.');
+}
+
 require_once __DIR__ . '/../config/db.php';
 
-// Define each user with their corresponding <username>123 password
+// Define each user — default password is 'password123' for all accounts
 $accounts = [
     [
         'full_name' => 'System Administrator',
         'username'  => 'admin',
-        'password'  => 'admin123',
+        'password'  => 'password123',
         'role_name' => 'Admin'
     ],
     [
         'full_name' => 'Kenji Cashier',
         'username'  => 'cashier',
-        'password'  => 'cashier123',
+        'password'  => 'password123',
         'role_name' => 'Cashier'
     ],
     [
         'full_name' => 'Kitchen Staff',
         'username'  => 'kitchen',
-        'password'  => 'kitchen123',
+        'password'  => 'password123',
         'role_name' => 'Kitchen Staff'
     ],
     [
         'full_name' => 'Inventory Staff',
         'username'  => 'inventory',
-        'password'  => 'inventory123',
+        'password'  => 'password123',
         'role_name' => 'Inventory Staff'
     ]
 ];

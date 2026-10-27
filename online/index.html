@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<!--
+  Kenji's Kitchen – Online Ordering Entry Point
+  URL: /kenjis-kitchen/online/index.html
+  This file is a transparent forwarding shim. It immediately redirects to
+  the actual online ordering storefront located in /modules/online/index.html,
+  preserving all query-string parameters and hash fragments.
+
+  Why this file exists:
+    Navigational links across the admin panel and dashboard use the clean URL
+    /kenjis-kitchen/online/index.html (no /modules/ subfolder in the path).
+    This shim bridges the gap without moving or duplicating the actual app.
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="refresh" content="0; url=../modules/online/index.html">
+  <title>Kenji's Kitchen – Online Ordering</title>
+  <style>
+    body { font-family: sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #fffbe6; color: #333; }
+    .redir { text-align: center; }
+    .redir p { font-size: 0.9rem; color: #888; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <div class="redir">
+    <h2>🍽️ Kenji's Kitchen</h2>
+    <p>Loading Online Ordering Storefront…</p>
+    <p><a href="../modules/online/index.html">Click here if you are not redirected automatically.</a></p>
+  </div>
+  <script>
+    // Preserve any query string and hash from the clean URL when redirecting
+    const dest = '../modules/online/index.html' + window.location.search + window.location.hash;
+    window.location.replace(dest);
+  </script>
+</body>
+</html>

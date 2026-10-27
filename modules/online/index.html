@@ -1,519 +1,553 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Online Ordering - Kenji's Kitchen</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <link rel="stylesheet" href="../../assets/css/online-ordering.css">
-    <style>
-        [hidden] {
-            display: none !important;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Kenji's Kitchen - Online Ordering</title>
+  <link rel="icon" type="image/jpeg" href="../../assets/img/logo.jpg">
+  <link rel="apple-touch-icon" href="../../assets/img/logo.jpg">
+  <link rel="stylesheet" href="../../assets/css/ol.css?v=20261005-input-fix">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 </head>
-<body>
-    <header class="customer-header">
-        <a class="brand" href="#">
-            <img src="../../assets/img/logo.jpg" alt="Kenji's Kitchen Logo" class="brand-logo-img">
-            <span>
-                <strong>Kenji's Kitchen</strong>
-                <small>Online Ordering</small>
-            </span>
-        </a>
+<body class="dark-mode">
 
-        <nav class="customer-nav">
-            <a href="#menuSection">Menu</a>
-            <a href="#trackingSection">Track Order</a>
-            <a href="#historySection">Order History</a>
-        </nav>
-
-        <div class="customer-account" id="customerAccount">
-            <button class="secondary-btn account-btn" id="accountBtn" type="button">Sign In</button>
+  <!-- Sticky Top Header (Foodpanda-Inspired) -->
+  <header class="navbar">
+    <div class="navbar-top">
+      <a href="../../index.php" class="brand-wrapper">
+        <img src="../../assets/img/logo.jpg" alt="Kenji's Kitchen Logo" class="brand-icon" style="width: 38px; height: 38px; border-radius: 8px; object-fit: cover;">
+        <div class="brand-info">
+          <h1>Kenji's Kitchen</h1>
+          <span>Authentic Flavors · Fairview</span>
         </div>
+      </a>
 
-        <button class="cart-toggle" id="cartToggle" type="button" aria-label="Open cart">
-            <i class="bi bi-bag"></i>
-            <span id="cartBadge">0</span>
+      <!-- Delivery / Pickup Toggle (Online Ordering) -->
+      <div class="fulfillment-toggle">
+        <button type="button" class="fulfillment-btn active" data-mode="delivery"><i class="bi bi-bicycle"></i> Delivery</button>
+        <button type="button" class="fulfillment-btn" data-mode="pickup"><i class="bi bi-bag"></i> Pickup</button>
+      </div>
+
+      <div class="nav-actions">
+        <button class="nav-btn theme-toggle-btn" id="themeToggleBtn" onclick="toggleTheme()" title="Toggle Day/Night Mode">
+          <i class="bi bi-moon-stars" id="themeToggleIcon"></i>
         </button>
-    </header>
-
-    <main>
-        <!-- Branded Store Banner from Facebook -->
-        <div class="landing-banner-wrap">
-            <img src="../../assets/img/banner.png" alt="Kenji's Kitchen - From Silog to Sulit Meals, Busog Ka Dito!" class="landing-banner-img">
+        <div id="navUserContainer">
+          <button class="nav-btn" onclick="openOtpModal()" title="Customer Account"><i class="bi bi-person"></i></button>
         </div>
-
-        <section class="order-shell" id="menuSection">
-            <div class="menu-panel">
-                <div class="filters">
-                    <label class="search-box">
-                        <i class="bi bi-search"></i>
-                        <input type="search" id="searchInput" placeholder="Search food or drink">
-                    </label>
-                    <label class="price-filter">
-                        <span>Max Price</span>
-                        <input type="range" id="priceRange" min="30" max="1600" value="1600">
-                        <strong id="priceLabel">PHP 1600</strong>
-                    </label>
-                </div>
-
-                <div class="category-tabs" id="categoryTabs"></div>
-
-                <div class="food-grid" id="foodGrid"></div>
-            </div>
-
-            <!-- Slide-Over Cart Backdrop -->
-            <div class="cart-backdrop" id="cartBackdrop" hidden></div>
-
-            <aside class="cart-panel" id="cartPanel">
-                <div class="cart-head">
-                    <div>
-                        <h2>My Order</h2>
-                        <p id="cartCountText">No items yet</p>
-                    </div>
-                    <button class="icon-btn close-cart" id="closeCart" aria-label="Close cart"><i class="bi bi-x-lg"></i></button>
-                </div>
-
-                <!-- Free Delivery Threshold Tracker -->
-                <div class="free-delivery-tracker" id="freeDeliveryTracker">
-                    <div class="tracker-header">
-                        <i class="bi bi-scooter text-yellow"></i>
-                        <span id="deliveryProgressText">Add ₱500.00 more to unlock FREE Delivery!</span>
-                    </div>
-                    <div class="tracker-progress-bg">
-                        <div class="tracker-progress-fill" id="deliveryProgressFill" style="width: 0%;"></div>
-                    </div>
-                </div>
-
-                <div class="cart-items" id="cartItems"></div>
-
-                <div class="cost-card">
-                    <div><span>Subtotal</span><strong id="subtotalText">PHP 0.00</strong></div>
-                    <div><span>Tax</span><strong id="taxText">Tax-Free</strong></div>
-                    <div><span>Delivery Fee</span><strong id="deliveryText">PHP 0.00</strong></div>
-                    <div class="grand-total"><span>Total</span><strong id="totalText">PHP 0.00</strong></div>
-                </div>
-
-                <button class="primary-btn" id="checkoutToggle"><i class="bi bi-credit-card"></i>Proceed to Checkout</button>
-            </aside>
-        </section>
-
-        <section class="checkout-section" id="checkoutSection">
-            <div class="section-head">
-                <div>
-                    <h2>Checkout</h2>
-                    <p>Complete your details and choose a payment method.</p>
-                </div>
-                <div class="checkout-steps">
-                    <span class="active" id="stepOneLabel">1 Details</span>
-                    <span id="stepTwoLabel">2 Payment</span>
-                </div>
-            </div>
-
-            <form class="checkout-card" id="checkoutForm">
-                <div class="checkout-step" id="stepOne">
-                    <!-- Guest Checkout Banner Notice -->
-                    <div class="guest-notice" id="guestNotice">
-                        <i class="bi bi-person-check-fill"></i>
-                        <span id="guestNoticeText">Ordering as <strong>Guest</strong>. <a href="#" id="checkoutSignInLink">Sign in</a> to load your saved profile.</span>
-                    </div>
-
-                    <div class="form-grid">
-                        <label>
-                            <span>Full Name</span>
-                            <input type="text" id="customerName" placeholder="Juan Dela Cruz">
-                            <small class="field-error" id="nameError"></small>
-                        </label>
-                        <label>
-                            <span>Phone Number</span>
-                            <input type="tel" id="phoneNumber" placeholder="09XXXXXXXXX">
-                            <small class="field-error" id="phoneError"></small>
-                        </label>
-                    </div>
-
-                    <label id="emailWrap">
-                        <span>Email Address <small>(Optional, for digital receipt)</small></span>
-                        <input type="email" id="customerEmail" placeholder="juan@example.com">
-                        <small class="field-error" id="emailError"></small>
-                    </label>
-
-                    <div class="guest-account-opt" id="guestAccountOpt">
-                        <label class="checkbox-choice">
-                            <input type="checkbox" id="saveAccountCheckbox">
-                            <span>Save my info & create an account for next time</span>
-                        </label>
-                        <div class="guest-password-wrap" id="guestPasswordWrap" hidden>
-                            <label>
-                                <span>Create Password</span>
-                                <div class="password-box">
-                                    <input type="password" id="guestPassword" placeholder="Minimum 6 characters" minlength="6">
-                                    <button type="button" class="toggle-password" data-target="guestPassword"><i class="bi bi-eye"></i></button>
-                                </div>
-                            </label>
-                        </div>
-                    </div>
-
-                    <div class="option-row">
-                        <label class="choice-card">
-                            <input type="radio" name="fulfillment" value="Delivery" checked>
-                            <span><i class="bi bi-scooter"></i>Delivery</span>
-                        </label>
-                        <label class="choice-card">
-                            <input type="radio" name="fulfillment" value="Pickup">
-                            <span><i class="bi bi-shop"></i>Pickup</span>
-                        </label>
-                    </div>
-
-                    <label id="addressWrap">
-                        <span>Delivery Address</span>
-                        <textarea id="deliveryAddress" placeholder="Street, barangay, city, landmarks"></textarea>
-                        <small class="field-error" id="addressError"></small>
-                    </label>
-
-                    <button class="primary-btn" type="button" id="continuePayment">Continue to Payment</button>
-                </div>
-
-                <div class="checkout-step" id="stepTwo" hidden>
-                    <div class="payment-grid" id="paymentOptions">
-                        <label class="payment-card">
-                            <input type="radio" name="payment" value="GCash" checked>
-                            <span><i class="bi bi-phone"></i>GCash</span>
-                        </label>
-                        <label class="payment-card">
-                            <input type="radio" name="payment" value="Cash">
-                            <span><i class="bi bi-cash-stack"></i>Cash</span>
-                        </label>
-                    </div>
-
-                    <label id="gcashReferenceWrap">
-                        <span>GCash Reference Number</span>
-                        <input type="text" id="gcashReference" inputmode="numeric" maxlength="13" placeholder="13-digit reference number">
-                        <small class="field-error" id="gcashReferenceError"></small>
-                    </label>
-
-                    <p class="checkout-note" id="paymentNote">Enter the 13-digit reference number from the GCash receipt.</p>
-
-                    <div class="checkout-actions">
-                        <button class="secondary-btn" type="button" id="backDetails">Back</button>
-                        <button class="primary-btn" type="submit" id="placeOrderBtn">
-                            <span class="btn-text">Place Order</span>
-                            <span class="btn-loader" hidden></span>
-                        </button>
-                    </div>
-                </div>
-            </form>
-        </section>
-
-        <section class="tracking-section" id="trackingSection">
-            <div class="section-head">
-                <div>
-                    <h2>Order Tracking</h2>
-                    <p>Sample tracking view for the latest customer order.</p>
-                </div>
-                <span class="timer-badge" id="timerBadge">ETA 25 min</span>
-            </div>
-
-            <div class="tracking-card">
-                <div class="stepper" id="trackingStepper"></div>
-                <div class="receipt-view" id="receiptView"></div>
-            </div>
-        </section>
-
-        <section class="history-section" id="historySection">
-            <div class="section-head">
-                <div>
-                    <h2>Order History</h2>
-                    <p>Past customer orders can be reviewed here.</p>
-                </div>
-            </div>
-            <div class="history-grid" id="historyGrid"></div>
-        </section>
-    </main>
-
-    <!-- Coffee Realm Inspired Eatery Footer -->
-    <footer class="customer-footer">
-        <div class="footer-container">
-            <!-- Top Section: Contact Card + Google Map Embed -->
-            <div class="footer-contact-map-grid">
-                <!-- Left Card: Visit or Contact Us -->
-                <div class="footer-contact-card">
-                    <span class="contact-eyebrow">VISIT OR CONTACT US</span>
-                    <h2 class="contact-title">Come by or get in touch.</h2>
-                    <p class="contact-desc">
-                        We'd love to welcome you in Greater Lagro or prepare your favorite Filipino comfort meals for pickup and fast delivery.
-                    </p>
-
-                    <div class="contact-details-list">
-                        <div class="contact-detail-row">
-                            <i class="bi bi-geo-alt-fill"></i>
-                            <div>
-                                <strong>Address</strong>
-                                <span>Blk 79 Lot 34 Florante at Laura St., Brgy. Greater Lagro, Quezon City, Philippines, 1118</span>
-                            </div>
-                        </div>
-
-                        <div class="contact-detail-row">
-                            <i class="bi bi-clock-fill"></i>
-                            <div>
-                                <strong>Operating Hours</strong>
-                                <span>Open Daily: 9:00 AM to 9:00 PM</span>
-                            </div>
-                        </div>
-
-                        <div class="contact-detail-row">
-                            <i class="bi bi-telephone-fill"></i>
-                            <div>
-                                <strong>Contact Number</strong>
-                                <a href="tel:09687430373">0968 743 0373</a>
-                            </div>
-                        </div>
-
-                        <div class="contact-detail-row">
-                            <i class="bi bi-facebook"></i>
-                            <div>
-                                <strong>Facebook Page</strong>
-                                <a href="https://www.facebook.com/profile.php?id=61578450361358" target="_blank" rel="noopener noreferrer">Kenjis Kitchen (Official)</a>
-                            </div>
-                        </div>
-                    </div>
-
-                    <a href="https://www.google.com/maps/dir/?api=1&destination=Florante+at+Laura+St+Brgy+Greater+Lagro+Quezon+City" target="_blank" rel="noopener noreferrer" class="get-directions-btn">
-                        <i class="bi bi-cursor-fill"></i> Get directions
-                    </a>
-                </div>
-
-                <!-- Right Card: Interactive Google Map -->
-                <div class="footer-map-card">
-                    <iframe 
-                        src="https://maps.google.com/maps?q=Florante+at+Laura+St,+Greater+Lagro,+Quezon+City,+Philippines&t=&z=16&ie=UTF8&iwloc=&output=embed" 
-                        class="footer-map-iframe" 
-                        allowfullscreen="" 
-                        loading="lazy" 
-                        referrerpolicy="no-referrer-when-downgrade"
-                        title="Kenji's Kitchen Location Map">
-                    </iframe>
-                </div>
-            </div>
-        </div>
-
-        <!-- Bottom Bar -->
-        <div class="footer-bottom-bar">
-            <div class="footer-bottom-container">
-                <div class="footer-social-links">
-                    <a href="https://www.facebook.com/profile.php?id=61578450361358" target="_blank" rel="noopener noreferrer" aria-label="Kenji's Kitchen on Facebook">
-                        <i class="bi bi-facebook"></i>
-                    </a>
-                </div>
-                <div class="footer-copyright-text">
-                    <span>&copy; 2026 Kenji's Kitchen. All rights reserved. Capstone Project.</span>
-                </div>
-                <div class="footer-back-to-top">
-                    <button type="button" class="back-to-top-btn" id="backToTopBtn" aria-label="Back to top">
-                        <i class="bi bi-arrow-up"></i>
-                        <span>Back to top</span>
-                    </button>
-                </div>
-            </div>
-        </div>
-    </footer>
-
-    <!-- Simple Eatery Item Modal -->
-    <div class="modal-backdrop" id="itemModal" hidden>
-        <section class="item-modal eatery-modal">
-            <button class="icon-btn modal-close" id="closeModal" aria-label="Close modal"><i class="bi bi-x-lg"></i></button>
-            <div class="modal-img-wrap">
-                <img id="modalImage" alt="">
-            </div>
-            <div class="modal-body">
-                <div class="modal-header-meta">
-                    <span class="badge" id="modalCategory"></span>
-                    <span class="stock-pill" id="modalStockPill">In Stock</span>
-                </div>
-                <h2 id="modalTitle"></h2>
-                <p id="modalDescription"></p>
-
-                <div class="modal-notes-wrap">
-                    <label>
-                        <span><i class="bi bi-chat-left-text"></i> Special Cooking Note <small>(Optional)</small></span>
-                        <input type="text" id="modalSpecialNotes" placeholder="e.g. Less spicy, egg well-done, separate sauce..." maxlength="120">
-                    </label>
-                </div>
-
-                <div class="modal-bottom">
-                    <div class="quantity-control">
-                        <button id="modalMinus" type="button" aria-label="Decrease quantity">-</button>
-                        <strong id="modalQty">1</strong>
-                        <button id="modalPlus" type="button" aria-label="Increase quantity">+</button>
-                    </div>
-                    <button class="primary-btn" id="addToCartBtn">
-                        <i class="bi bi-plus-lg"></i> Add to Order &bull; <span id="modalPrice">PHP 0.00</span>
-                    </button>
-                </div>
-            </div>
-        </section>
+        <button class="nav-btn" onclick="openCartDrawer()" title="View Cart">
+          <i class="bi bi-cart3"></i>
+          <span class="badge-counter" id="navCartBadge">0</span>
+        </button>
+      </div>
     </div>
 
-    <!-- Modern Split Auth Modal (Coffee Realm Inspired) -->
-    <div class="modal-backdrop" id="authModal" hidden>
-        <section class="auth-modal split-auth-card">
-            <button class="icon-btn modal-close" id="closeAuth" type="button" aria-label="Close"><i class="bi bi-x-lg"></i></button>
-            
-            <!-- Left Side: Branded Welcome Panel -->
-            <div class="auth-banner" id="authBanner">
-                <div class="auth-brand-badge">
-                    <img src="../../assets/img/logo.jpg" alt="Kenji's Kitchen Logo" class="auth-logo-img">
-                </div>
-                <h2 class="auth-banner-title" id="authBannerTitle">Hello, Welcome!</h2>
-                <p class="auth-banner-sub" id="authBannerSub">Don't have an account?</p>
-                <button type="button" class="auth-switch-btn" id="authSwitchBtn">Register Now!</button>
+    <!-- Search Bar -->
+    <div class="search-wrapper">
+      <span class="search-icon"><i class="bi bi-search"></i></span>
+      <input type="text" id="searchInput" class="search-input" placeholder="Search delicious meals, silogs, drinks, bilao...">
+    </div>
+  </header>
+
+  <!-- Horizontal Scrollable Category Bar (Pill-shaped) -->
+  <nav class="category-strip-wrapper">
+    <div class="category-strip" id="categoryStrip">
+      <!-- 8 Pills rendered dynamically: All, Add-Ons, Bilao Favorites, Drinks, Pulutan & Pares, Silog Meals, Silog Set Meals, Student Meals -->
+    </div>
+  </nav>
+
+  <!-- Main Food Grid -->
+  <main class="main-content">
+    <!-- Welcoming Hero Section (Device-Adaptive Responsive Design) -->
+    <section class="welcome-hero-section" aria-label="Welcome to Kenji's Kitchen Menu">
+      <div class="welcome-hero-banner">
+        <img src="../../assets/img/welcome-banner.jpg" alt="Kenji's Kitchen Welcome Banner" class="welcome-hero-bg-img" loading="eager">
+        <div class="welcome-hero-overlay">
+          <!-- Top Tagline & Side Cute Badges -->
+          <div class="hero-top-row">
+            <span class="hero-tagline">GOOD FOOD · FRESH INGREDIENTS · ALWAYS</span>
+            <span class="hero-side-badge right-badge">Sarap na, Online pa! ♡</span>
+          </div>
+
+          <!-- Hero Main Content -->
+          <div class="hero-center-body">
+            <h1 class="hero-welcome-title">Welcome!</h1>
+            <p class="hero-subheading">Craving something delicious? You're in the right place!</p>
+            <div class="hero-cta-card">
+              <p class="hero-cta-text">Order your favorites now and enjoy our tasty meals from the comfort of your home!</p>
+              <a href="#foodGrid" class="hero-order-btn" onclick="document.getElementById('searchInput').focus();">
+                <span><i class="bi bi-book"></i> Explore Menu &amp; Order Now</span>
+              </a>
             </div>
+          </div>
 
-            <!-- Right Side: Clean Form Panel -->
-            <div class="auth-form-wrap">
-                <div class="auth-form-header">
-                    <h2 id="authFormTitle">Customer Login</h2>
-                    <div class="auth-title-line"></div>
-                </div>
-
-                <!-- Sign In Form -->
-                <form id="signInForm" class="auth-form">
-                    <div class="auth-field">
-                        <label for="signInEmail">Username, Email, or Phone</label>
-                        <div class="auth-input-group">
-                            <i class="bi bi-person auth-input-icon"></i>
-                            <input type="text" id="signInEmail" placeholder="Enter username, email, or phone" required autocomplete="username">
-                        </div>
-                    </div>
-
-                    <div class="auth-field">
-                        <div class="field-header">
-                            <label for="signInPassword">Password</label>
-                            <a href="#" class="forgot-link" id="forgotPwdLink">Forgot Password?</a>
-                        </div>
-                        <div class="auth-input-group">
-                            <i class="bi bi-lock auth-input-icon"></i>
-                            <input type="password" id="signInPassword" placeholder="Enter your password" required autocomplete="current-password">
-                            <button type="button" class="toggle-password" data-target="signInPassword" aria-label="Toggle password visibility">
-                                <i class="bi bi-eye"></i>
-                            </button>
-                        </div>
-                    </div>
-
-                    <small class="field-error" id="signInError"></small>
-
-                    <button class="primary-btn auth-submit-btn" type="submit">LOGIN</button>
-
-                    <div class="auth-divider">
-                        <span>OR</span>
-                    </div>
-
-                    <button type="button" class="guest-skip-btn" id="guestAuthSkipBtn">
-                        <i class="bi bi-person-badge"></i> Continue as Guest
-                    </button>
-                </form>
-
-                <!-- Register Form -->
-                <form id="registerForm" class="auth-form" hidden>
-                    <div class="auth-field">
-                        <label for="registerName">Full Name</label>
-                        <div class="auth-input-group">
-                            <i class="bi bi-person auth-input-icon"></i>
-                            <input type="text" id="registerName" placeholder="Juan Dela Cruz" required autocomplete="name">
-                        </div>
-                    </div>
-
-                    <div class="auth-field">
-                        <label for="registerEmail">Email Address</label>
-                        <div class="auth-input-group">
-                            <i class="bi bi-envelope auth-input-icon"></i>
-                            <input type="email" id="registerEmail" placeholder="juan@example.com" required autocomplete="email">
-                        </div>
-                    </div>
-
-                    <div class="auth-field">
-                        <label for="registerPhone">Phone Number</label>
-                        <div class="auth-input-group">
-                            <i class="bi bi-telephone auth-input-icon"></i>
-                            <input type="tel" id="registerPhone" placeholder="09XXXXXXXXX" maxlength="11" required autocomplete="tel">
-                        </div>
-                    </div>
-
-                    <div class="auth-field">
-                        <label for="registerPassword">Password</label>
-                        <div class="auth-input-group">
-                            <i class="bi bi-lock auth-input-icon"></i>
-                            <input type="password" id="registerPassword" minlength="6" placeholder="At least 6 characters" required autocomplete="new-password">
-                            <button type="button" class="toggle-password" data-target="registerPassword" aria-label="Toggle password visibility">
-                                <i class="bi bi-eye"></i>
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="auth-field">
-                        <label for="registerAddress">Delivery Address <small>(Optional)</small></label>
-                        <div class="auth-input-group textarea-group">
-                            <i class="bi bi-geo-alt auth-input-icon"></i>
-                            <textarea id="registerAddress" placeholder="Street, barangay, landmarks" rows="2"></textarea>
-                        </div>
-                    </div>
-
-                    <small class="field-error" id="registerError"></small>
-
-                    <button class="primary-btn auth-submit-btn" type="submit">REGISTER</button>
-
-                    <div class="auth-divider">
-                        <span>OR</span>
-                    </div>
-
-                    <button type="button" class="guest-skip-btn" id="guestAuthSkipBtn2">
-                        <i class="bi bi-person-badge"></i> Continue as Guest
-                    </button>
-                </form>
-
-                <!-- Email Verification Code Form -->
-                <form id="verifyForm" class="auth-form" hidden>
-                    <div class="verify-badge-wrap">
-                        <div class="verify-badge-icon">
-                            <i class="bi bi-envelope-check-fill"></i>
-                        </div>
-                        <p class="verify-instructions">
-                            We sent a 6-digit verification code to<br>
-                            <strong id="verifyTargetEmail">your email</strong>
-                        </p>
-                    </div>
-
-                    <div class="auth-field">
-                        <label for="verificationCodeInput">Enter 6-Digit Code</label>
-                        <div class="auth-input-group verify-group">
-                            <input type="text" id="verificationCodeInput" class="verify-code-input" placeholder="------" maxlength="6" inputmode="numeric" autocomplete="one-time-code" required>
-                        </div>
-                    </div>
-
-                    <div class="resend-row">
-                        <span>Didn't receive code?</span>
-                        <button type="button" class="resend-btn" id="resendCodeBtn">Resend Code</button>
-                    </div>
-
-                    <div id="demoCodeNotice" class="demo-code-pill" hidden></div>
-
-                    <small class="field-error" id="verifyError"></small>
-
-                    <button class="primary-btn auth-submit-btn" type="submit" id="verifySubmitBtn">
-                        VERIFY & COMPLETE
-                    </button>
-
-                    <button type="button" class="back-to-reg-btn" id="backToRegBtn">
-                        <i class="bi bi-arrow-left"></i> Change registration details
-                    </button>
-                </form>
+          <!-- Bottom Feature Badges & Side Quote -->
+          <div class="hero-bottom-row">
+            <span class="hero-side-badge left-badge">Good Food Brings People Together ♡</span>
+            <div class="hero-badge-grid">
+              <div class="hero-badge-pill">
+                <span class="badge-icon"><i class="bi bi-fire"></i></span>
+                <span class="badge-text">Freshly Cooked</span>
+              </div>
+              <div class="hero-badge-pill">
+                <span class="badge-icon"><i class="bi bi-heart-fill"></i></span>
+                <span class="badge-text">Quality Ingredients</span>
+              </div>
+              <div class="hero-badge-pill">
+                <span class="badge-icon"><i class="bi bi-house"></i></span>
+                <span class="badge-text">Your Favorite Meals, Online</span>
+              </div>
             </div>
-        </section>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="section-title-row">
+      <h2 class="section-title">Fresh Meals &amp; Beverages</h2>
+      <span style="font-size: 0.85rem; color: var(--muted);" id="catalogCountText">Live Inventory</span>
     </div>
 
-    <script src="../../assets/js/online-ordering.js"></script>
+    <div class="food-grid" id="foodGrid">
+      <!-- Two-column mobile food cards injected by app.js -->
+    </div>
+  </main>
+
+  <!-- Floating Cart Bar (Bottom Mobile Bar) -->
+  <aside class="floating-cart-bar" id="floatingCartBar" onclick="openCartDrawer()" style="display: none;">
+    <div class="cart-bar-left">
+      <div class="cart-count-badge" id="floatingCartCount">0</div>
+      <div class="cart-bar-title">View Your Order</div>
+    </div>
+    <div class="cart-bar-right">
+      <div class="cart-bar-total" id="floatingCartTotal">₱0.00</div>
+      <div class="cart-bar-btn">Checkout →</div>
+    </div>
+  </aside>
+
+  <!-- Slide-Up Checkout Drawer / Cart Sheet -->
+  <div class="drawer-backdrop" id="drawerBackdrop" onclick="closeCartDrawer()"></div>
+  <section class="drawer-sheet" id="cartDrawerSheet">
+    <div class="drawer-handle"></div>
+    <div class="drawer-header">
+      <h3>Your Food Basket</h3>
+      <button class="nav-btn" style="min-width: 36px; min-height: 36px;" onclick="closeCartDrawer()">✕</button>
+    </div>
+
+    <div class="drawer-content">
+      <div id="cartDrawerItems"></div>
+
+      <div style="margin-top: 20px; border-top: 1px solid var(--border); padding-top: 14px;">
+        <div style="display:flex; justify-content:space-between; margin-bottom: 6px; font-size: 0.9rem;">
+          <span>Subtotal:</span>
+          <strong id="drawerSubtotal">₱0.00</strong>
+        </div>
+        <div style="display:flex; justify-content:space-between; margin-bottom: 6px; font-size: 0.9rem;">
+          <span>Delivery Fee:</span>
+          <strong style="color: var(--success);">FREE</strong>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size: 1.15rem; font-weight: 900; margin-top: 10px; border-top: 1px dashed var(--border); padding-top: 10px;">
+          <span>Total Amount:</span>
+          <strong id="drawerTotal" style="color: var(--dark);">₱0.00</strong>
+        </div>
+
+        <button class="btn-primary" id="btnProceedCheckout" style="margin-top: 18px;" onclick="proceedToCheckout()">
+          Proceed to Order Verification →
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Item Detail & Special Instructions Modal -->
+  <div class="modal-overlay" id="itemDetailModal">
+    <div class="modal-card">
+      <button class="btn-close-modal" onclick="closeModal('itemDetailModal')">✕</button>
+      <img src="" id="modalItemImg" class="modal-hero-img" alt="Meal">
+      <div class="modal-body">
+        <h2 class="modal-title" id="modalItemTitle">Food Name</h2>
+        <div class="modal-price" id="modalItemPrice">₱0.00</div>
+        <p style="font-size: 0.85rem; color: var(--muted); margin-bottom: 14px;" id="modalItemDesc"></p>
+
+        <!-- Dynamic Size / Portion Picker (for Noodles, Pastas, and Multi-Size items) -->
+        <div id="modalSizePickerContainer" class="size-picker-section" style="display:none; margin-bottom: 16px;">
+          <label class="size-picker-title">
+            <i class="bi bi-ui-radios"></i> Choose Size / Portion
+          </label>
+          <div class="size-options-grid" id="modalSizeOptions">
+            <!-- Dynamically injected size buttons / radio pills -->
+          </div>
+        </div>
+
+        <!-- Packaging Option Picker (Tray vs Bilao for Bilao Category Dishes) -->
+        <div id="modalPackagingPickerContainer" class="packaging-picker-section" style="display:none; margin-bottom: 16px;">
+          <label class="packaging-picker-title">
+            <i class="bi bi-box-seam"></i> Choose Packaging <span class="packaging-required-tag">*Required</span>
+          </label>
+          <div class="packaging-options-grid" id="modalPackagingOptions">
+            <div class="packaging-option-card" id="pkgOptionTray" onclick="selectPackaging('Tray')">
+              <div class="packaging-info-col">
+                <span class="packaging-name-tag"><i class="bi bi-box"></i> Tray</span>
+                <span class="packaging-desc-tag">Catering pan</span>
+              </div>
+              <div class="packaging-radio-indicator"></div>
+            </div>
+            <div class="packaging-option-card" id="pkgOptionBilao" onclick="selectPackaging('Bilao')">
+              <div class="packaging-info-col">
+                <span class="packaging-name-tag"><i class="bi bi-circle"></i> Bilao</span>
+                <span class="packaging-desc-tag">Traditional woven tray</span>
+              </div>
+              <div class="packaging-radio-indicator"></div>
+            </div>
+          </div>
+          <p id="packagingHelpText" class="packaging-help-text" style="display:none; color: #EF4444; font-size: 0.8rem; margin: 6px 0 0 0; font-weight: 600;">
+            Please select a packaging option (Tray or Bilao).
+          </p>
+        </div>
+
+        <!-- Customer Special Instructions / Notes -->
+        <div class="instructions-container">
+          <label class="instructions-label" for="modalItemNotes">
+            <i class="bi bi-pencil"></i> Special Instructions / Notes
+          </label>
+          <textarea id="modalItemNotes" class="instructions-textarea" placeholder="e.g. No onions, extra gravy, less ice, well done egg..."></textarea>
+        </div>
+
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-top: 20px;">
+          <div class="qty-pill">
+            <button class="qty-btn" onclick="adjustModalQty(-1)">-</button>
+            <span class="qty-value" id="modalQty">1</span>
+            <button class="qty-btn" onclick="adjustModalQty(1)">+</button>
+          </div>
+
+          <button class="btn-primary" style="width: auto; padding: 12px 24px;" onclick="confirmAddItemFromModal()">
+            Add to Order
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Unified Auth Modal: Sign In & Register with OTP Verification -->
+  <div class="modal-overlay" id="authModal">
+    <div class="modal-card auth-modal-card">
+      <button class="btn-close-modal" onclick="closeModal('authModal')">✕</button>
+
+      <!-- Dual Tab Bar -->
+      <div class="auth-tabs">
+        <button class="auth-tab active" id="tabSignIn" onclick="switchTab('signin')">
+          <i class="bi bi-person-check"></i> Sign In
+        </button>
+        <button class="auth-tab" id="tabRegister" onclick="switchTab('register')">
+          <i class="bi bi-person-plus"></i> Register
+        </button>
+      </div>
+
+      <div class="modal-body" style="padding: 24px;">
+
+        <!-- STEP 1: Input Forms -->
+        <div id="authStep1">
+
+          <!-- Sign In Form (Direct Email + Password Authentication) -->
+          <div id="formSignIn">
+            <p class="auth-sub">Sign in with your registered email and password.</p>
+            <div class="auth-field">
+              <label>Email Address</label>
+              <input type="email" id="siEmailInput" class="auth-input" placeholder="name@example.com" autocomplete="email" required>
+            </div>
+            <div class="auth-field">
+              <label>Password</label>
+              <div class="pw-wrap">
+                <input type="password" id="siPasswordInput" class="auth-input pw-input" placeholder="Enter your password" autocomplete="current-password" required>
+                <button type="button" class="pw-eye-btn" aria-label="Show password" onclick="togglePwVisibility('siPasswordInput', this)">
+                  <svg class="eye-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                  <svg class="eye-off-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                </button>
+              </div>
+            </div>
+            <button class="auth-btn-primary" id="btnSignInDirect" onclick="handleDirectSignIn()">
+              <i class="bi bi-box-arrow-in-right"></i> Sign In
+            </button>
+            <div style="text-align: center; margin-top: 14px;">
+              <a href="../../login.php?mode=customer" style="color: var(--muted); font-size: 0.82rem; text-decoration: none;">
+                <i class="bi bi-box-arrow-up-right"></i> Open full login page
+              </a>
+            </div>
+          </div>
+
+          <!-- Register Form -->
+          <div id="formRegister" style="display:none;">
+            <p class="auth-sub">Create an account to track your orders.</p>
+            <div class="auth-field">
+              <label>Full Name</label>
+              <input type="text" id="regNameInput" class="auth-input" placeholder="Juan dela Cruz" autocomplete="name">
+            </div>
+            <p class="auth-sub auth-email-note"><i class="bi bi-envelope-check"></i> Verification codes are sent to your email inbox.</p>
+            <div class="auth-field" id="fieldEmailReg">
+              <label>Email Address</label>
+              <input type="email" id="regEmailInput" class="auth-input" placeholder="name@example.com" autocomplete="email">
+            </div>
+            <div class="auth-field">
+              <label>Password</label>
+              <div class="pw-wrap">
+                <input type="password" id="regPasswordInput" class="auth-input pw-input" placeholder="Create a password (min. 6 chars)" autocomplete="new-password">
+                <button type="button" class="pw-eye-btn" aria-label="Show password" onclick="togglePwVisibility('regPasswordInput', this)">
+                  <svg class="eye-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                  <svg class="eye-off-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                </button>
+              </div>
+            </div>
+            <button class="auth-btn-primary" id="btnSendReg" onclick="sendCode('register')">
+              <i class="bi bi-send-fill"></i> Send Verification Code
+            </button>
+          </div>
+
+        </div><!-- /authStep1 -->
+
+        <!-- STEP 2: OTP Entry -->
+        <div id="authStep2" style="display:none;">
+          <div class="auth-otp-icon"><i class="bi bi-shield-lock-fill"></i></div>
+          <h3 class="auth-otp-title">Check your <span id="authOtpChannel">email</span></h3>
+          <p class="auth-sub" style="text-align:center;">
+            We sent a 6-digit code to<br>
+            <strong id="authOtpTarget" style="color:var(--dark);"></strong>
+          </p>
+
+          <!-- Individual digit input boxes -->
+          <div class="auth-otp-boxes" id="authOtpBoxes">
+            <input class="auth-otp-box" type="text" maxlength="1" inputmode="numeric" pattern="[0-9]">
+            <input class="auth-otp-box" type="text" maxlength="1" inputmode="numeric" pattern="[0-9]">
+            <input class="auth-otp-box" type="text" maxlength="1" inputmode="numeric" pattern="[0-9]">
+            <input class="auth-otp-box" type="text" maxlength="1" inputmode="numeric" pattern="[0-9]">
+            <input class="auth-otp-box" type="text" maxlength="1" inputmode="numeric" pattern="[0-9]">
+            <input class="auth-otp-box" type="text" maxlength="1" inputmode="numeric" pattern="[0-9]">
+          </div>
+
+          <div class="auth-timer-row">
+            <i class="bi bi-clock"></i>
+            Expires in: <span id="authTimerDisplay" style="font-weight:800; color:var(--danger);">5:00</span>
+          </div>
+
+          <button class="auth-btn-primary" id="btnVerify" onclick="verifyCode()">
+            <i class="bi bi-check-circle-fill"></i> Verify Code
+          </button>
+          <button class="auth-btn-back" onclick="goBackToForm()">
+            <i class="bi bi-arrow-left"></i> Back
+          </button>
+          <p class="auth-resend-row">
+            Didn't receive it?
+            <button class="auth-resend-btn" id="btnResend" onclick="resendCode()" disabled>Resend code</button>
+          </p>
+        </div><!-- /authStep2 -->
+
+      </div><!-- /modal-body -->
+    </div>
+  </div>
+
+  <!-- Legacy OTP Modal (backward compat) -->
+  <div class="modal-overlay" id="otpModal">
+    <div class="modal-card" style="max-width: 420px;">
+      <button class="btn-close-modal" onclick="closeModal('otpModal')">✕</button>
+      <div class="modal-body" style="padding: 24px;">
+        <div id="otpStepEmail">
+          <h2 style="font-size: 1.25rem; font-weight: 800; margin-bottom: 6px;">Sign In with OTP</h2>
+          <p style="font-size: 0.85rem; color: var(--muted); margin-bottom: 16px;">
+            We'll send a 6-digit verification code to your email to verify your order.
+          </p>
+          <div style="margin-bottom: 16px;">
+            <label style="font-size: 0.85rem; font-weight: 700; display: block; margin-bottom: 6px;">Email Address</label>
+            <input type="email" id="otpEmailInput" class="search-input" style="border-radius: var(--radius-sm);" placeholder="name@example.com" required>
+          </div>
+          <button class="btn-primary" id="btnRequestOtp" onclick="handleRequestOtp()">Send Verification Code</button>
+        </div>
+        <div id="otpStepCode" style="display: none;">
+          <h2 style="font-size: 1.25rem; font-weight: 800; margin-bottom: 6px;">Enter 6-Digit Code</h2>
+          <p style="font-size: 0.85rem; color: var(--muted); margin-bottom: 14px;">
+            Sent to <strong id="otpTargetEmail"></strong>. Expires in: <span id="otpTimerDisplay" style="color: var(--danger); font-weight: 800;">5:00</span>
+          </p>
+          <div style="margin-bottom: 18px;">
+            <input type="text" id="otpCodeInput" class="otp-input" maxlength="6" inputmode="numeric" placeholder="••••••">
+          </div>
+          <button class="btn-primary" onclick="handleVerifyOtp()">Verify &amp; Continue Order →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Checkout Details Modal -->
+  <div class="modal-overlay" id="checkoutModal">
+    <div class="modal-card" style="max-width: 480px;">
+      <button class="btn-close-modal" onclick="closeModal('checkoutModal')">✕</button>
+      <div class="modal-body" style="padding: 24px;">
+        <h2 style="font-size: 1.25rem; font-weight: 800; margin-bottom: 14px;">Order Details &amp; Payment</h2>
+
+        <div style="margin-bottom: 12px;">
+          <label style="font-size: 0.85rem; font-weight: 700; display: block; margin-bottom: 4px;">Full Name</label>
+          <input type="text" id="custNameInput" class="checkout-input" placeholder="Juan dela Cruz" required>
+        </div>
+
+        <div style="margin-bottom: 12px;">
+          <label style="font-size: 0.85rem; font-weight: 700; display: block; margin-bottom: 4px;">Mobile Phone (09...)</label>
+          <input type="tel" id="custPhoneInput" class="checkout-input" maxlength="11" placeholder="09171234567" required>
+        </div>
+
+        <div id="addressFieldWrap" style="margin-bottom: 12px;">
+          <label style="font-size: 0.85rem; font-weight: 700; display: block; margin-bottom: 4px;">Delivery Address</label>
+          <input type="text" id="custAddressInput" class="checkout-input" placeholder="House / Unit #, Street, Barangay">
+        </div>
+
+        <div style="margin-bottom: 14px;">
+          <label style="font-size: 0.85rem; font-weight: 700; display: block; margin-bottom: 4px;">Payment Method</label>
+          <div style="display: flex; gap: 10px;">
+            <label style="flex:1; display:flex; align-items:center; gap:6px; padding: 10px; border: 1.5px solid var(--border); border-radius: var(--radius-sm); font-size: 0.85rem; font-weight: 700; cursor: pointer;">
+              <input type="radio" name="paymentMethod" value="Cash" checked onchange="toggleOnlinePaymentMethod()"> <i class="bi bi-cash"></i> Cash
+            </label>
+            <label style="flex:1; display:flex; align-items:center; gap:6px; padding: 10px; border: 1.5px solid var(--border); border-radius: var(--radius-sm); font-size: 0.85rem; font-weight: 700; cursor: pointer;">
+              <input type="radio" name="paymentMethod" value="GCash" onchange="toggleOnlinePaymentMethod()"> <i class="bi bi-phone"></i> GCash
+            </label>
+          </div>
+        </div>
+
+        <div id="onlineGcashWrap" style="display: none; margin-bottom: 14px;">
+          <section class="gcash-payment-panel" aria-label="Pay by GCash QR code">
+            <p class="gcash-payment-title"><i class="bi bi-qr-code-scan"></i> Scan to pay with GCash</p>
+            <div class="gcash-qr-frame">
+              <img class="gcash-qr-image" id="onlineGcashQr" alt="Kenji's Kitchen GCash payment QR code" loading="eager">
+              <div class="gcash-qr-unavailable" role="status">
+                <i class="bi bi-qr-code"></i>
+                <span>No QR image is set. You can send your payment to the GCash number below.</span>
+              </div>
+            </div>
+            <p class="gcash-number-line">GCash number <strong id="onlineGcashPhone">09952071575</strong></p>
+            <p class="gcash-payment-help">Pay by scanning the QR or sending to this number, then enter the 13-digit reference number shown on your GCash receipt.</p>
+          </section>
+          <label style="font-size: 0.85rem; font-weight: 700; display: block; margin-bottom: 4px;">GCash Reference Number (13 digits) <span style="color:var(--danger);">*</span></label>
+          <input type="text" id="custGcashRef" class="checkout-input" style="letter-spacing: 1px;" maxlength="13" placeholder="e.g. 1234567890123" inputmode="numeric">
+          <small style="color: var(--muted); font-size: 0.75rem; display: block; margin-top: 3px;">Please enter the 13-digit transaction reference number from your GCash receipt.</small>
+        </div>
+
+        <div style="margin-bottom: 18px;">
+          <label style="font-size: 0.85rem; font-weight: 700; display: block; margin-bottom: 4px;">Order Notes (Optional)</label>
+          <input type="text" id="checkoutOverallNotes" class="checkout-input" placeholder="e.g. Ring the doorbell, leave with guard">
+        </div>
+
+        <button class="btn-primary" id="btnConfirmOrder" onclick="submitOrder()">
+          Place Order Now
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Order Confirmation Modal -->
+  <div class="modal-overlay" id="orderConfirmationModal">
+    <div class="modal-card" style="max-width: 420px; text-align: center;">
+      <div class="modal-body" style="padding: 32px 20px;">
+        <div style="font-size: 3rem; margin-bottom: 10px;"><i class="bi bi-check-circle-fill" style="color: var(--success);"></i></div>
+        <h2 style="font-size: 1.35rem; font-weight: 800; color: var(--dark);">Order Successfully Placed!</h2>
+        <p style="font-size: 0.88rem; color: var(--muted); margin: 8px 0 18px 0;">
+          Your order has been routed directly to Kenji's Kitchen Kitchen Display &amp; POS.
+        </p>
+
+        <div style="background: var(--soft); padding: 16px; border-radius: var(--radius-md); text-align: left; margin-bottom: 20px;">
+          <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size: 0.85rem;">
+            <span>Order #:</span>
+            <strong id="confOrderNo">ONL-2026-0001</strong>
+          </div>
+          <div style="display:flex; justify-content:space-between; font-size: 0.85rem;">
+            <span>Receipt #:</span>
+            <strong id="confReceiptNo">RCPT-00000</strong>
+          </div>
+          <div style="display:flex; justify-content:space-between; font-size: 0.95rem; font-weight: 800; border-top: 1px dashed var(--border); padding-top: 6px; margin-top: 6px;">
+            <span>Total:</span>
+            <strong id="confTotal" style="color: var(--dark);">₱0.00</strong>
+          </div>
+        </div>
+        <p id="confReceiptStatus" class="receipt-email-status" aria-live="polite"></p>
+
+        <button class="btn-primary" style="margin-bottom:10px;" onclick="openOrderTrackingFromConfirmation()">
+          <i class="bi bi-geo-alt"></i> Track This Order
+        </button>
+        <button class="btn-primary" onclick="closeModal('orderConfirmationModal')">
+          Back to Menu
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Signed-in customer tools -->
+  <div class="modal-overlay" id="customerAccountModal">
+    <div class="modal-card customer-tools-modal">
+      <button class="btn-close-modal" onclick="closeModal('customerAccountModal')">✕</button>
+      <div class="modal-body">
+        <h2>My Account</h2>
+        <p class="customer-account-name" id="customerAccountName"></p>
+        <div class="customer-tools-actions">
+          <button class="btn-primary" onclick="openOrdersModal()"><i class="bi bi-receipt"></i> My Orders &amp; Tracking</button>
+          <button class="btn-primary customer-secondary-action" onclick="openFavoritesModal()"><i class="bi bi-heart"></i> My Favorites</button>
+          <button class="customer-signout-action" onclick="handleSignOut()"><i class="bi bi-box-arrow-right"></i> Sign Out</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="customerOrdersModal">
+    <div class="modal-card customer-tools-modal customer-orders-modal">
+      <button type="button" class="btn-close-modal customer-orders-close" aria-label="Close My Orders" title="Close My Orders" onclick="closeModal('customerOrdersModal')">×</button>
+      <div class="modal-body">
+        <h2><i class="bi bi-receipt"></i> My Orders</h2>
+        <p class="muted">Track active orders live and review your past order receipts.</p>
+
+        <!-- Top: Active Order Live Tracking Panel -->
+        <section id="orderTrackingPanel" class="order-tracking-panel" aria-live="polite"></section>
+
+        <!-- Active Orders Section (shown when orders are in progress) -->
+        <div id="customerActiveOrdersSection" class="customer-orders-section" style="display:none;">
+          <h3 class="customer-section-heading"><i class="bi bi-clock-history"></i> Active Orders</h3>
+          <div id="customerActiveOrdersList" class="customer-orders-list"></div>
+        </div>
+
+        <!-- Order History Section -->
+        <div id="customerHistorySection" class="customer-orders-section">
+          <h3 class="customer-section-heading" id="orderHistoryHeading"><i class="bi bi-journal-text"></i> Order History</h3>
+          <div id="customerOrdersList" class="customer-orders-list">Loading orders…</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="customerFavoritesModal">
+    <div class="modal-card customer-tools-modal">
+      <button class="btn-close-modal" onclick="closeModal('customerFavoritesModal')">✕</button>
+      <div class="modal-body">
+        <h2><i class="bi bi-heart-fill"></i> My Favorites</h2>
+        <p class="muted">Your saved menu items, available whenever you sign in.</p>
+        <div id="customerFavoritesList" class="customer-favorites-list">Loading favorites…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notification Toast -->
+  <div class="toast-msg" id="toastBox">Added to order!</div>
+
+  <script src="../../assets/js/order-sounds.js"></script>
+  <script src="../../assets/js/ol.app.js?v=20261020-session-sync"></script>
+  <script>
+    function togglePwVisibility(inputId, btn) {
+      var inp = document.getElementById(inputId);
+      if (!inp) return;
+      var eyeOn  = btn.querySelector('.eye-icon');
+      var eyeOff = btn.querySelector('.eye-off-icon');
+      if (inp.type === 'password') {
+        inp.type = 'text';
+        if (eyeOn) eyeOn.style.display  = 'none';
+        if (eyeOff) eyeOff.style.display = '';
+        btn.setAttribute('aria-label', 'Hide password');
+      } else {
+        inp.type = 'password';
+        if (eyeOn) eyeOn.style.display  = '';
+        if (eyeOff) eyeOff.style.display = 'none';
+        btn.setAttribute('aria-label', 'Show password');
+      }
+    }
+  </script>
 </body>
 </html>

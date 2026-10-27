@@ -65,9 +65,9 @@ INSERT INTO menu_items (category_id, item_name, description, price, image, avail
 (5, 'Set Meal G', '2 Pastil Rice, Hotdog, Shanghai, and Egg.', 165.00, NULL, 'Available', NULL, NULL, NULL),
 (5, 'Set Meal H', '2 Pastil Rice, Maling, Shanghai, and Egg.', 165.00, NULL, 'Available', NULL, NULL, NULL),
 (5, 'Set Meal I', '2 Pastil Rice, Ham, Shanghai, and Egg.', 170.00, NULL, 'Available', NULL, NULL, NULL),
-(6, 'Spaghetti Bilao Small', 'Good for sharing, small tray.', 500.00, NULL, 'Available', NULL, NULL, NULL),
-(6, 'Spaghetti Bilao Medium', 'Good for sharing, medium tray.', 850.00, NULL, 'Available', NULL, NULL, NULL),
-(6, 'Spaghetti Bilao Large', 'Good for sharing, large tray.', 1200.00, NULL, 'Available', NULL, NULL, NULL),
-(6, 'Spaghetti Bilao XL', 'Good for sharing, extra large tray.', 1550.00, NULL, 'Available', NULL, NULL, NULL),
-(6, 'Palabok Bilao Small', 'Palabok bilao small tray.', 650.00, NULL, 'Available', NULL, NULL, NULL),
-(6, 'Bihon Bilao Small', 'Bihon bilao small tray.', 550.00, NULL, 'Available', NULL, NULL, NULL);
+(6, 'Small Spaghetti', 'Small spaghetti bilao.', 500.00, NULL, 'Available', NULL, NULL, NULL),
+(6, 'Small Sotanghon', 'Small sotanghon bilao.', 650.00, NULL, 'Available', NULL, NULL, NULL),
+(6, 'Small Carbonara', 'Small carbonara bilao.', 500.00, NULL, 'Available', NULL, NULL, NULL),
+(6, 'Small Canton', 'Small pancit canton bilao.', 550.00, NULL, 'Available', NULL, NULL, NULL),
+(6, 'Small Palabok', 'Small palabok bilao.', 650.00, NULL, 'Available', NULL, NULL, NULL),
+(6, 'Small Bihon', 'Small bihon bilao.', 550.00, NULL, 'Available', NULL, NULL, NULL);

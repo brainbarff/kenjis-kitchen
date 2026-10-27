@@ -1,0 +1,25 @@
+node_modules/
+functions/node_modules/
+public-ordering/
+public-admin/
+.env
+.env.*
+!.env.example
+!.env.firebase.example
+*.log
+firebase-debug.log
+firestore-debug.log
+.firebase/
+service-account*.json
+*-service-account*.json
+
+# Local database exports and backups
+/database/kenjis_kitchen.sql
+/database/kenjis_kitchen_full_seed.sql
+/handover/reference_backups/
+*.sql.gz
+*.bak
+*.dump
+
+# Internal notes and reference backups
+/handover/

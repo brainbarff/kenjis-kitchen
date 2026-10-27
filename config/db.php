@@ -1,20 +1,11 @@
 <?php
 require_once __DIR__ . '/config.php';
 
-$httpHost = $_SERVER['HTTP_HOST'] ?? 'localhost';
-$hostOnly = explode(':', $httpHost)[0];
-$isLocal = in_array($hostOnly, ['localhost', '127.0.0.1']) || PHP_SAPI === 'cli';
+$host = getenv('DB_HOST') ?: '127.0.0.1';
+$db_name = getenv('DB_NAME') ?: 'kenjis_kitchen';
+$db_user = getenv('DB_USER') ?: 'root';
+$db_pass = getenv('DB_PASS') !== false ? getenv('DB_PASS') : '';
 
-$host = 'localhost';
-if ($isLocal) {
-    $db_name = 'kenjis_kitchen';
-    $db_user = 'root';
-    $db_pass = '';
-} else {
-    $db_name = 'u201025533_kenjiskitchen';
-    $db_user = 'u201025533_kenjiskitchen';
-    $db_pass = 'Letsgocapstone2026';
-}
 
 try {
     $conn = new PDO(
@@ -27,17 +18,8 @@ try {
     $conn->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
 
 } catch (PDOException $e) {
-    // If local fails or differs, try fallback credentials
-    if ($isLocal && $db_name === 'kenjis_kitchen') {
-        try {
-            $conn = new PDO("mysql:host=$host;dbname=u201025533_kenjiskitchen;charset=utf8mb4", 'root', '');
-            $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-            $conn->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
-        } catch (PDOException $fallbackErr) {
-            die('Database error: ' . $e->getMessage());
-        }
-    } else {
-        die('Database error: ' . $e->getMessage());
-    }
+    error_log('Database connection error: ' . $e->getMessage());
+    http_response_code(500);
+    die('Database connection error. A service error occurred. Please try again later.');
 }
 ?>

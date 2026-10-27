@@ -245,8 +245,8 @@ function injectPosModalStyles() {
 
         .pos-checkout-actions {
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
+            grid-template-columns: 1fr;
+            gap: 0;
         }
 
         .pos-checkout-action {
@@ -267,6 +267,7 @@ function injectPosModalStyles() {
             background: #ffffff;
             border: 1px solid #cfcfcf;
             color: #111111;
+            font-size: 0.74rem;
         }
 
         .pos-checkout-print:hover {
@@ -506,6 +507,12 @@ window.setPaymentMode = function(mode) {
         );
     }
 
+    const tenderGcashAttestWrap =
+        document.getElementById('tenderGcashAttestWrap');
+
+    const gcashCashierAttested =
+        document.getElementById('gcashCashierAttested');
+
     if (mode === 'cash') {
         if (tenderCashWrap) {
             tenderCashWrap.style.display = 'flex';
@@ -513,6 +520,14 @@ window.setPaymentMode = function(mode) {
 
         if (tenderGcashWrap) {
             tenderGcashWrap.style.display = 'none';
+        }
+
+        if (tenderGcashAttestWrap) {
+            tenderGcashAttestWrap.style.display = 'none';
+        }
+
+        if (gcashCashierAttested) {
+            gcashCashierAttested.checked = false;
         }
 
         if (cashInput) {
@@ -527,6 +542,10 @@ window.setPaymentMode = function(mode) {
 
         if (tenderGcashWrap) {
             tenderGcashWrap.style.display = 'flex';
+        }
+
+        if (tenderGcashAttestWrap) {
+            tenderGcashAttestWrap.style.display = 'block';
         }
 
         const data = totals();
@@ -816,6 +835,20 @@ window.clearAllOrder = function() {
         tenderGcashWrap.style.display = 'none';
     }
 
+    const tenderGcashAttestWrap =
+        document.getElementById('tenderGcashAttestWrap');
+
+    const gcashCashierAttested =
+        document.getElementById('gcashCashierAttested');
+
+    if (tenderGcashAttestWrap) {
+        tenderGcashAttestWrap.style.display = 'none';
+    }
+
+    if (gcashCashierAttested) {
+        gcashCashierAttested.checked = false;
+    }
+
     renderCart();
 };
 
@@ -902,14 +935,23 @@ function addToCart(
     id,
     name,
     price,
-    stock
+    stock,
+    availability
 ) {
+    if (availability !== undefined && availability !== null && availability !== 'Available') {
+        showPosAlert(
+            'Item Unavailable',
+            'This item is currently unavailable.'
+        );
+        return;
+    }
+
     const maxStock =
         Math.max(0, Math.floor(Number(stock ?? 0)));
 
     const existing =
         cart.find(
-            item => item.id === id
+            item => item.id === id && item.name === name
         );
 
     if (existing) {
@@ -943,10 +985,10 @@ function addToCart(
     renderCart();
 }
 
-function decreaseFromCart(id) {
+function decreaseFromCart(id, name) {
     const item =
         cart.find(
-            row => row.id === id
+            row => row.id === id && (name === undefined || row.name === name)
         );
 
     if (!item) {
@@ -976,9 +1018,6 @@ document
                         '.qty-stepper'
                     ) ||
                     event.target.closest(
-                        '.bilao-type-row'
-                    ) ||
-                    event.target.closest(
                         '.bilao-sizes-row'
                     )
                 ) {
@@ -988,7 +1027,8 @@ document
                 if (
                     card.classList.contains(
                         'unavailable'
-                    )
+                    ) ||
+                    (card.dataset.availability && card.dataset.availability !== 'Available')
                 ) {
                     showPosAlert(
                         'Item Unavailable',
@@ -1001,7 +1041,8 @@ document
                     card.dataset.id,
                     card.dataset.name,
                     card.dataset.price,
-                    card.dataset.stock
+                    card.dataset.stock,
+                    card.dataset.availability
                 );
             }
         );
@@ -1022,11 +1063,23 @@ document
                     return;
                 }
 
+                if (
+                    card.classList.contains('unavailable') ||
+                    (card.dataset.availability && card.dataset.availability !== 'Available')
+                ) {
+                    showPosAlert(
+                        'Item Unavailable',
+                        'This item is currently unavailable.'
+                    );
+                    return;
+                }
+
                 addToCart(
                     card.dataset.id,
                     card.dataset.name,
                     card.dataset.price,
-                    card.dataset.stock
+                    card.dataset.stock,
+                    card.dataset.availability
                 );
             }
         );
@@ -1041,7 +1094,8 @@ document
                 event.stopPropagation();
 
                 decreaseFromCart(
-                    btn.dataset.id
+                    btn.dataset.id,
+                    btn.closest('.food-card')?.dataset.name
                 );
             }
         );
@@ -1166,12 +1220,8 @@ function updateMenuCardControls() {
                     0
                 );
 
-            const cartItem =
-                cart.find(
-                    item =>
-                        item.id ===
-                        id
-                );
+            const cardName = card.dataset.name;
+            const cartItem = cart.find(item => item.id === id && item.name === cardName);
 
             const currentQty =
                 cartItem
@@ -1188,9 +1238,12 @@ function updateMenuCardControls() {
                     '.qty-display'
                 );
 
+            const availability = card.dataset.availability || 'Available';
+            const isUnavailable = availability !== 'Available' || stock <= 0;
+
             if (plusBtn) {
                 plusBtn.disabled =
-                    stock <= 0 ||
+                    isUnavailable ||
                     currentQty >= stock;
             }
 
@@ -1222,7 +1275,7 @@ function renderCart() {
             </div>
         `;
     } else {
-        cart.forEach(item => {
+        cart.forEach((item, index) => {
             const row =
                 document.createElement(
                     'div'
@@ -1244,6 +1297,7 @@ function renderCart() {
                     <div class="qty">
                         <button
                             type="button"
+                            data-cart-index="${index}"
                             data-minus="${escapeHtml(item.id)}"
                             aria-label="Decrease quantity"
                         >−</button>
@@ -1251,6 +1305,7 @@ function renderCart() {
                         <input
                             type="number"
                             class="cart-qty-input"
+                            data-cart-index="${index}"
                             data-id="${escapeHtml(item.id)}"
                             value="${item.qty}"
                             min="1"
@@ -1262,6 +1317,7 @@ function renderCart() {
 
                         <button
                             type="button"
+                            data-cart-index="${index}"
                             data-plus="${escapeHtml(item.id)}"
                             ${item.qty >= item.stock ? 'disabled' : ''}
                             aria-label="Increase quantity"
@@ -1269,6 +1325,7 @@ function renderCart() {
 
                         <button
                             type="button"
+                            data-cart-index="${index}"
                             data-remove="${escapeHtml(item.id)}"
                             aria-label="Remove ${escapeHtml(item.name)}"
                             title="Remove item"
@@ -1316,12 +1373,7 @@ if (cartItems) {
                 );
 
             if (plus) {
-                const item =
-                    cart.find(
-                        i =>
-                            i.id ===
-                            plus.dataset.plus
-                    );
+                const item = cart[Number(plus.dataset.cartIndex)];
 
                 if (item) {
                     if (
@@ -1343,20 +1395,17 @@ if (cartItems) {
             }
 
             if (minus) {
-                decreaseFromCart(
-                    minus.dataset.minus
-                );
+                const index = Number(minus.dataset.cartIndex);
+                if (cart[index]) {
+                    cart[index].qty -= 1;
+                    if (cart[index].qty <= 0) cart.splice(index, 1);
+                    renderCart();
+                }
                 return;
             }
 
             if (remove) {
-                cart =
-                    cart.filter(
-                        item =>
-                            item.id !==
-                            remove.dataset.remove
-                    );
-
+                cart.splice(Number(remove.dataset.cartIndex), 1);
                 renderCart();
             }
         }
@@ -1379,12 +1428,7 @@ if (cartItems) {
             const id =
                 input.dataset.id;
 
-            const item =
-                cart.find(
-                    row =>
-                        row.id ===
-                        id
-                );
+            const item = cart[Number(input.dataset.cartIndex)];
 
             if (!item) {
                 return;
@@ -1472,12 +1516,7 @@ if (cartItems) {
             const id =
                 input.dataset.id;
 
-            const item =
-                cart.find(
-                    row =>
-                        row.id ===
-                        id
-                );
+            const item = cart[Number(input.dataset.cartIndex)];
 
             if (!item) {
                 return;
@@ -1656,6 +1695,16 @@ function showCheckoutSuccessScreen(
                         </span>
                     </div>
 
+                    <div class="pos-checkout-detail-row">
+                        <span class="pos-checkout-detail-label">
+                            Kitchen
+                        </span>
+
+                        <span class="pos-checkout-detail-value">
+                            Sent
+                        </span>
+                    </div>
+
                     ${
                         orderData.note
                             ? `
@@ -1711,19 +1760,12 @@ function showCheckoutSuccessScreen(
                         type="button"
                         class="pos-checkout-action pos-checkout-print"
                         id="checkoutSuccessPrintBtn"
+                        title="The order is already in the kitchen queue. Click to choose a printer and print the receipt."
                     >
                         <i class="bi bi-printer"></i>
-                        Print Receipt
+                        Kitchen + Print Receipt
                     </button>
 
-                    <button
-                        type="button"
-                        class="pos-checkout-action pos-checkout-new"
-                        id="checkoutSuccessNewBtn"
-                    >
-                        <i class="bi bi-plus-circle"></i>
-                        New Order
-                    </button>
                 </div>
             </div>
         </div>
@@ -1756,23 +1798,12 @@ function showCheckoutSuccessScreen(
 
     document
         .getElementById(
-            'checkoutSuccessNewBtn'
-        )
-        ?.addEventListener(
-            'click',
-            closeSuccessScreen
-        );
-
-    document
-        .getElementById(
             'checkoutSuccessPrintBtn'
         )
         ?.addEventListener(
             'click',
             () => {
-                printReceipt(
-                    orderData
-                );
+                printReceipt(orderData, closeSuccessScreen);
             }
         );
 
@@ -2107,7 +2138,8 @@ function generatePrintReceiptHtml(
 }
 
 function printReceipt(
-    orderData
+    orderData,
+    afterPrint = null
 ) {
     const printContainer =
         document.getElementById(
@@ -2206,6 +2238,10 @@ function printReceipt(
             'afterprint',
             cleanup
         );
+
+        if (typeof afterPrint === 'function') {
+            afterPrint();
+        }
     };
 
     window.addEventListener(
@@ -2222,11 +2258,15 @@ function printReceipt(
 
 function updateMenuStockAfterCheckout(completedCart) {
     const cards = Array.from(document.querySelectorAll('.food-card'));
+    const soldById = new Map();
 
     completedCart.forEach(orderItem => {
         const itemId = String(orderItem.id);
         const soldQty = Math.max(0, Math.floor(Number(orderItem.qty ?? 0)));
+        soldById.set(itemId, (soldById.get(itemId) || 0) + soldQty);
+    });
 
+    soldById.forEach((soldQty, itemId) => {
         cards.forEach(card => {
             const variantsRaw = card.dataset.variants;
 
@@ -2425,6 +2465,18 @@ if (checkoutBtn) {
                 return;
             }
 
+            const cashierAttested = currentPaymentMode === 'gcash'
+                ? Boolean(document.getElementById('gcashCashierAttested')?.checked)
+                : false;
+
+            if (currentPaymentMode === 'gcash' && !cashierAttested) {
+                showPosAlert(
+                    'Verification Required',
+                    'Cashier must attest that payment was verified on merchant phone / POS terminal before completing checkout.'
+                );
+                return;
+            }
+
             const payload = {
                 cart,
                 orderType,
@@ -2438,6 +2490,7 @@ if (checkoutBtn) {
                     'gcash'
                         ? gcashRef
                         : null,
+                cashierAttested: cashierAttested,
                 discountPercent: data.discountPercent,
                 discount: data.discount,
                 subtotal: data.subtotal,
@@ -2664,7 +2717,7 @@ const closeOnlineOrdersBtn = document.getElementById('closeOnlineOrdersBtn');
 const refreshOnlineOrdersBtn = document.getElementById('refreshOnlineOrdersBtn');
 
 let onlineOrdersTimer = null;
-let lastPendingOnlineCount = 0;
+let knownOnlineOrderIds = null;
 
 function formatOnlineOrderDate(value) {
     if (!value) return '';
@@ -2703,7 +2756,10 @@ function renderOnlineOrders(orders) {
         const items = Array.isArray(order.items) ? order.items : [];
         const itemHtml = items.map(item => `
             <div class="online-order-line">
-                <span>${escapeHtml(item.quantity)}x ${escapeHtml(item.item_name)}</span>
+                <div>
+                    <span>${escapeHtml(item.quantity)}x ${escapeHtml(item.item_name)}</span>
+                    ${item.notes ? `<div style="font-size:0.75rem; color:#B45309; background:#FEF3C7; padding:2px 6px; border-radius:4px; margin-top:2px; font-weight:600;">Note: ${escapeHtml(item.notes)}</div>` : ''}
+                </div>
                 <strong>${peso.format(Number(item.price || 0) * Number(item.quantity || 0))}</strong>
             </div>
         `).join('');
@@ -2732,14 +2788,71 @@ function renderOnlineOrders(orders) {
                     ${itemHtml || '<div class="online-order-meta">No item details available.</div>'}
                 </div>
 
-                <div class="online-order-footer">
-                    <span>${escapeHtml(order.payment_method || 'Payment not set')}</span>
-                    <span class="online-order-total">${peso.format(Number(order.total || 0))}</span>
+                <div class="online-order-footer" style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+                    <div>
+                        <span>${escapeHtml(order.payment_method || 'Payment not set')}</span>
+                        ${order.payment_method === 'GCash' ? (order.payment_status === 'Paid' ? '<span class="badge" style="font-size:0.7rem; background:#10B981; color:#fff; padding:2px 6px; border-radius:4px; margin-left:4px;">Verified</span>' : '<span class="badge" style="font-size:0.7rem; background:#F59E0B; color:#fff; padding:2px 6px; border-radius:4px; margin-left:4px;">Pending</span>') : ''}
+                        <strong class="online-order-total" style="margin-left:6px;">${peso.format(Number(order.total || 0))}</strong>
+                        ${order.payment_reference ? `<div style="font-size:0.72rem; color:#6B7280;">Ref: ${escapeHtml(order.payment_reference)}</div>` : ''}
+                    </div>
+                    <div>
+                        ${(order.payment_method === 'GCash' && order.payment_status === 'Pending') ? `
+                            <button type="button" class="btn btn-sm" onclick="verifyOnlineGCashPayment(${order.id}, '${escapeHtml(order.payment_reference || '')}')" style="padding:5px 12px; font-size:0.8rem; border-radius:6px; cursor:pointer; background:#2563EB; color:#fff; border:none; font-weight:700; margin-right:6px;">
+                                <i class="bi bi-shield-check"></i> Verify GCash
+                            </button>
+                        ` : ''}
+                        <button type="button" class="btn btn-sm btn-primary" onclick="completeOnlineOrder(${order.id})" style="padding:5px 12px; font-size:0.8rem; border-radius:6px; cursor:pointer; background:#F59E0B; color:#fff; border:none; font-weight:700;">
+                            <i class="bi bi-check2-circle"></i> Complete Order
+                        </button>
+                    </div>
                 </div>
             </div>
         `;
     }).join('');
 }
+
+window.verifyOnlineGCashPayment = async function(orderId, ref) {
+    if (!confirm(`Verify GCash payment (Ref: ${ref}) for this order?`)) return;
+    try {
+        const csrf = typeof KK_CSRF_TOKEN !== 'undefined' ? KK_CSRF_TOKEN : '';
+        const res = await fetch('../reports/complete_online_payment.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrf
+            },
+            body: JSON.stringify({ order_id: Number(orderId), csrf_token: csrf })
+        });
+        const data = await res.json();
+        if (data.ok) {
+            alert(data.message || 'GCash payment verified successfully.');
+            loadOnlineOrders(true);
+        } else {
+            alert(data.message || 'Unable to verify payment.');
+        }
+    } catch (e) {
+        alert('Network error while verifying payment.');
+    }
+};
+
+window.completeOnlineOrder = async function(orderId) {
+    if (!confirm('Complete this online order? This will mark it as served and deduct the items from inventory.')) return;
+    try {
+        const res = await fetch('../serving/api_mark_served.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ order_id: orderId })
+        });
+        const data = await res.json();
+        if (data.ok) {
+            loadOnlineOrders(true);
+        } else {
+            alert(data.msg || 'Unable to complete order.');
+        }
+    } catch (e) {
+        alert('Network error while completing order.');
+    }
+};
 
 async function loadOnlineOrders(showLoading = false) {
     if (!onlineOrdersList) return;
@@ -2762,18 +2875,20 @@ async function loadOnlineOrders(showLoading = false) {
 
         const orders = Array.isArray(json.orders) ? json.orders : [];
         const pendingCount = Number(json.pending_count || 0);
+        const currentIds = new Set(orders.map(order => String(order.id)));
 
         if (onlineOrdersBadge) {
             onlineOrdersBadge.textContent = String(pendingCount);
             onlineOrdersBadge.classList.toggle('has-pending', pendingCount > 0);
         }
 
-        if (pendingCount > lastPendingOnlineCount && pendingCount > 0) {
+        if (knownOnlineOrderIds !== null && [...currentIds].some(id => !knownOnlineOrderIds.has(id))) {
+            window.KenjiOrderSounds?.play('online');
             onlineOrdersBtn?.classList.add('has-new-order');
             setTimeout(() => onlineOrdersBtn?.classList.remove('has-new-order'), 2500);
         }
 
-        lastPendingOnlineCount = pendingCount;
+        knownOnlineOrderIds = currentIds;
         renderOnlineOrders(orders);
     } catch (error) {
         console.error('Online order queue error:', error);

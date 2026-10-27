@@ -6,6 +6,8 @@ require_role(['admin', 'cashier']);
 $page = 'pos';
 $title = 'Point of Sale';
 $heading = 'Point of Sale';
+$orderSounds = true;
+$bodyClass = 'pos-page';
 
 $categories = $conn->query("SELECT * FROM categories WHERE status = 'Active' ORDER BY sort_order ASC")->fetchAll();
 $raw_items = $conn->query("
@@ -40,62 +42,8 @@ try {
 }
 $orderTicket = str_pad($today_count, 4, '0', STR_PAD_LEFT);
 
-$official_specs = [
-    'Spaghetti' => [
-        'subcat' => 'pasta',
-        'rates' => [
-            'S'  => ['price' => 500,  'desc' => 'Good for 5-7 pax'],
-            'M'  => ['price' => 850,  'desc' => 'Good for 8-12 pax'],
-            'L'  => ['price' => 1200, 'desc' => 'Good for 12-18 pax'],
-            'XL' => ['price' => 1550, 'desc' => 'Good for 18-25 pax']
-        ]
-    ],
-    'Carbonara' => [
-        'subcat' => 'pasta',
-        'rates' => [
-            'S'  => ['price' => 500,  'desc' => 'Good for 5-7 pax'],
-            'M'  => ['price' => 850,  'desc' => 'Good for 8-12 pax'],
-            'L'  => ['price' => 1200, 'desc' => 'Good for 12-18 pax'],
-            'XL' => ['price' => 1550, 'desc' => 'Good for 18-25 pax']
-        ]
-    ],
-    'Palabok' => [
-        'subcat' => 'palabok_sotanghon',
-        'rates' => [
-            'S'  => ['price' => 650,  'desc' => 'Good for 6-9 pax'],
-            'M'  => ['price' => 850,  'desc' => 'Good for 9-13 pax'],
-            'L'  => ['price' => 1000, 'desc' => 'Good for 20-25 pax'],
-            'XL' => ['price' => 1200, 'desc' => 'Good for 30-35 pax']
-        ]
-    ],
-    'Sotanghon' => [
-        'subcat' => 'palabok_sotanghon',
-        'rates' => [
-            'S'  => ['price' => 650,  'desc' => 'Good for 6-9 pax'],
-            'M'  => ['price' => 850,  'desc' => 'Good for 9-13 pax'],
-            'L'  => ['price' => 1000, 'desc' => 'Good for 20-25 pax'],
-            'XL' => ['price' => 1200, 'desc' => 'Good for 30-35 pax']
-        ]
-    ],
-    'Bihon' => [
-        'subcat' => 'bihon_canton',
-        'rates' => [
-            'S'  => ['price' => 550,  'desc' => 'Good for 6-9 pax'],
-            'M'  => ['price' => 750,  'desc' => 'Good for 9-13 pax'],
-            'L'  => ['price' => 950,  'desc' => 'Good for 20-25 pax'],
-            'XL' => ['price' => 1100, 'desc' => 'Good for 30-35 pax']
-        ]
-    ],
-    'Canton' => [
-        'subcat' => 'bihon_canton',
-        'rates' => [
-            'S'  => ['price' => 550,  'desc' => 'Good for 6-9 pax'],
-            'M'  => ['price' => 750,  'desc' => 'Good for 9-13 pax'],
-            'L'  => ['price' => 950,  'desc' => 'Good for 20-25 pax'],
-            'XL' => ['price' => 1100, 'desc' => 'Good for 30-35 pax']
-        ]
-    ]
-];
+require_once ROOT_PATH . '/config/bilao-pricing.php';
+$official_specs = bilao_pricing_specs();
 
 $bilao_groups = [];
 foreach ($official_specs as $dish => $spec) {
@@ -112,12 +60,13 @@ foreach ($raw_items as $item) {
     if ($bilaoCatId && (int)$item['category_id'] === (int)$bilaoCatId) {
         foreach (array_keys($official_specs) as $dish) {
             if (stripos($item['item_name'], $dish) !== false) {
+                $variantName = (string)$item['item_name'];
                 $size = 'S';
-                if (stripos($item['item_name'], 'XL') !== false) {
+                if (preg_match('/\b(?:XL|X-LARGE|EXTRA\s+LARGE)\b/i', $variantName)) {
                     $size = 'XL';
-                } elseif (stripos($item['item_name'], 'Large') !== false) {
+                } elseif (preg_match('/\b(?:LARGE|L)\b/i', $variantName)) {
                     $size = 'L';
-                } elseif (stripos($item['item_name'], 'Medium') !== false) {
+                } elseif (preg_match('/\b(?:MEDIUM|M)\b/i', $variantName)) {
                     $size = 'M';
                 }
 
@@ -127,7 +76,7 @@ foreach ($raw_items as $item) {
 
                 $bilao_groups[$dish]['variants'][$size] = [
                     'id'           => (int)$item['id'],
-                    'price'        => (float)$item['price'],
+                    'price'        => (float)$official_specs[$dish]['rates'][$size]['price'],
                     'desc'         => $official_specs[$dish]['rates'][$size]['desc'],
                     'stock'        => max(0, (int)($item['stock'] ?? 0)),
                     'availability' => $item['availability'] ?? 'Available'
@@ -141,7 +90,11 @@ foreach ($raw_items as $item) {
 }
 
 foreach ($bilao_groups as $dish => &$group) {
-    $first_available_id = !empty($group['variants']) ? reset($group['variants'])['id'] : 1;
+    if (empty($group['variants'])) {
+        unset($bilao_groups[$dish]);
+        continue;
+    }
+    $first_available_id = reset($group['variants'])['id'];
     foreach (['S', 'M', 'L', 'XL'] as $sz) {
         if (!isset($group['variants'][$sz])) {
             $fallback_variant = reset($group['variants']);
@@ -206,7 +159,7 @@ include ROOT_PATH . '/includes/header.php';
         overflow-y: auto;
         overflow-x: hidden;
         display: grid !important;
-        grid-template-columns: repeat(6, 1fr) !important;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)) !important;
         grid-auto-rows: max-content !important;
         gap: 14px !important;
         padding-right: 6px;
@@ -1295,45 +1248,16 @@ include ROOT_PATH . '/includes/header.php';
         min-height: 18px;
     }
 
-    .bilao-type-row {
-        display: inline-flex;
-        background: #f1f5f9;
-        border: 1px solid #e2e8f0;
-        padding: 3px;
-        border-radius: 8px;
-        gap: 4px;
-    }
-
-    .bilao-type-btn {
-        border: none;
-        background: transparent;
-        padding: 4px 16px;
-        font-size: 0.8rem;
-        font-weight: 600;
-        color: #64748b;
-        border-radius: 6px;
-        cursor: pointer;
-        transition: all 0.15s ease;
-    }
-
-    .bilao-type-btn:hover {
-        color: #0f172a;
-    }
-
-    .bilao-type-btn.active {
-        background: #ffffff;
-        color: #1e293b;
-        font-weight: 700;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    }
-
     .bilao-sizes-row {
-        display: inline-flex;
-        gap: 8px;
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 6px;
+        width: 100%;
     }
 
     .bilao-size-btn {
-        width: 40px;
+        min-width: 0;
+        padding: 0;
         height: 36px;
         display: inline-flex;
         align-items: center;
@@ -1476,7 +1400,7 @@ include ROOT_PATH . '/includes/header.php';
     }
 
     @media (max-width: 1200px) {
-        body:has(.pos-layout) {
+        body.pos-page {
             overflow: auto;
         }
 
@@ -1493,7 +1417,7 @@ include ROOT_PATH . '/includes/header.php';
         }
 
         .menu-grid {
-            grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+            grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)) !important;
             overflow-y: visible;
             max-height: none;
         }
@@ -1512,7 +1436,7 @@ include ROOT_PATH . '/includes/header.php';
         }
 
         .menu-grid {
-            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+            grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr)) !important;
         }
     }
 
@@ -1667,7 +1591,8 @@ include ROOT_PATH . '/includes/header.php';
                 }
 
                 $stock = max(0, (int)($item['stock'] ?? 0));
-                $isUnavailable = ($stock <= 0);
+                $availability = $item['availability'] ?? 'Available';
+                $isUnavailable = ($stock <= 0 || $availability !== 'Available');
                 ?>
 
                 <article class="food-card <?= $isUnavailable ? 'unavailable' : '' ?>"
@@ -1677,10 +1602,10 @@ include ROOT_PATH . '/includes/header.php';
                          data-name="<?= e($item['item_name']) ?>"
                          data-price="<?= e($price) ?>"
                          data-stock="<?= e($stock) ?>"
-                         data-availability="<?= e($item['availability']) ?>">
+                         data-availability="<?= e($availability) ?>">
 
-                    <span class="stock-badge <?= $stock <= 0 ? 'out-of-stock' : ($stock <= 5 ? 'low-stock' : '') ?>">
-                        <?= $stock > 0 ? e($stock) . ' pcs left' : 'Out of Stock' ?>
+                    <span class="stock-badge <?= ($stock <= 0 || $availability !== 'Available') ? 'out-of-stock' : ($stock <= 5 ? 'low-stock' : '') ?>">
+                        <?= $availability !== 'Available' ? 'Unavailable' : ($stock > 0 ? e($stock) . ' pcs left' : 'Out of Stock') ?>
                     </span>
 
                     <?php if ($item['image']): ?>
@@ -1703,7 +1628,7 @@ include ROOT_PATH . '/includes/header.php';
                             <div class="qty-stepper" onclick="event.stopPropagation();">
                                 <button type="button" class="btn-qty btn-card-minus" data-id="<?= e($item['id']) ?>">−</button>
                                 <span class="qty-display" id="card-qty-<?= e($item['id']) ?>">0</span>
-                                <button type="button" class="btn-qty btn-card-plus" data-id="<?= e($item['id']) ?>" <?= $stock <= 0 ? 'disabled' : '' ?>>+</button>
+                                <button type="button" class="btn-qty btn-card-plus" data-id="<?= e($item['id']) ?>" <?= ($stock <= 0 || $availability !== 'Available') ? 'disabled' : '' ?>>+</button>
                             </div>
                         </div>
                     </div>
@@ -1717,14 +1642,15 @@ include ROOT_PATH . '/includes/header.php';
                     $default_variant = $info['variants'][$default_size];
                     $init_id = $default_variant['id'];
                     $init_price = $default_variant['price'];
-                    $init_name = $dish . ' Tray S';
+                    $init_name = $dish . ' S';
                     $init_desc = $default_variant['desc'];
                     $json_variants = htmlspecialchars(json_encode($info['variants']), ENT_QUOTES, 'UTF-8');
                     $init_stock = max(0, (int)($default_variant['stock'] ?? 0));
                     $init_availability = $default_variant['availability'] ?? 'Available';
+                    $init_unavailable = ($init_stock <= 0 || $init_availability !== 'Available');
                     ?>
 
-                    <article class="food-card bilao-card bilao-centered-card"
+                    <article class="food-card bilao-card bilao-centered-card <?= $init_unavailable ? 'unavailable' : '' ?>"
                              data-cat="<?= e($bilaoCatId) ?>"
                              data-subcat="<?= e($info['subcat']) ?>"
                              data-id="<?= e($init_id) ?>"
@@ -1735,8 +1661,8 @@ include ROOT_PATH . '/includes/header.php';
                              data-base="<?= e($dish) ?>"
                              data-variants='<?= $json_variants ?>'>
 
-                        <span class="stock-badge <?= $init_stock <= 0 ? 'out-of-stock' : ($init_stock <= 5 ? 'low-stock' : '') ?>">
-                            <?= $init_stock > 0 ? e($init_stock) . ' pcs left' : 'Out of Stock' ?>
+                        <span class="stock-badge <?= ($init_stock <= 0 || $init_availability !== 'Available') ? 'out-of-stock' : ($init_stock <= 5 ? 'low-stock' : '') ?>">
+                            <?= $init_availability !== 'Available' ? 'Unavailable' : ($init_stock > 0 ? e($init_stock) . ' pcs left' : 'Out of Stock') ?>
                         </span>
 
                         <?php if ($info['image']): ?>
@@ -1748,11 +1674,6 @@ include ROOT_PATH . '/includes/header.php';
                         <div class="bilao-center-content">
                             <h3 class="bilao-title"><?= e($dish) ?></h3>
                             <p class="bilao-desc"><?= e($init_desc) ?></p>
-
-                            <div class="bilao-type-row pkg-group" onclick="event.stopPropagation();">
-                                <button type="button" class="bilao-type-btn pkg-btn active" data-pkg="Tray">Tray</button>
-                                <button type="button" class="bilao-type-btn pkg-btn" data-pkg="Bilao">Bilao</button>
-                            </div>
 
                             <div class="bilao-sizes-row size-group" onclick="event.stopPropagation();">
                                 <button type="button" class="bilao-size-btn size-btn active" data-size="S">S</button>
@@ -1773,7 +1694,7 @@ include ROOT_PATH . '/includes/header.php';
         <div class="receipt-brand">
             <div class="receipt-header-row">
                 <div class="receipt-brand-left">
-                    <span class="brand-mark">K</span>
+                    <img src="<?= BASE_URL ?>/assets/img/logo.jpg" alt="Kenji's Kitchen" class="brand-mark" style="width: 32px; height: 32px; border-radius: 8px; object-fit: cover;">
                     <div class="brand-text-col">
                         <h2>KENJI'S kitchen</h2>
                         <span class="order-pill"><i class="bi bi-receipt"></i> Order #<?= e($orderTicket) ?></span>
@@ -1894,6 +1815,13 @@ include ROOT_PATH . '/includes/header.php';
                     <span id="changeLabel">Change:</span>
                     <strong id="change">₱0.00</strong>
                 </div>
+            </div>
+
+            <div id="tenderGcashAttestWrap" style="display: none; margin-bottom: 6px; padding: 6px 10px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px;">
+                <label style="display: flex; align-items: center; gap: 8px; font-size: 0.78rem; font-weight: 600; color: #1e3a8a; cursor: pointer; user-select: none; margin: 0;">
+                    <input type="checkbox" id="gcashCashierAttested" style="width: 16px; height: 16px; accent-color: #2563eb; cursor: pointer;">
+                    <span>Payment verified on merchant phone / POS terminal</span>
+                </label>
             </div>
 
             <div class="payment-toggle-row">
@@ -2089,9 +2017,6 @@ document.addEventListener('DOMContentLoaded', function() {
             const activeSize =
                 card.querySelector('.size-btn.active')?.dataset.size || 'S';
 
-            const activePkg =
-                card.querySelector('.pkg-btn.active')?.dataset.pkg || 'Tray';
-
             const variants = JSON.parse(card.dataset.variants || '{}');
             const v = variants[activeSize];
 
@@ -2102,7 +2027,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 card.dataset.id = v.id;
                 card.dataset.price = v.price;
-                card.dataset.name = baseName + ' ' + activePkg + ' ' + activeSize;
+                card.dataset.name = baseName + ' ' + activeSize;
                 card.dataset.stock = String(Math.floor(stock));
                 card.dataset.availability = availability;
                 card.classList.toggle('unavailable', unavailable);
@@ -2111,7 +2036,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (stockBadge) {
                     stockBadge.classList.remove('low-stock', 'out-of-stock');
 
-                    if (stock <= 0) {
+                    if (availability !== 'Available') {
+                        stockBadge.classList.add('out-of-stock');
+                        stockBadge.textContent = 'Unavailable';
+                    } else if (stock <= 0) {
                         stockBadge.classList.add('out-of-stock');
                         stockBadge.textContent = 'Out of Stock';
                     } else {
@@ -2150,24 +2078,12 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
 
-        card.querySelectorAll('.pkg-btn').forEach(btn => {
-            btn.addEventListener('click', function(e) {
-                e.stopPropagation();
-
-                card
-                    .querySelectorAll('.pkg-btn')
-                    .forEach(b => b.classList.remove('active'));
-
-                this.classList.add('active');
-                updateCardState();
-            });
-        });
-
         updateCardState();
     });
 
     updateSubFilterVisibility();
 });
+var KK_CSRF_TOKEN = <?= json_encode(csrf_token(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 </script>
 
 <?php $script = 'pos.js?v=' . time(); include ROOT_PATH . '/includes/footer.php'; ?>

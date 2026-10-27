@@ -1,11 +1,12 @@
 <?php
 require_once dirname(__DIR__, 2) . '/includes/auth.php';
 require_once ROOT_PATH . '/config/db.php';
-require_role(['admin', 'cashier']);
+require_role(['admin', 'cashier', 'kitchen']);
 
 $page = 'serving';
 $title = 'Order Serving';
 $heading = 'Order Serving';
+$orderSounds = true;
 
 include ROOT_PATH . '/includes/header.php';
 ?>

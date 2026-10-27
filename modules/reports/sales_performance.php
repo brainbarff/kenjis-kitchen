@@ -68,7 +68,7 @@ $dailyStmt = $conn->prepare("
         DATE(o.paid_at) AS sales_date,
         COUNT(o.id) AS total_orders,
         COALESCE(SUM(o.total), 0) AS total_sales,
-        COALESCE(SUM(CASE WHEN LOWER(TRIM(p.payment_method)) = 'cash' THEN o.total ELSE 0 END), 0) AS cash_sales,
+        COALESCE(SUM(CASE WHEN LOWER(TRIM(p.payment_method)) IN ('cash', 'pay on pickup', 'cash on delivery') THEN o.total ELSE 0 END), 0) AS cash_sales,
         COALESCE(SUM(CASE WHEN LOWER(TRIM(p.payment_method)) = 'gcash' THEN o.total ELSE 0 END), 0) AS gcash_sales
     FROM orders o
     INNER JOIN ($latestPayment) p ON p.order_id = o.id

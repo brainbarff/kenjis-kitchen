@@ -1,0 +1,36 @@
+{
+  "name": "kenjis-kitchen-server",
+  "version": "1.1.0",
+  "description": "Kenji's Kitchen – Consolidated Realtime & REST API Server (WebSocket + OTP)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "dev:ordering": "vite --config apps/ordering/vite.config.js",
+    "dev:admin": "vite --config apps/admin/vite.config.js",
+    "build:ordering": "vite build --config apps/ordering/vite.config.js",
+    "build:admin": "vite build --config apps/admin/vite.config.js",
+    "build:apps": "npm run build:ordering && npm run build:admin"
+  },
+  "keywords": [
+    "kenjis-kitchen",
+    "pos",
+    "kds",
+    "realtime",
+    "otp"
+  ],
+  "author": "Kenji's Kitchen Dev Team",
+  "license": "ISC",
+  "dependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "mysql2": "^3.11.0",
+    "nodemailer": "^10.0.13",
+    "firebase": "^12.19.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "vite": "^5.4.14"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

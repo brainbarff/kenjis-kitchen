@@ -28,7 +28,7 @@ function dashboard_scalar(PDO $conn, string $sql, array $params = [])
 $todayStart = $today . ' 00:00:00';
 $tomorrowStart = $tomorrow . ' 00:00:00';
 
-if (in_array($role, ['admin', 'manager'], true)) {
+if ($role === 'admin') {
     $todaySales = dashboard_scalar($conn, "
         SELECT COALESCE(SUM(total), 0)
         FROM orders
@@ -44,6 +44,15 @@ if (in_array($role, ['admin', 'manager'], true)) {
         WHERE paid_at IS NOT NULL
           AND paid_at >= :start
           AND paid_at < :end
+          AND status <> 'Cancelled'
+    ", [':start' => $todayStart, ':end' => $tomorrowStart]);
+
+    $onlineOrders = dashboard_scalar($conn, "
+        SELECT COUNT(*)
+        FROM orders
+        WHERE order_channel = 'ONLINE'
+          AND created_at >= :start
+          AND created_at < :end
           AND status <> 'Cancelled'
     ", [':start' => $todayStart, ':end' => $tomorrowStart]);
 
@@ -281,46 +290,6 @@ if (in_array($role, ['admin', 'manager'], true)) {
         LIMIT 8
     ");
     $kitchenRecent = $kitchenRecentStmt->fetchAll();
-} elseif ($role === 'server') {
-    $ready = dashboard_scalar($conn, "SELECT COUNT(*) FROM orders WHERE status = 'Ready'");
-    $servedToday = dashboard_scalar($conn, "
-        SELECT COUNT(*)
-        FROM orders
-        WHERE served_by = :user_id
-          AND served_at >= :start
-          AND served_at < :end
-          AND status = 'Served'
-    ", [':user_id' => $userId, ':start' => $todayStart, ':end' => $tomorrowStart]);
-
-    $myDineIn = dashboard_scalar($conn, "
-        SELECT COUNT(*)
-        FROM orders
-        WHERE served_by = :user_id
-          AND served_at >= :start
-          AND served_at < :end
-          AND status = 'Served'
-          AND order_type = 'DINE-IN'
-    ", [':user_id' => $userId, ':start' => $todayStart, ':end' => $tomorrowStart]);
-
-    $myTakeOut = dashboard_scalar($conn, "
-        SELECT COUNT(*)
-        FROM orders
-        WHERE served_by = :user_id
-          AND served_at >= :start
-          AND served_at < :end
-          AND status = 'Served'
-          AND order_type = 'TAKE-OUT'
-    ", [':user_id' => $userId, ':start' => $todayStart, ':end' => $tomorrowStart]);
-
-    $serverRecentStmt = $conn->prepare("
-        SELECT order_no, order_type, table_no, total, status, served_at
-        FROM orders
-        WHERE served_by = :user_id
-        ORDER BY served_at DESC
-        LIMIT 8
-    ");
-    $serverRecentStmt->execute([':user_id' => $userId]);
-    $serverRecent = $serverRecentStmt->fetchAll();
 }
 
 include ROOT_PATH . '/includes/header.php';
@@ -336,23 +305,30 @@ include ROOT_PATH . '/includes/header.php';
     grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.dashboard-kpis.six {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
 @media (max-width: 1200px) {
     .dashboard-kpis,
-    .dashboard-kpis.four {
+    .dashboard-kpis.four,
+    .dashboard-kpis.six {
         grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 }
 
 @media (max-width: 760px) {
     .dashboard-kpis,
-    .dashboard-kpis.four {
+    .dashboard-kpis.four,
+    .dashboard-kpis.six {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
 
 @media (max-width: 520px) {
     .dashboard-kpis,
-    .dashboard-kpis.four {
+    .dashboard-kpis.four,
+    .dashboard-kpis.six {
         grid-template-columns: 1fr;
     }
 }
@@ -371,15 +347,20 @@ include ROOT_PATH . '/includes/header.php';
 }
 </style>
 
-<div class="page-head" style="margin-bottom:24px;">
+<div class="page-head" style="margin-bottom:24px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;">
     <div>
         <h1>Welcome, <?= e($user['username']) ?></h1>
         <p class="muted"><?= e($user['role']) ?> Dashboard · <?= e(date('F j, Y')) ?></p>
     </div>
+    <div>
+        <a href="<?= BASE_URL ?>/online/index.html" target="_blank" class="btn btn-primary" style="display:inline-flex; align-items:center; gap:8px; font-weight:700;">
+            <i class="bi bi-cart3"></i> Online Ordering Storefront ↗
+        </a>
+    </div>
 </div>
 
-<?php if (in_array($role, ['admin', 'manager'], true)): ?>
-    <section class="dashboard-kpis">
+<?php if ($role === 'admin'): ?>
+    <section class="dashboard-kpis six">
         <article class="card stat">
             <div><span class="muted">Today's Sales</span><strong><?= money($todaySales) ?></strong></div>
             <i class="bi bi-cash-stack"></i>
@@ -387,6 +368,10 @@ include ROOT_PATH . '/includes/header.php';
         <article class="card stat">
             <div><span class="muted">Today's Orders</span><strong><?= e($todayOrders) ?></strong></div>
             <i class="bi bi-bag-check"></i>
+        </article>
+        <article class="card stat">
+            <div><span class="muted">Online Orders Today</span><strong><?= e($onlineOrders) ?></strong></div>
+            <i class="bi bi-globe2"></i>
         </article>
         <article class="card stat">
             <div><span class="muted">Low Stock</span><strong><?= e($lowStock) ?></strong></div>
@@ -437,7 +422,7 @@ include ROOT_PATH . '/includes/header.php';
 
         <section class="card">
             <div class="page-head" style="margin-bottom:16px;">
-                <div><h2>Recent Orders</h2><p class="muted">Latest transactions from POS.</p></div>
+                <div><h2>Recent Orders</h2><p class="muted">Latest POS and online transactions.</p></div>
             </div>
             <div class="table-wrap">
                 <table>
@@ -578,22 +563,6 @@ include ROOT_PATH . '/includes/header.php';
         </tbody></table></div>
     </section>
     <p class="muted" style="margin-top:12px;">Kitchen activity is based on the shared order queue. The current database does not record which kitchen staff member prepared each order.</p>
-
-<?php elseif ($role === 'server'): ?>
-    <section class="dashboard-kpis four">
-        <article class="card stat"><div><span class="muted">Ready to Serve</span><strong><?= e($ready) ?></strong></div><i class="bi bi-bell"></i></article>
-        <article class="card stat"><div><span class="muted">Served by Me Today</span><strong><?= e($servedToday) ?></strong></div><i class="bi bi-check2-circle"></i></article>
-        <article class="card stat"><div><span class="muted">Dine-In Served</span><strong><?= e($myDineIn) ?></strong></div><i class="bi bi-shop"></i></article>
-        <article class="card stat"><div><span class="muted">Take-Out Served</span><strong><?= e($myTakeOut) ?></strong></div><i class="bi bi-bag"></i></article>
-    </section>
-
-    <section class="card" style="margin-top:24px">
-        <div class="page-head" style="margin-bottom:16px;"><div><h2>My Recent Served Orders</h2><p class="muted">Orders you recently marked as served.</p></div></div>
-        <div class="table-wrap"><table><thead><tr><th>Order No.</th><th>Type</th><th>Table</th><th>Total</th><th>Served</th></tr></thead><tbody>
-            <?php foreach ($serverRecent as $row): ?><tr><td><?= e($row['order_no']) ?></td><td><?= e($row['order_type']) ?></td><td><?= e($row['table_no'] ?: '—') ?></td><td><?= money($row['total']) ?></td><td><?= $row['served_at'] ? e(date('M d, Y h:i A', strtotime($row['served_at']))) : '—' ?></td></tr><?php endforeach; ?>
-            <?php if (!$serverRecent): ?><tr><td colspan="5" class="muted" style="text-align:center;padding:28px;">No served orders found.</td></tr><?php endif; ?>
-        </tbody></table></div>
-    </section>
 
 <?php else: ?>
     <section class="card">

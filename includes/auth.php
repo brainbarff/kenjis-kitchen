@@ -1,9 +1,7 @@
 <?php
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-
 require_once dirname(__DIR__) . '/config/config.php';
+kk_start_session();
+
 require_once dirname(__DIR__) . '/includes/functions.php';
 
 function require_login()

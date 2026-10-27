@@ -1,7 +1,7 @@
 <?php
 require_once dirname(__DIR__, 2) . '/includes/auth.php';
 require_once ROOT_PATH . '/config/db.php';
-require_role('admin');
+require_role(['admin', 'cashier']);
 
 header('Content-Type: application/json; charset=UTF-8');
 
@@ -17,6 +17,11 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 $data = json_decode(file_get_contents('php://input'), true);
+$submittedToken = (is_array($data) && isset($data['csrf_token'])) ? $data['csrf_token'] : null;
+if (!verify_csrf_token($submittedToken)) {
+    payment_json(['ok' => false, 'message' => 'Invalid or expired security token. Please reload the page and try again.'], 403);
+}
+
 $orderId = (int)($data['order_id'] ?? 0);
 
 if ($orderId <= 0) {
@@ -69,6 +74,23 @@ try {
 
     $updateOrder = $conn->prepare("UPDATE orders SET paid_at = NOW() WHERE id = ? AND paid_at IS NULL");
     $updateOrder->execute([$orderId]);
+
+    $staffUserId = $_SESSION['u_id'] ?? ($_SESSION['user_id'] ?? null);
+    $staffRole = role_key();
+    $verificationSource = ($staffRole === 'cashier') ? 'POS_CASHIER' : 'ADMIN_ONLINE';
+    $notes = strcasecmp($payment['payment_method'], 'GCash') === 0
+        ? (($staffRole === 'cashier') ? 'Cashier verified GCash payment' : 'Admin verified GCash payment via Reports dashboard')
+        : (($staffRole === 'cashier') ? 'Cashier marked cash payment as paid' : 'Admin marked cash payment as paid via Reports dashboard');
+
+    $auditStmt = $conn->prepare("INSERT INTO payment_verification_audits (payment_id, order_id, verified_by, previous_status, new_status, verification_source, notes) VALUES (?, ?, ?, ?, 'Paid', ?, ?)");
+    $auditStmt->execute([
+        (int)$payment['id'],
+        $orderId,
+        $staffUserId ? (int)$staffUserId : null,
+        (string)$payment['payment_status'],
+        $verificationSource,
+        $notes
+    ]);
 
     $conn->commit();
 

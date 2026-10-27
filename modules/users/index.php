@@ -39,7 +39,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 if (isset($_GET['delete'])) {
     $id = (int) $_GET['delete'];
     if ($id !== (int) $_SESSION['u_id']) {
-        $stmt = $conn->prepare("DELETE FROM users WHERE id = ?");
+        // Enforce soft-archiving: no hard DELETE queries
+        $stmt = $conn->prepare("UPDATE users SET status = 'Inactive', deleted_at = NOW() WHERE id = ?");
         $stmt->execute([$id]);
     }
     redirect('/modules/users/index.php');
@@ -52,12 +53,23 @@ if (isset($_GET['edit'])) {
     $edit = $stmt->fetch();
 }
 
-$roles = $conn->query("SELECT * FROM roles WHERE role_name IN ('Admin','Cashier','Kitchen Staff','Inventory Staff','Customer (Online)') ORDER BY FIELD(role_name, 'Admin','Cashier','Kitchen Staff','Inventory Staff','Customer (Online)')")->fetchAll();
+$roles = $conn->query("SELECT * FROM roles WHERE role_name IN ('Admin','Cashier','Kitchen Staff','Inventory Staff') ORDER BY FIELD(role_name, 'Admin','Cashier','Kitchen Staff','Inventory Staff')")->fetchAll();
 $users = $conn->query("
     SELECT users.*, roles.role_name
     FROM users
     JOIN roles ON roles.id = users.role_id
     WHERE roles.role_name IN ('Admin','Cashier','Kitchen Staff','Inventory Staff')
+    ORDER BY users.created_at DESC
+")->fetchAll();
+
+$onlineCustomers = $conn->query("
+    SELECT users.id, users.full_name, users.email, users.phone, users.customer_address, users.status, users.created_at,
+           COUNT(o.id) AS total_orders
+    FROM users
+    JOIN roles ON roles.id = users.role_id
+    LEFT JOIN orders o ON o.user_id = users.id AND o.order_channel = 'ONLINE'
+    WHERE roles.role_name = 'Customer (Online)'
+    GROUP BY users.id
     ORDER BY users.created_at DESC
 ")->fetchAll();
 
@@ -94,7 +106,7 @@ include ROOT_PATH . '/includes/header.php';
 
     <section class="card">
         <div class="page-head">
-            <h2>Employees</h2>
+            <h2>Staff Accounts</h2>
             <?php if ($edit): ?><a class="btn btn-secondary" href="index.php">Cancel</a><?php endif; ?>
         </div>
         <div class="table-wrap">
@@ -117,4 +129,45 @@ include ROOT_PATH . '/includes/header.php';
         </div>
     </section>
 </div>
+
+<!-- Online Registered Customers -->
+<section class="card" style="margin-top: 24px;">
+    <div class="page-head" style="margin-bottom: 16px;">
+        <h2><i class="bi bi-globe" style="color: var(--primary);"></i> Online Registered Customers</h2>
+        <span style="font-size: 0.85rem; color: var(--muted);"><?= count($onlineCustomers) ?> registered</span>
+    </div>
+    <?php if (empty($onlineCustomers)): ?>
+        <div style="text-align:center; padding: 40px; color: var(--muted);">
+            <i class="bi bi-people" style="font-size: 2rem; display:block; margin-bottom: 8px;"></i>
+            No online customers have registered yet.
+        </div>
+    <?php else: ?>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Phone</th>
+                    <th>Orders</th>
+                    <th>Status</th>
+                    <th>Registered</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($onlineCustomers as $c): ?>
+                <tr>
+                    <td><strong><?= e($c['full_name']) ?></strong></td>
+                    <td><?= e($c['email'] ?? '—') ?></td>
+                    <td><?= e($c['phone'] ?? '—') ?></td>
+                    <td><span class="badge badge-success"><?= (int)$c['total_orders'] ?> orders</span></td>
+                    <td><span class="badge <?= $c['status'] === 'Active' ? 'badge-success' : 'badge-muted' ?>"><?= e($c['status']) ?></span></td>
+                    <td style="font-size:0.82rem; color:var(--muted);"><?= date('M d, Y', strtotime($c['created_at'])) ?></td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+    <?php endif; ?>
+</section>
 <?php include ROOT_PATH . '/includes/footer.php'; ?>

@@ -53,7 +53,7 @@ $summaryStmt = $conn->prepare("
     SELECT
         COUNT(o.id) AS total_orders,
         COALESCE(SUM(o.total), 0) AS total_sales,
-        COALESCE(SUM(CASE WHEN LOWER(TRIM(p.payment_method)) = 'cash' THEN o.total ELSE 0 END), 0) AS cash_sales,
+        COALESCE(SUM(CASE WHEN LOWER(TRIM(p.payment_method)) IN ('cash', 'pay on pickup', 'cash on delivery') THEN o.total ELSE 0 END), 0) AS cash_sales,
         COALESCE(SUM(CASE WHEN LOWER(TRIM(p.payment_method)) = 'gcash' THEN o.total ELSE 0 END), 0) AS gcash_sales
     FROM orders o
     INNER JOIN ($latestPayment) p ON p.order_id = o.id
@@ -896,6 +896,8 @@ function printReport() {
 </script>
 
 <script>
+const KK_CSRF_TOKEN = <?= json_encode(csrf_token(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+
 document.querySelectorAll('.online-payment-action').forEach(function(button) {
     button.addEventListener('click', async function() {
         const orderId = this.dataset.orderId;
@@ -913,8 +915,14 @@ document.querySelectorAll('.online-payment-action').forEach(function(button) {
         try {
             const response = await fetch('complete_online_payment.php', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ order_id: Number(orderId) })
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': KK_CSRF_TOKEN
+                },
+                body: JSON.stringify({
+                    order_id: Number(orderId),
+                    csrf_token: KK_CSRF_TOKEN
+                })
             });
             const result = await response.json();
 

@@ -15,6 +15,8 @@ if (!$id || !in_array($status, $allowed, true)) {
     exit;
 }
 
+require_once ROOT_PATH . '/includes/realtime.php';
+
 if ($status === 'Preparing') {
     $stmt = $conn->prepare("UPDATE orders SET status = 'Preparing', preparing_at = NOW() WHERE id = ? AND status = 'Pending'");
     $stmt->execute([$id]);
@@ -25,5 +27,16 @@ if ($status === 'Ready') {
     $stmt->execute([$id]);
 }
 
-echo json_encode(['ok' => true]);
+$changed = $stmt->rowCount();
+if ($changed !== 1) {
+    http_response_code(409);
+    echo json_encode(['ok' => false, 'msg' => 'Order status changed or order was not found. Refresh the kitchen queue.']);
+    exit;
+}
+
+if (function_exists('realtime_publish')) {
+    realtime_publish('kitchen:status_change', ['order_id' => $id, 'status' => $status]);
+}
+
+echo json_encode(['ok' => true, 'status' => $status]);
 ?>
