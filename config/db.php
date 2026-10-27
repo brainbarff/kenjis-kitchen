@@ -1,43 +1,53 @@
 <?php
+
 require_once __DIR__ . '/config.php';
 
-$httpHost = $_SERVER['HTTP_HOST'] ?? 'localhost';
-$hostOnly = explode(':', $httpHost)[0];
-$isLocal = in_array($hostOnly, ['localhost', '127.0.0.1']) || PHP_SAPI === 'cli';
+$cloudHost = getenv('DB_HOST');
+$useCloudDatabase = $cloudHost !== false && $cloudHost !== '';
 
-$host = 'localhost';
-if ($isLocal) {
-    $db_name = 'kenjis_kitchen';
-    $db_user = 'root';
-    $db_pass = '';
+if ($useCloudDatabase) {
+    // Production: Render + Aiven MySQL
+    $dbHost = $cloudHost;
+    $dbPort = getenv('DB_PORT') ?: '3306';
+    $dbName = getenv('DB_NAME') ?: 'defaultdb';
+    $dbUser = getenv('DB_USER');
+    $dbPass = getenv('DB_PASS');
+    $sslCa = getenv('DB_SSL_CA') ?: '/etc/secrets/ca.pem';
+
+    if (!$dbUser || !$dbPass) {
+        error_log('Required database environment variables are missing.');
+        die('Database configuration error.');
+    }
+
+    $dsn = sprintf(
+        'mysql:host=%s;port=%s;dbname=%s;charset=utf8mb4',
+        $dbHost,
+        $dbPort,
+        $dbName
+    );
+
+    $options = [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        PDO::ATTR_EMULATE_PREPARES => false,
+        PDO::MYSQL_ATTR_SSL_CA => $sslCa,
+    ];
 } else {
-    $db_name = 'u201025533_kenjiskitchen';
-    $db_user = 'u201025533_kenjiskitchen';
-    $db_pass = 'Letsgocapstone2026';
+    // Development: local XAMPP
+    $dsn = 'mysql:host=127.0.0.1;port=3306;dbname=kenjis_kitchen;charset=utf8mb4';
+    $dbUser = 'root';
+    $dbPass = '';
+
+    $options = [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        PDO::ATTR_EMULATE_PREPARES => false,
+    ];
 }
 
 try {
-    $conn = new PDO(
-        "mysql:host=$host;dbname=$db_name;charset=utf8mb4",
-        $db_user,
-        $db_pass
-    );
-
-    $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-    $conn->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
-
+    $conn = new PDO($dsn, $dbUser, $dbPass, $options);
 } catch (PDOException $e) {
-    // If local fails or differs, try fallback credentials
-    if ($isLocal && $db_name === 'kenjis_kitchen') {
-        try {
-            $conn = new PDO("mysql:host=$host;dbname=u201025533_kenjiskitchen;charset=utf8mb4", 'root', '');
-            $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-            $conn->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
-        } catch (PDOException $fallbackErr) {
-            die('Database error: ' . $e->getMessage());
-        }
-    } else {
-        die('Database error: ' . $e->getMessage());
-    }
+    error_log('Database connection failed: ' . $e->getMessage());
+    die('Database connection is temporarily unavailable.');
 }
-?>
