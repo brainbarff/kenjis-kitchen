@@ -7,7 +7,8 @@ $page = 'inventory';
 $title = 'Inventory Management';
 $heading = 'Inventory Management';
 $msg = $_SESSION['flash_msg'] ?? '';
-unset($_SESSION['flash_msg']);
+$msgType = $_SESSION['flash_type'] ?? 'success';
+unset($_SESSION['flash_msg'], $_SESSION['flash_type']);
 
 $inventoryPerPage = 10;
 $historyPerPage = 10;
@@ -28,11 +29,19 @@ $isAdmin = can_access('admin');
 $isInventory = can_access('inventory');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!verify_csrf_token()) {
+        $_SESSION['flash_msg'] = 'Invalid or expired security token. Please reload the page and try again.';
+        $_SESSION['flash_type'] = 'danger';
+        header('Location: index.php');
+        exit;
+    }
+
     $action = $_POST['action'] ?? '';
 
     if ($action === 'archive_request') {
         if (!$isInventory || $isAdmin) {
             $_SESSION['flash_msg'] = 'Only Inventory Staff can submit an archive request.';
+            $_SESSION['flash_type'] = 'danger';
             header('Location: index.php');
             exit;
         }
@@ -44,17 +53,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (!$item || (int) $item['is_archived'] === 1) {
             $_SESSION['flash_msg'] = 'Menu item not found or already archived.';
-        } elseif ((int) $item['stock'] > 0) {
-            $_SESSION['flash_msg'] = 'Only menu items with 0 stock can be archived. Use Stock Out first.';
+            $_SESSION['flash_type'] = 'danger';
         } else {
             $pending = $conn->prepare("SELECT id FROM approval_requests WHERE request_type = 'Archive' AND menu_item_id = ? AND status = 'Pending' LIMIT 1");
             $pending->execute([$id]);
             if ($pending->fetch()) {
                 $_SESSION['flash_msg'] = 'An archive request for this menu item is already pending Admin approval.';
+                $_SESSION['flash_type'] = 'danger';
             } else {
-                $request = $conn->prepare("INSERT INTO approval_requests (request_type, menu_item_id, remarks, requested_by) VALUES ('Archive', ?, 'Out-of-stock menu archive request', ?)");
+                $request = $conn->prepare("INSERT INTO approval_requests (request_type, menu_item_id, remarks, requested_by) VALUES ('Archive', ?, 'Menu archive request', ?)");
                 $request->execute([$id, $_SESSION['u_id']]);
                 $_SESSION['flash_msg'] = 'Archive request submitted for Admin approval.';
+                $_SESSION['flash_type'] = 'success';
             }
         }
 
@@ -539,7 +549,7 @@ include ROOT_PATH . '/includes/header.php';
 }
 </style>
 
-<?php if ($msg): ?><div class="alert alert-success"><?= e($msg) ?></div><?php endif; ?>
+<?php if ($msg): ?><div class="alert alert-<?= $msgType === 'danger' ? 'danger' : 'success' ?>"><?= e($msg) ?></div><?php endif; ?>
 
 <section class="grid grid-3">
     <article class="card stat">
@@ -562,6 +572,7 @@ include ROOT_PATH . '/includes/header.php';
     <div class="page-head"><h2>Stock Movement</h2></div>
 
     <form class="form" method="post" action="index.php" id="stockMovementForm">
+        <?= csrf_field() ?>
         <input type="hidden" name="action" value="stock">
         <input type="hidden" name="menu_item_id" id="menuItemId" value="">
 
@@ -672,14 +683,15 @@ include ROOT_PATH . '/includes/header.php';
                             <?php endif; ?>
                         </td>
                         <td>
-                            <?php if ($isInventory && !$isAdmin && $stockValue <= 0): ?>
+                            <?php if ($isInventory && !$isAdmin): ?>
                                 <?php if (isset($pendingArchiveRequests[(int) $row['id']])): ?>
                                     <span class="badge badge-warning">Archive Pending</span>
                                 <?php else: ?>
                                     <form method="post" style="margin:0;">
+                                        <?= csrf_field() ?>
                                         <input type="hidden" name="action" value="archive_request">
                                         <input type="hidden" name="menu_item_id" value="<?= e($row['id']) ?>">
-                                        <button class="btn btn-danger" type="submit" data-confirm="Submit an archive request for this out-of-stock menu item?"><i class="bi bi-archive"></i>Request Archive</button>
+                                        <button class="btn btn-danger" type="submit" data-confirm="Submit an archive request for this menu item?"><i class="bi bi-archive"></i>Request Archive</button>
                                     </form>
                                 <?php endif; ?>
                             <?php else: ?>

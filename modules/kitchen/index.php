@@ -6,6 +6,7 @@ require_role(['admin', 'kitchen']);
 $page = 'kitchen';
 $title = 'Kitchen Display System';
 $heading = 'Kitchen Display System';
+$orderSounds = true;
 
 include ROOT_PATH . '/includes/header.php';
 ?>

@@ -10,6 +10,18 @@ const preparingCount =
 const readyCount =
     document.getElementById('readyCount');
 
+let knownOnlineOrderIds = null;
+
+function alertForNewOnlineOrders(orders) {
+    const ids = orders
+        .filter(order => order.order_channel === 'ONLINE')
+        .map(order => String(order.id));
+    if (knownOnlineOrderIds !== null && ids.some(id => !knownOnlineOrderIds.has(id))) {
+        window.KenjiOrderSounds?.play('online');
+    }
+    knownOnlineOrderIds = new Set(ids);
+}
+
 function escapeHtml(value) {
     return String(value ?? '')
         .replaceAll('&', '&amp;')
@@ -125,6 +137,8 @@ async function loadOrders() {
             Array.isArray(orders)
                 ? orders
                 : [];
+
+        alertForNewOnlineOrders(safeOrders);
 
         activeCount.textContent =
             safeOrders.length;

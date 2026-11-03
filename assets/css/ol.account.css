@@ -1,0 +1,116 @@
+/* The menu cover stays in place while longer forms scroll independently. */
+#authModal .auth-modal-card {
+  display: grid;
+  grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr);
+  width: min(100%, 960px);
+  max-width: none;
+  background: #fffefa;
+}
+.account-menu-cover {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 18px;
+  padding: clamp(28px, 4vw, 48px);
+  overflow: hidden;
+  color: #33280b;
+  background: radial-gradient(ellipse at 80% 50%, #ffe982, transparent 60%), #ffd333;
+}
+.account-kicker, .account-dish span {
+  display: block;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .12em;
+}
+.account-cover-title {
+  margin: 0;
+  font-size: clamp(38px, 4.4vw, 62px);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -.06em;
+}
+.account-plate {
+  align-self: center;
+  width: min(82%, 220px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 5px solid #fff5d9;
+  box-shadow: 6px 12px 0 #ad7c132a;
+}
+.account-plate img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.account-dish { border-top: 1px dashed #876712; padding-top: 14px; }
+.account-dish strong { font-size: 22px; }
+.account-form-panel {
+  overflow-y: auto;
+  min-height: 0;
+  padding: clamp(26px, 3.6vw, 46px);
+  scrollbar-width: thin;
+  overscroll-behavior: contain;
+}
+.account-heading { padding-right: 28px; }
+.account-heading .account-kicker { color: #795e13; margin: 0 0 8px; }
+.account-heading h2 { font-size: clamp(30px, 3.2vw, 44px); letter-spacing: -.055em; line-height: 1.12; }
+#authModal .auth-tabs { margin: 20px 0 16px; background: #f4f0e4; }
+#authModal .auth-tab { margin: 0; }
+#authModal .auth-tab.active { box-shadow: 0 1px 4px #44381024; color: #382c0a; }
+#authModal .modal-body { overflow: visible; padding: 0 !important; }
+#authModal .auth-sub { color: #635e50; margin-bottom: 16px; }
+#authModal .auth-field label { color: #332d21; font-size: 15px; }
+#authModal .auth-input { font: inherit; font-size: 16px; color: #2c271c; border-color: #c9c2b1; }
+#authModal .pw-input { padding-right: 48px; }
+#authModal .pw-eye-btn { width: 44px; height: 44px; }
+#authModal .account-policy { margin: 18px 0 0; padding-top: 14px; border-top: 1px solid #e6dfce; color: #61594a; font-size: 14px; line-height: 1.6; }
+.account-policy a { color: #6b4a00; font-weight: 700; text-underline-offset: 2px; }
+#authModal .account-policy { text-align: center; }
+.account-options { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:4px 12px; margin:0 0 12px; font-size:14px; }
+.account-options label { display:inline-flex; gap:8px; align-items:center; min-height:40px; cursor:pointer; }
+.account-options input { width:17px; height:17px; accent-color:#a57300; }
+.account-options button, .account-text-btn { border:0; background:transparent; color:#745009; font:inherit; font-weight:650; cursor:pointer; min-height:40px; }
+.account-options button:hover, .account-text-btn:hover { text-decoration:underline; }
+#authModal small#usernameHelp { display:block; margin-top:5px; color:#635e50; font-size:13px; }
+#recoveryFields { min-width:0; margin:0; padding:0; border:none; }
+.account-text-btn { font-size:14px; margin:5px 10px 0 0; }
+#authModal .auth-modal-card { position:relative; }
+#accountCooking:not([hidden]) { position:absolute; inset:0; z-index:5; display:grid; place-items:center; padding:24px; text-align:center; background:radial-gradient(ellipse at center,#fffdf2 32%,#ffecaa 100%); }
+.cooking-ticket { display:grid; justify-items:center; gap:12px; }
+.cooking-ticket .welcome-skillet { width:clamp(128px,18vw,190px); height:auto; margin:0; }
+.cooking-ticket small { font-weight:800; font-size:12px; letter-spacing:.15em; color:#765815; }
+.cooking-ticket strong { font-size:clamp(24px,4vw,40px); letter-spacing:-.045em; line-height:1.16; }
+.cooking-track { width:90px; height:4px; border-radius:4px; overflow:hidden; background:#ebdba6; }
+.cooking-track::after { content:""; display:block; height:100%; background:#a97909; border-radius:inherit; }
+@media (prefers-reduced-motion:no-preference) {
+  .cooking-ticket .welcome-skillet { animation:skillet-toss .85s ease-in-out 2; }
+  .cooking-track::after { transform-origin:left; animation:ticket-progress 1s ease-out both; }
+  #signInSuccessModal.active .welcome-skillet { animation:skillet-toss .65s ease-out; }
+  @keyframes skillet-toss { 0%,100% { transform:rotate(0); } 48% { transform:translateY(-6px) rotate(-6deg); } 75% { transform:rotate(2deg); } }
+  @keyframes ticket-progress { from { transform:scaleX(.08); } }
+}
+.account-alert:not(:empty) { padding: 10px 14px; margin-top: 12px; background: #fff1e9; color: #853a20; border-radius: 10px; }
+.welcome-skillet { width: 138px; height: 100px; margin-bottom: 16px; }
+@media (prefers-reduced-motion: no-preference) {
+  #authModal.active .account-plate { animation: plate-arrives .35s ease-out both; }
+  #signInSuccessModal.active .skillet-pan { transform-origin: 75% 58%; animation: skillet-serve .65s ease-out both; }
+  #signInSuccessModal.active .skillet-steam path { animation: kitchen-steam .9s ease-in-out 2; }
+  #signInSuccessModal.active .skillet-steam path:nth-child(2) { animation-delay: .12s; }
+  @keyframes plate-arrives { from { opacity: .5; transform: translateY(6px) rotate(-5deg); } }
+  @keyframes skillet-serve { from { opacity: .2; transform: translateX(-12px) rotate(-8deg); } }
+  @keyframes kitchen-steam { 0%, 100% { opacity: .85; } 60% { opacity: .28; transform: translateY(-5px); } }
+}
+@media (max-width: 680px) {
+  #authModal .auth-modal-card { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0,1fr); max-width: 480px; }
+  .account-menu-cover { display: grid; grid-template-columns: 1fr auto; align-items: center; padding: 16px 58px 16px 20px; gap: 3px 12px; }
+  .account-menu-cover .account-kicker { grid-column: 1; }
+  .account-cover-title { font-size: clamp(20px, 4vw, 26px); }
+  .account-cover-title br { display: none; }
+  .account-plate { grid-column: 2; grid-row: 1 / 3; width: 48px; border-width: 2px; box-shadow: none; }
+  .account-dish { display: none; }
+  .account-form-panel { padding: 20px; }
+  #authModal .auth-tabs { margin: 14px 0; }
+  #authModal .auth-otp-boxes { display: grid; grid-template-columns: repeat(6,minmax(0,1fr)); gap: 4px; }
+  #authModal .auth-otp-box { width: 100%; }
+}
+@media (max-height: 480px) {
+  .account-menu-cover { display: none; }
+  #authModal .auth-modal-card { grid-template: minmax(0,1fr) / minmax(0,1fr); max-width: 590px; }
+}

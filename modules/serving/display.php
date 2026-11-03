@@ -8,6 +8,8 @@ require_login();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Now Serving - Kenji's Kitchen</title>
+    <link rel="icon" type="image/jpeg" href="<?= BASE_URL ?>/assets/img/logo.jpg">
+    <link rel="apple-touch-icon" href="<?= BASE_URL ?>/assets/img/logo.jpg">
     <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/style.css">
 
     <style>
@@ -56,10 +58,7 @@ require_login();
             align-items: center;
             justify-content: center;
             border-radius: 12px;
-            background: #F2C12E;
-            color: #111111;
-            font-size: 1.35rem;
-            font-weight: 900;
+            object-fit: cover;
         }
 
         .display-head h1 {
@@ -93,50 +92,47 @@ require_login();
 
         .display-column {
             min-width: 0;
-            border: 1px solid #e5e7eb;
-            border-radius: 14px;
-            background: #ffffff;
-            overflow: hidden;
         }
 
         .display-column-head {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 14px 17px;
-            border-bottom: 1px solid #e5e7eb;
-            background: #f8fafc;
+            padding: 10px 14px;
+            background: #f3f4f6;
+            border-radius: 8px;
+            margin-bottom: 12px;
         }
 
         .display-column-head h2 {
             margin: 0;
+            font-size: 1.1rem;
+            font-weight: 800;
             color: #111111;
-            font-size: 1rem;
-            font-weight: 900;
         }
 
         .display-column-count {
-            min-width: 28px;
-            height: 28px;
-            display: flex;
+            display: inline-flex;
             align-items: center;
             justify-content: center;
-            border-radius: 7px;
-            background: #F2C12E;
-            color: #111111;
-            font-size: 0.72rem;
-            font-weight: 900;
+            min-width: 28px;
+            height: 28px;
+            padding: 0 8px;
+            border-radius: 9999px;
+            background: #111111;
+            color: #ffffff;
+            font-size: 0.85rem;
+            font-weight: 800;
         }
 
         .display-list {
             display: grid;
             grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 10px;
-            padding: 12px;
+            gap: 12px;
         }
 
         .display-order {
-            min-height: 138px;
+            min-height: 140px;
             padding: 13px;
             box-sizing: border-box;
             border: 1px solid #e5e7eb;
@@ -163,10 +159,8 @@ require_login();
             align-items: center;
             justify-content: center;
             min-width: 62px;
-            height: 40px;
-            margin: 0 auto;
-            padding: 0 9px;
-            border-radius: 9px;
+            padding: 4px 10px;
+            border-radius: 8px;
             background: #F2C12E;
             color: #111111;
             font-size: 1.25rem;
@@ -192,7 +186,6 @@ require_login();
             text-transform: uppercase;
             text-align: center;
         }
-
 
         .display-online {
             display: inline-flex;
@@ -254,7 +247,7 @@ require_login();
     <main class="display-board">
         <header class="display-head">
             <div class="display-brand">
-                <div class="display-brand-mark">K</div>
+                <img src="<?= BASE_URL ?>/assets/img/logo.jpg" alt="Kenji's Kitchen Logo" class="display-brand-mark" style="width: 50px; height: 50px; border-radius: 12px; object-fit: cover;">
 
                 <div>
                     <h1>Now Serving</h1>
@@ -289,7 +282,7 @@ require_login();
 
             <article class="display-column">
                 <div class="display-column-head">
-                    <h2>Pickup Ready</h2>
+                    <h2>Take-Out / Pickup Ready</h2>
 
                     <span
                         class="display-column-count"
@@ -307,6 +300,6 @@ require_login();
         </section>
     </main>
 
-    <script src="<?= BASE_URL ?>/assets/js/serving-display.js?v=<?= time() ?>"></script>
+    <script src="<?= BASE_URL ?>/assets/js/serving-display.js"></script>
 </body>
 </html>

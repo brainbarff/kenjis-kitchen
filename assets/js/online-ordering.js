@@ -336,18 +336,27 @@ function renderTracking(order) {
 
 async function pollLatestOrder() {
     if (!state.user) return;
-    const result = await apiFetch(`${API_BASE}/orders.php?action=latest`);
-    if (result.status !== 'success') return;
-
-    if (!result.data) {
-        state.latestOrder = null;
-        renderTracking(null);
-        return;
+    try {
+        const result = await apiFetch(`${API_BASE}/orders.php?action=latest`);
+        if (result.status === 'success') {
+            const previousOrder = state.latestOrder;
+            const currentOrder = result.data || null;
+            if (currentOrder && previousOrder &&
+                String(currentOrder.id) === String(previousOrder.id) &&
+                previousOrder.status !== 'Ready' && currentOrder.status === 'Ready') {
+                window.KenjiOrderSounds?.play('ready');
+                if ('Notification' in window && Notification.permission === 'granted') {
+                    new Notification('Your order is ready', { body: `Order ${currentOrder.order_number || currentOrder.order_no} is ready for pickup or delivery.` });
+                }
+            }
+            state.latestOrder = currentOrder;
+            renderTracking(currentOrder);
+        }
+    } catch (error) {
+        console.warn('Unable to refresh order status:', error);
+    } finally {
+        if (state.user) setTimeout(pollLatestOrder, 8000);
     }
-
-    state.latestOrder = result.data;
-    renderTracking(result.data);
-    setTimeout(pollLatestOrder, 8000);
 }
 
 function renderHistory(orders) {
@@ -593,83 +602,8 @@ document.querySelectorAll('[name="payment"]').forEach(input => input.addEventLis
     renderCart();
 }));
 
-function initLandingFeatures() {
-    // 1. Category Quick-Jump, Hero Quick-Add & Back to top
-    document.addEventListener('click', async (event) => {
-        const jumpBtn = event.target.closest('[data-category-jump]');
-        if (jumpBtn) {
-            event.preventDefault();
-            const cat = jumpBtn.dataset.categoryJump;
-            state.activeCategory = cat;
-            renderCategories();
-            await loadMenu();
-            const menuSection = document.getElementById('menuSection');
-            if (menuSection) {
-                menuSection.scrollIntoView({ behavior: 'smooth' });
-            }
-            return;
-        }
-
-        const heroAddBtn = event.target.closest('[data-hero-add]');
-        if (heroAddBtn) {
-            event.preventDefault();
-            const itemId = Number(heroAddBtn.dataset.heroAdd);
-            openItemModal(itemId);
-            return;
-        }
-
-        const backToTop = event.target.closest('#backToTopBtn');
-        if (backToTop) {
-            event.preventDefault();
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-            return;
-        }
-    });
-
-    // 2. Real-Time Store Status Check (9:00 AM - 9:00 PM)
-    function updateStoreStatus() {
-        const statusText = document.getElementById('storeStatusText');
-        const statusDot = document.getElementById('storeStatusDot');
-        if (!statusText || !statusDot) return;
-
-        const now = new Date();
-        const currentHour = now.getHours();
-        const isOpen = currentHour >= 9 && currentHour < 21;
-
-        if (isOpen) {
-            statusText.textContent = 'Kitchen Open Now';
-            statusDot.style.background = 'var(--success)';
-        } else {
-            statusText.textContent = 'Closed (Opens at 9:00 AM)';
-            statusDot.style.background = '#F2A900';
-            statusDot.style.animation = 'none';
-        }
-    }
-    updateStoreStatus();
-
-    // 3. Scroll Reveal Observer
-    if ('IntersectionObserver' in window) {
-        const observer = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    entry.target.classList.add('revealed');
-                    observer.unobserve(entry.target);
-                }
-            });
-        }, {
-            threshold: 0.1,
-            rootMargin: '0px 0px -40px 0px'
-        });
-
-        document.querySelectorAll('.reveal-on-scroll').forEach(el => observer.observe(el));
-    } else {
-        document.querySelectorAll('.reveal-on-scroll').forEach(el => el.classList.add('revealed'));
-    }
-}
-
 (async function init() {
     try {
-        initLandingFeatures();
         await loadCurrentUser();
         await loadCategories();
         await loadMenu();

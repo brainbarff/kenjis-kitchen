@@ -1,0 +1,22 @@
+:root { font-family: "Segoe UI", system-ui, sans-serif; color: #30291b; background: #fbf9f2; }
+* { box-sizing: border-box; }
+body { margin: 0; }
+a { color: #725000; text-underline-offset: .18em; }
+a:focus-visible { outline: 3px solid #966b00; outline-offset: 3px; }
+header, footer { display: flex; align-items: center; gap: 1rem; padding: 1rem clamp(1rem, 5vw, 6rem); }
+header { justify-content: space-between; background: white; border-bottom: 1px solid #e8dfcc; }
+header a:first-child { display: flex; align-items: center; gap: .6rem; font-weight: 750; text-decoration: none; color: inherit; }
+header img { border-radius: 50%; }
+main, footer { width: min(calc(100% - 2rem), 54rem); margin-inline: auto; }
+main { margin-top: clamp(1rem, 4vw, 3rem); overflow: hidden; border: 1px solid #e7decb; border-radius: 1.5rem; background: white; }
+.policy-heading, article { padding: clamp(1.35rem, 5vw, 3.5rem); }
+.policy-heading { background: #ffd333; }
+.policy-heading p { margin: 0; font-size: .8rem; font-weight: 750; text-transform: uppercase; letter-spacing: .12em; }
+h1 { margin: .65rem 0; font-size: clamp(2.4rem, 6vw, 4rem); letter-spacing: -.06em; line-height: 1.1; }
+article { line-height: 1.7; }
+.lead { margin: 0; font-size: 1.18rem; }
+section { border-top: 1px solid #ece7da; margin-top: 1.5rem; padding-top: 1.25rem; }
+h2, section p { margin: 0; }
+h2 { font-size: 1.25rem; margin-bottom: .3rem; }
+address { font-style: normal; overflow-wrap: anywhere; }
+footer { justify-content: center; flex-wrap: wrap; padding-block: 1.7rem; }
