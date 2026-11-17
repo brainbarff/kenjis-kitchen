@@ -23,41 +23,62 @@ jobs:
         run: |
           find . -type f -name '*.php' -not -path './.git/*' -print0 | xargs -0 -n1 php -l
 
-      - name: Sync files to Hostinger via FTPS
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-        with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          protocol: ftps
-          port: 21
-          security: loose
-          local-dir: ./
-          server-dir: ./
-          exclude: |
-            **/.git*
-            **/.git*/**
-            .github/**
-            tests/**
-            tools/**
-            Documentation/**
-            handover/**
-            functions/**
-            node_modules/**
-            public-ordering/**
-            public-admin/**
-            **/*.sql
-            **/*.sql.gz
-            **/*.csv
-            **/*.bat
-            **/*.sh
-            **/*.md
-            **/*.log
-            **/*.bak
-            **/*.dump
-            .env
-            .env.*
-            seed_flash_sale.php
-            database/seed_*.php
-            uploads/payment_proofs/**
-            uploads/private_proofs/**
+      - name: Install lftp
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lftp
+
+      - name: Sync files to Hostinger via FTPS (lftp)
+        env:
+          LFTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          FTP_USER: ${{ secrets.FTP_USERNAME }}
+          FTP_HOST: ${{ secrets.FTP_SERVER }}
+        run: |
+          lftp --norc <<LFTP_EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-allow true
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate no
+          set ftp:passive-mode true
+          set net:timeout 30
+          set net:max-retries 5
+          set net:reconnect-interval-base 3
+          open --env-password -u "$FTP_USER" -p 21 "ftp://$FTP_HOST"
+          set cmd:fail-exit no
+          rm -f default.php seed_flash_sale.php .ftp-deploy-sync-state.json
+          rm -r -f functions
+          set cmd:fail-exit yes
+          mirror --reverse --delete --no-perms --parallel=2 --verbose \
+            --exclude '^\.well-known/' \
+            --exclude '^cgi-bin/' \
+            --exclude '^uploads/' \
+            --exclude '^\.env' \
+            --exclude '^\.git' \
+            --exclude '^tests/' \
+            --exclude '^tools/' \
+            --exclude '^Documentation/' \
+            --exclude '^handover/' \
+            --exclude '^functions/' \
+            --exclude '^node_modules/' \
+            --exclude '^public-ordering/' \
+            --exclude '^public-admin/' \
+            --exclude '\.sql$' \
+            --exclude '\.sql\.gz$' \
+            --exclude '\.csv$' \
+            --exclude '\.bat$' \
+            --exclude '\.sh$' \
+            --exclude '\.md$' \
+            --exclude '\.log$' \
+            --exclude '\.bak$' \
+            --exclude '\.dump$' \
+            --exclude '^seed_flash_sale\.php$' \
+            --exclude '^database/seed_.*\.php$' \
+            --exclude '^package(-lock)?\.json$' \
+            ./ ./
+          mirror --reverse --no-perms --parallel=2 --verbose \
+            --exclude '^payment_proofs/' \
+            --exclude '^private_proofs/' \
+            uploads/ uploads/
+          bye
+          LFTP_EOF
