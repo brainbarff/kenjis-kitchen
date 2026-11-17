@@ -407,8 +407,7 @@ body.dark-mode #about-us .about-heading h2 span {color:#f2c12e;}
 #visit-us>.store-map {padding:0;}
 .store-map-heading {display:flex;align-items:center;gap:10px;padding:15px 18px;font-size:14px;font-weight:650;color:var(--text);border-bottom:3px solid #f2c12e;}
 #visit-us .store-map iframe {display:block;width:100%;border:0;border-radius:0;}
-#visit-us .store-visit-map {display:block;width:100%;height:clamp(380px,33vw,540px);z-index:1;background:var(--soft);}
-@media(max-width:700px){#visit-us .store-visit-map{height:330px;}#about-us .about-story{grid-template-columns:1fr;padding:20px;gap:26px;}#about-us .about-photo-stack{aspect-ratio:4/3;}#about-us .about-heading{padding-left:16px;}#about-us .about-story p{font-size:14px;}}
+@media(max-width:700px){#about-us .about-story{grid-template-columns:1fr;padding:20px;gap:26px;}#about-us .about-photo-stack{aspect-ratio:4/3;}#about-us .about-heading{padding-left:16px;}#about-us .about-story p{font-size:14px;}}
 /* Checkout delivery and proof controls */
 .checkout-delivery-note {font-size:13px;line-height:1.6;color:var(--muted);margin:10px 0;}
 #courierBookingWrap {padding:14px;border:1px solid var(--border);border-radius:12px;background:var(--soft);}

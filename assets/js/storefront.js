@@ -96,32 +96,3 @@
   window.addEventListener('hashchange', updateNavigation);
   updateNavigation();
 })();
-
-// Render the Visit Us store location map using Leaflet instead of third-party Google Places embeds.
-(() => {
-  const el = document.getElementById('storeVisitMap');
-  if (!el || typeof window.L === 'undefined') return;
-  const lat = Number(el.dataset.lat) || 14.729954;
-  const lng = Number(el.dataset.lng) || 121.066199;
-  const tileUrl = el.dataset.tileUrl || 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-  const map = window.L.map(el, {
-    center: [lat, lng],
-    zoom: 17,
-    scrollWheelZoom: false
-  });
-  window.L.tileLayer(tileUrl, {
-    maxZoom: 19,
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors'
-  }).addTo(map);
-  const storeIcon = window.L.divIcon({
-    className: '',
-    html: '<div class="kk-map-pin-store" title="Kenji\'s Kitchen (Greater Lagro)"><i class="bi bi-shop"></i></div>',
-    iconSize: [30, 30],
-    iconAnchor: [15, 15]
-  });
-  const marker = window.L.marker([lat, lng], { icon: storeIcon }).addTo(map);
-  marker.bindPopup("<strong>Kenji's Kitchen</strong><br>Blk 79 Lot 34 Florante at Laura St.<br>Brgy. Greater Lagro, Quezon City").openPopup();
-  if (typeof ResizeObserver !== 'undefined') {
-    new ResizeObserver(() => map.invalidateSize()).observe(el);
-  }
-})();
