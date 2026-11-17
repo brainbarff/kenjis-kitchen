@@ -12,3 +12,24 @@ firestore-debug.log
 .firebase/
 service-account*.json
 *-service-account*.json
+
+# Local launcher & environment-specific scripts
+Launch_Kenjis_Kitchen.bat
+*.bat
+
+# Customer payment proof uploads (runtime user uploads)
+/uploads/payment_proofs/
+/uploads/private_proofs/
+
+# Local database exports, dumps, and backups
+/database/*.sql
+/database/*.csv
+/migrate_v1_1_0.sql
+/handover/reference_backups/
+*.sql.gz
+*.bak
+*.dump
+
+# Internal documentation and handover notes
+/Documentation/
+/handover/

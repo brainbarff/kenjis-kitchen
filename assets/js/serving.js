@@ -1,3 +1,4 @@
+let servingFilter = "all";
 const servingGrid =
     document.getElementById('servingGrid');
 
@@ -44,7 +45,9 @@ const servingApi = {
                     method: 'POST',
                     headers: {
                         'Content-Type':
-                            'application/json'
+                            'application/json',
+                        'X-CSRF-Token':
+                            window.KK_CSRF_TOKEN || ''
                     },
                     body:
                         JSON.stringify({
@@ -214,11 +217,18 @@ function getDestination(
         };
     }
 
+    if (order.order_channel === 'ONLINE') {
+        return {
+            main: 'PICKUP',
+            sub: 'ONLINE PICKUP'
+        };
+    }
+
     return {
         main: 'TAKE-OUT',
         sub:
             order.order_type ||
-            'PICKUP'
+            'TAKE-OUT'
     };
 }
 
@@ -226,7 +236,7 @@ function renderEmptyState() {
     servingGrid.innerHTML = `
         <article class="serve-empty-card">
             <i class="bi bi-check2-circle"></i>
-            <h2>No orders ready for serving.</h2>
+            <h2>${servingFilter === "dine" ? "No dine-in orders ready." : servingFilter === "pickup" ? "No pickup orders ready." : "No orders ready for serving."}</h2>
             <p class="muted">
                 Ready orders will show up here automatically.
             </p>
@@ -237,13 +247,14 @@ function renderEmptyState() {
 function renderOrders() {
     updateSummary();
 
-    if (!readyOrders.length) {
+    const visibleOrders = readyOrders.filter(order => servingFilter === 'all' || (servingFilter === 'dine' ? order.order_type === 'DINE-IN' : order.order_type !== 'DINE-IN'));
+    if (!visibleOrders.length) {
         renderEmptyState();
         return;
     }
 
     servingGrid.innerHTML =
-        readyOrders
+        visibleOrders
             .map(order => {
                 const elapsed =
                     minutesSince(
@@ -314,7 +325,9 @@ function renderOrders() {
 
                             <span class="serve-type-badge">
                                 ${escapeHtml(
-                                    order.order_type
+                                    order.order_channel === 'ONLINE' && order.order_type !== 'DINE-IN'
+                                        ? 'ONLINE PICKUP'
+                                        : order.order_type
                                 )}
                             </span>
                         </div>
@@ -446,6 +459,28 @@ async function loadReadyOrders() {
 async function serveOrder(
     orderId
 ) {
+    const order = readyOrders.find(row => String(row.id) === String(orderId));
+    if (order && (order.order_channel === 'ONLINE' || order.order_type !== 'DINE-IN') && window.kkConfirm) {
+        const isPaid = String(order.payment_status || '') === 'Paid';
+        const totalFormatted = '₱' + Number(order.total || 0).toFixed(2);
+        const paymentMethod = order.payment_method || 'Cash';
+        const confirmed = await window.kkConfirm({
+            title: 'Complete Pickup Order?',
+            details: [
+                { label: 'Order Number', value: order.order_no || ('#' + orderId) },
+                { label: 'Amount to Collect', value: isPaid ? `${totalFormatted} (Paid)` : totalFormatted },
+                { label: 'Payment Method', value: paymentMethod }
+            ],
+            message: isPaid
+                ? 'Confirm that this paid pickup order has been claimed by the customer.'
+                : "Confirm that you have received the customer's payment before completing this order.",
+            confirmText: 'Confirm Payment & Complete Order',
+            cancelText: 'Cancel',
+            variant: 'primary'
+        });
+        if (!confirmed) return;
+    }
+
     const card =
         servingGrid.querySelector(
             `[data-order-id="${CSS.escape(
@@ -713,3 +748,11 @@ setInterval(
     loadReadyOrders,
     5000
 );
+
+document.querySelectorAll('[data-serving-filter]').forEach(button => {
+button.addEventListener('click', () => {
+servingFilter = button.dataset.servingFilter;
+document.querySelectorAll('[data-serving-filter]').forEach(other => other.setAttribute('aria-pressed', String(other === button)));
+renderOrders();
+});
+});

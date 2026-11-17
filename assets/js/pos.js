@@ -1,4 +1,6 @@
 let cart = [];
+let posCartRowFeedback = {};
+let posCartStockBanner = '';
 let currentPaymentMode = null;
 let currentOrderNote = '';
 let lastCompletedOrder = null;
@@ -507,6 +509,12 @@ window.setPaymentMode = function(mode) {
         );
     }
 
+    const tenderGcashAttestWrap =
+        document.getElementById('tenderGcashAttestWrap');
+
+    const gcashCashierAttested =
+        document.getElementById('gcashCashierAttested');
+
     if (mode === 'cash') {
         if (tenderCashWrap) {
             tenderCashWrap.style.display = 'flex';
@@ -514,6 +522,14 @@ window.setPaymentMode = function(mode) {
 
         if (tenderGcashWrap) {
             tenderGcashWrap.style.display = 'none';
+        }
+
+        if (tenderGcashAttestWrap) {
+            tenderGcashAttestWrap.style.display = 'none';
+        }
+
+        if (gcashCashierAttested) {
+            gcashCashierAttested.checked = false;
         }
 
         if (cashInput) {
@@ -528,6 +544,10 @@ window.setPaymentMode = function(mode) {
 
         if (tenderGcashWrap) {
             tenderGcashWrap.style.display = 'flex';
+        }
+
+        if (tenderGcashAttestWrap) {
+            tenderGcashAttestWrap.style.display = 'block';
         }
 
         const data = totals();
@@ -750,8 +770,27 @@ if (gcashRefInput) {
     });
 }
 
-window.clearAllOrder = function() {
+let clearCartConfirmationPending = false;
+window.clearAllOrder = async function(skipConfirm = false) {
+    if (!skipConfirm && cart.length > 0) {
+        if (clearCartConfirmationPending) return;
+        clearCartConfirmationPending = true;
+        try {
+            const confirmed = await window.kkConfirm({
+                title: 'Clear cart?',
+                message: 'Remove all items and reset the details for this order?',
+                confirmText: 'Clear cart',
+                cancelText: 'Keep items',
+                variant: 'primary'
+            });
+            if (!confirmed) return;
+        } finally {
+            clearCartConfirmationPending = false;
+        }
+    }
     cart = [];
+    posCartRowFeedback = {};
+    posCartStockBanner = '';
 
     const orderType =
         document.getElementById('orderType');
@@ -778,6 +817,10 @@ window.clearAllOrder = function() {
     if (discountInput) {
         discountInput.value = 0;
     }
+
+    currentDiscountType = null;
+    currentDiscountIdNumber = '';
+    currentDiscountCustomerName = '';
 
     currentOrderNote = '';
 
@@ -817,6 +860,20 @@ window.clearAllOrder = function() {
         tenderGcashWrap.style.display = 'none';
     }
 
+    const tenderGcashAttestWrap =
+        document.getElementById('tenderGcashAttestWrap');
+
+    const gcashCashierAttested =
+        document.getElementById('gcashCashierAttested');
+
+    if (tenderGcashAttestWrap) {
+        tenderGcashAttestWrap.style.display = 'none';
+    }
+
+    if (gcashCashierAttested) {
+        gcashCashierAttested.checked = false;
+    }
+
     renderCart();
 };
 
@@ -830,9 +887,8 @@ function filterMenu() {
             : 'all';
 
     const searchInput =
-        document.querySelector(
-            'input[type="search"]'
-        ) ||
+        document.getElementById('posProductSearch') ||
+        document.querySelector('input[type="search"]') ||
         document.querySelector('.navbar input') ||
         document.querySelector('header input');
 
@@ -852,13 +908,18 @@ function filterMenu() {
                 card.textContent
             ).toLowerCase();
 
+            const itemDesc = (
+                card.querySelector('.card-desc')?.textContent || ''
+            ).toLowerCase();
+
             const matchesCat =
                 cat === 'all' ||
                 itemCat === cat;
 
             const matchesSearch =
                 !query ||
-                itemName.includes(query);
+                itemName.includes(query) ||
+                itemDesc.includes(query);
 
             card.style.display =
                 matchesCat &&
@@ -882,8 +943,108 @@ document
 
             tab.classList.add('active');
             filterMenu();
+
+            // Smoothly scroll active tab into view in scroller
+            try {
+                tab.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            } catch (e) {}
         });
     });
+
+// Initialize horizontal category scroller navigation and mouse/trackpad drag scrolling
+(function initCategoryScroller() {
+    const tabsContainer = document.getElementById('posCategoryTabs') || document.querySelector('.pos-products-header .tabs');
+    const btnLeft = document.getElementById('catScrollLeftBtn');
+    const btnRight = document.getElementById('catScrollRightBtn');
+
+    if (!tabsContainer) return;
+
+    function updateNavBtnState() {
+        if (!btnLeft || !btnRight) return;
+        const maxScroll = tabsContainer.scrollWidth - tabsContainer.clientWidth;
+        if (maxScroll <= 5) {
+            btnLeft.disabled = true;
+            btnRight.disabled = true;
+            btnLeft.style.display = 'none';
+            btnRight.style.display = 'none';
+        } else {
+            btnLeft.style.display = 'inline-flex';
+            btnRight.style.display = 'inline-flex';
+            btnLeft.disabled = tabsContainer.scrollLeft <= 5;
+            btnRight.disabled = tabsContainer.scrollLeft >= maxScroll - 5;
+        }
+    }
+
+    if (btnLeft) {
+        btnLeft.addEventListener('click', () => {
+            tabsContainer.scrollBy({ left: -220, behavior: 'smooth' });
+        });
+    }
+
+    if (btnRight) {
+        btnRight.addEventListener('click', () => {
+            tabsContainer.scrollBy({ left: 220, behavior: 'smooth' });
+        });
+    }
+
+    tabsContainer.addEventListener('scroll', updateNavBtnState, { passive: true });
+    window.addEventListener('resize', updateNavBtnState, { passive: true });
+
+    // Enable horizontal mouse drag scrolling
+    let isDown = false;
+    let startX = 0;
+    let scrollLeftStart = 0;
+    let hasMoved = false;
+
+    tabsContainer.addEventListener('mousedown', (e) => {
+        // Only left button
+        if (e.button !== 0) return;
+        isDown = true;
+        hasMoved = false;
+        startX = e.pageX - tabsContainer.offsetLeft;
+        scrollLeftStart = tabsContainer.scrollLeft;
+        tabsContainer.style.scrollBehavior = 'auto';
+    });
+
+    tabsContainer.addEventListener('mouseleave', () => {
+        if (isDown) {
+            isDown = false;
+            tabsContainer.style.scrollBehavior = 'smooth';
+        }
+    });
+
+    tabsContainer.addEventListener('mouseup', () => {
+        isDown = false;
+        tabsContainer.style.scrollBehavior = 'smooth';
+    });
+
+    tabsContainer.addEventListener('mousemove', (e) => {
+        if (!isDown) return;
+        const x = e.pageX - tabsContainer.offsetLeft;
+        const walk = (x - startX) * 1.4;
+        if (Math.abs(walk) > 4) {
+            hasMoved = true;
+        }
+        tabsContainer.scrollLeft = scrollLeftStart - walk;
+    });
+
+    // Prevent accidental tab click when dragging
+    tabsContainer.addEventListener('click', (e) => {
+        if (hasMoved) {
+            e.preventDefault();
+            e.stopPropagation();
+            hasMoved = false;
+        }
+    }, true);
+
+    // Initial state check
+    setTimeout(updateNavBtnState, 100);
+})();
+
+const dedicatedPosSearch = document.getElementById('posProductSearch');
+if (dedicatedPosSearch) {
+    dedicatedPosSearch.addEventListener('input', filterMenu);
+}
 
 const posSearchInput =
     document.querySelector(
@@ -899,70 +1060,176 @@ if (posSearchInput) {
     );
 }
 
+function getPosPoolKey(item) {
+    return 'menu:' + Number(item?.id || 0);
+}
+
+function getPosPoolStock(id, fallbackStock = 0) {
+    const cards = document.querySelectorAll('.food-card');
+    for (const card of cards) {
+        if (card.dataset.variants) {
+            try {
+                const variants = JSON.parse(card.dataset.variants);
+                for (const sz of Object.keys(variants)) {
+                    const v = variants[sz];
+                    if (v && Number(v.id) === Number(id)) {
+                        return Math.max(0, Math.floor(Number(v.stock ?? 0)));
+                    }
+                }
+            } catch (_) {}
+        }
+        if (Number(card.dataset.id) === Number(id)) {
+            return Math.max(0, Math.floor(Number(card.dataset.stock ?? fallbackStock)));
+        }
+    }
+    return Math.max(0, Math.floor(Number(fallbackStock) || 0));
+}
+
+function usedInPosCartForPool(poolKey, excludeIndex = -1) {
+    if (window.KKStockQty) {
+        return window.KKStockQty.sumPoolQty(cart, getPosPoolKey, poolKey, excludeIndex);
+    }
+    return cart.reduce((sum, row, idx) => (
+        idx !== excludeIndex && getPosPoolKey(row) === poolKey ? sum + (Number(row.qty) || 0) : sum
+    ), 0);
+}
+
+function shiftPosRowFeedbackAfterRemoval(removedIndex) {
+    const next = {};
+    Object.keys(posCartRowFeedback).forEach(k => {
+        const oldIdx = Number(k);
+        if (oldIdx < removedIndex) next[oldIdx] = posCartRowFeedback[k];
+        else if (oldIdx > removedIndex) next[oldIdx - 1] = posCartRowFeedback[k];
+    });
+    posCartRowFeedback = next;
+}
+
+function notifyPosStockMessage(message, title = 'Stock Limit', dedupeKey = 'pos-stock') {
+    if (typeof window.kkNotify === 'function') {
+        window.kkNotify(message, 'warning', { title, dedupeKey, duration: 3200 });
+    } else {
+        showPosAlert(title, message);
+    }
+}
+
 function addToCart(
     id,
     name,
     price,
-    stock
+    stock,
+    availability,
+    catId = null,
+    opts = null
 ) {
-    const maxStock =
-        Math.max(0, Math.floor(Number(stock ?? 0)));
+    flushPosPendingQtyEdits();
+    if (availability !== undefined && availability !== null && availability !== 'Available') {
+        notifyPosStockMessage('This item is currently unavailable.', 'Item Unavailable', 'pos-unavail-' + id);
+        return;
+    }
 
-    const existing =
-        cart.find(
-            item => item.id === id && item.name === name
-        );
+    const packaging = opts && opts.packaging ? String(opts.packaging) : null;
+    const variantSize = opts && opts.variantSize ? String(opts.variantSize) : null;
+    const itemNotes = opts && opts.notes ? String(opts.notes) : (packaging ? ('Packaging: ' + packaging) : null);
 
+    const maxStock = Math.max(0, Math.floor(Number(stock ?? 0)));
+    const poolKey = 'menu:' + Number(id);
+    const usedForPool = usedInPosCartForPool(poolKey, -1);
+    const existingIndex = cart.findIndex(
+        item => String(item.id) === String(id) &&
+            item.name === name &&
+            (item.packaging || null) === (packaging || null)
+    );
+    const existing = existingIndex >= 0 ? cart[existingIndex] : null;
+    const allowance = window.KKStockQty
+        ? window.KKStockQty.getAddAllowance({
+            poolStock: maxStock,
+            usedInBasketForPool: usedForPool,
+            perLineCap: Infinity,
+            existingMatchingLineQty: existing ? existing.qty : 0
+        })
+        : { poolStock: maxStock, usedInBasketForPool: usedForPool, remainingStock: Math.max(0, maxStock - usedForPool), maxAdd: Math.max(0, maxStock - usedForPool) };
+
+    if (maxStock <= 0) {
+        notifyPosStockMessage('This item is currently out of stock.', 'Out of Stock', 'pos-oos-' + id);
+        return;
+    }
+
+    if (allowance.maxAdd <= 0) {
+        const limitMsg = `All ${maxStock} available are in the cart.`;
+        let flaggedRow = false;
+        cart.forEach((row, idx) => {
+            if (getPosPoolKey(row) === poolKey) {
+                posCartRowFeedback[idx] = { text: limitMsg, tone: 'warning' };
+                flaggedRow = true;
+            }
+        });
+        if (flaggedRow) {
+            renderCart();
+        } else {
+            notifyPosStockMessage(limitMsg, 'Stock Limit Reached', 'pos-limit-' + id);
+        }
+        return;
+    }
+
+    posCartStockBanner = '';
     if (existing) {
-        if (existing.qty >= maxStock) {
-            showPosAlert(
-                'Stock Limit Reached',
-                `Only ${maxStock} pieces are available in stock.`
-            );
-            return;
-        }
-
         existing.qty += 1;
-    } else {
-        if (maxStock <= 0) {
-            showPosAlert(
-                'Out of Stock',
-                'This item is currently out of stock.'
-            );
-            return;
+        existing.stock = maxStock;
+        if (catId !== null && catId !== undefined) {
+            existing.catId = catId;
         }
-
+        if (usedForPool + 1 >= maxStock) {
+            posCartRowFeedback[existingIndex] = {
+                text: `Maximum available: ${maxStock}.`,
+                tone: 'info'
+            };
+        } else {
+            delete posCartRowFeedback[existingIndex];
+        }
+    } else {
+        const newIdx = cart.length;
         cart.push({
             id: id,
             name: name,
             price: Number(price),
             stock: maxStock,
-            qty: 1
+            qty: 1,
+            catId: catId,
+            packaging: packaging,
+            variantSize: variantSize,
+            notes: itemNotes
         });
+        if (usedForPool + 1 >= maxStock) {
+            posCartRowFeedback[newIdx] = {
+                text: `Maximum available: ${maxStock}.`,
+                tone: 'info'
+            };
+        }
     }
 
     renderCart();
 }
 
 function decreaseFromCart(id, name) {
-    const item =
-        cart.find(
-            row => row.id === id && (name === undefined || row.name === name)
-        );
+    flushPosPendingQtyEdits();
+    const index = cart.findIndex(
+        row => String(row.id) === String(id) && (name === undefined || row.name === name)
+    );
 
-    if (!item) {
+    if (index < 0) {
         return;
     }
 
-    item.qty -= 1;
+    cart[index].qty -= 1;
 
-    if (item.qty <= 0) {
-        cart =
-            cart.filter(
-                row => row.id !== id
-            );
+    if (cart[index].qty <= 0) {
+        cart.splice(index, 1);
+        shiftPosRowFeedbackAfterRemoval(index);
+    } else {
+        delete posCartRowFeedback[index];
     }
 
+    posCartStockBanner = '';
     renderCart();
 }
 
@@ -978,6 +1245,9 @@ document
                     ) ||
                     event.target.closest(
                         '.bilao-sizes-row'
+                    ) ||
+                    event.target.closest(
+                        '.bilao-pkg-row'
                     )
                 ) {
                     return;
@@ -986,7 +1256,8 @@ document
                 if (
                     card.classList.contains(
                         'unavailable'
-                    )
+                    ) ||
+                    (card.dataset.availability && card.dataset.availability !== 'Available')
                 ) {
                     showPosAlert(
                         'Item Unavailable',
@@ -995,11 +1266,46 @@ document
                     return;
                 }
 
+                if (card.classList.contains('bilao-card')) {
+                    const pkg = card.dataset.packaging || '';
+                    if (pkg !== 'Tray' && pkg !== 'Bilao') {
+                        const pkgRow = card.querySelector('.bilao-pkg-row');
+                        const pkgHint = card.querySelector('.bilao-pkg-hint');
+                        if (pkgRow) pkgRow.classList.add('pkg-needs-selection');
+                        if (pkgHint) {
+                            pkgHint.textContent = 'Choose Tray or Bilao first';
+                            pkgHint.classList.add('is-error');
+                        }
+                        notifyPosStockMessage(
+                            'Please select Tray or Bilao packaging before adding this item.',
+                            'Packaging Required',
+                            'pos-pkg-' + (card.dataset.base || card.dataset.id)
+                        );
+                        return;
+                    }
+                    addToCart(
+                        card.dataset.id,
+                        card.dataset.name,
+                        card.dataset.price,
+                        card.dataset.stock,
+                        card.dataset.availability,
+                        card.dataset.cat,
+                        {
+                            packaging: pkg,
+                            variantSize: card.dataset.size || null,
+                            notes: 'Packaging: ' + pkg
+                        }
+                    );
+                    return;
+                }
+
                 addToCart(
                     card.dataset.id,
                     card.dataset.name,
                     card.dataset.price,
-                    card.dataset.stock
+                    card.dataset.stock,
+                    card.dataset.availability,
+                    card.dataset.cat
                 );
             }
         );
@@ -1020,11 +1326,24 @@ document
                     return;
                 }
 
+                if (
+                    card.classList.contains('unavailable') ||
+                    (card.dataset.availability && card.dataset.availability !== 'Available')
+                ) {
+                    showPosAlert(
+                        'Item Unavailable',
+                        'This item is currently unavailable.'
+                    );
+                    return;
+                }
+
                 addToCart(
                     card.dataset.id,
                     card.dataset.name,
                     card.dataset.price,
-                    card.dataset.stock
+                    card.dataset.stock,
+                    card.dataset.availability,
+                    card.dataset.cat
                 );
             }
         );
@@ -1046,6 +1365,10 @@ document
         );
     });
 
+let currentDiscountType = null; // 'Senior Citizen' | 'PWD' | null
+let currentDiscountIdNumber = '';
+let currentDiscountCustomerName = '';
+
 function totals() {
     const subtotal =
         cart.reduce(
@@ -1055,17 +1378,37 @@ function totals() {
             0
         );
 
-    const discountPercent = Math.min(
-        Math.max(
-            Number(discountInput?.value || 0),
-            0
-        ),
-        100
-    );
+    let discountPercent = 0;
+    let discount = 0;
 
-    const discount = Math.round(
-        (subtotal * discountPercent / 100 + Number.EPSILON) * 100
-    ) / 100;
+    if (currentDiscountType === 'Senior Citizen' || currentDiscountType === 'PWD') {
+        discountPercent = 20;
+        // Philippine RA 9994 / RA 10754: 20% discount applies to individual personal consumption meals.
+        // Bilao Favorites (category 6) is bulk/catering party size, excluded from senior/PWD discount.
+        const eligibleSubtotal = cart.reduce((sum, item) => {
+            const isBilao = String(item.catId) === '6' ||
+                            Boolean(item.packaging) ||
+                            /bilao/i.test(item.name || '') ||
+                            /\b(Spaghetti|Carbonara|Palabok|Sotanghon|Bihon|Canton)\b/i.test(item.name || '');
+            return isBilao ? sum : sum + (item.price * item.qty);
+        }, 0);
+
+        discount = Math.round(
+            (eligibleSubtotal * 0.20 + Number.EPSILON) * 100
+        ) / 100;
+    } else {
+        discountPercent = Math.min(
+            Math.max(
+                Number(discountInput?.value || 0),
+                0
+            ),
+            100
+        );
+
+        discount = Math.round(
+            (subtotal * discountPercent / 100 + Number.EPSILON) * 100
+        ) / 100;
+    }
 
     const tax = 0;
     const total = Math.max(subtotal - discount + tax, 0);
@@ -1082,8 +1425,24 @@ function totals() {
         tax,
         total,
         cash,
-        change: Math.max(cash - total, 0)
+        change: Math.max(cash - total, 0),
+        discountType: currentDiscountType,
+        discountIdNumber: currentDiscountIdNumber,
+        discountCustomerName: currentDiscountCustomerName
     };
+}
+
+function initPosMobileBarObserver() {
+    if (window.__kkPosMobileBarObserved) return;
+    const bar = document.getElementById('posMobileOrderBar');
+    const receipt = document.getElementById('receiptPanel');
+    if (!bar || !receipt || typeof IntersectionObserver !== 'function') return;
+    window.__kkPosMobileBarObserved = true;
+    const observer = new IntersectionObserver((entries) => {
+        const visible = entries.some((entry) => entry.isIntersecting);
+        bar.classList.toggle('is-hidden', visible);
+    }, { threshold: 0.15 });
+    observer.observe(receipt);
 }
 
 function updateTotalsDisplay() {
@@ -1135,11 +1494,45 @@ function updateTotalsDisplay() {
             );
     }
 
+    const mobileCountEl = document.getElementById('posMobileCartCount');
+    const mobileTotalEl = document.getElementById('posMobileCartTotal');
+    if (mobileCountEl) {
+        const totalQty = cart.reduce((sum, item) => sum + Number(item.qty || 0), 0);
+        mobileCountEl.textContent = totalQty === 1 ? '1 item in order' : `${totalQty} items in order`;
+    }
+    if (mobileTotalEl) {
+        mobileTotalEl.textContent = peso.format(data.total);
+    }
+
+    initPosMobileBarObserver();
+
     if (discountAmountElement) {
-        discountAmountElement.textContent =
-            data.discount > 0
-                ? '-' + peso.format(data.discount)
-                : '-₱0.00';
+        if (data.discount > 0) {
+            const label = data.discountType ? ` (${data.discountType})` : '';
+            discountAmountElement.textContent = '-' + peso.format(data.discount);
+            discountAmountElement.title = (data.discountType ? data.discountType + ' Discount: ' : 'Discount: ') + peso.format(data.discount);
+        } else {
+            discountAmountElement.textContent = '-₱0.00';
+            discountAmountElement.title = '';
+        }
+    }
+
+    // Synchronize Senior Citizen & PWD quick discount UI
+    const btnSenior = document.getElementById('btnDiscountSenior');
+    const btnPwd = document.getElementById('btnDiscountPwd');
+    const badgeRow = document.getElementById('posDiscBadgeRow');
+    const badgeText = document.getElementById('posDiscBadgeText');
+
+    if (btnSenior) btnSenior.classList.toggle('active', data.discountType === 'Senior Citizen');
+    if (btnPwd) btnPwd.classList.toggle('active', data.discountType === 'PWD');
+
+    if (badgeRow && badgeText) {
+        if (data.discountType) {
+            badgeRow.style.display = 'flex';
+            badgeText.innerHTML = `<i class="bi bi-patch-check-fill"></i> ${data.discountType} (-20%): ${data.discountIdNumber ? escapeHtml(data.discountIdNumber) : 'Verified'}`;
+        } else {
+            badgeRow.style.display = 'none';
+        }
     }
 
     if (changeElement) {
@@ -1156,44 +1549,39 @@ function updateMenuCardControls() {
     document
         .querySelectorAll('.food-card')
         .forEach(card => {
-            const id =
-                card.dataset.id;
-
-            const stock =
-                Number(
-                    card.dataset.stock ??
-                    0
-                );
-
+            const id = card.dataset.id;
+            const stock = Math.max(0, Math.floor(Number(card.dataset.stock ?? 0)));
             const cardName = card.dataset.name;
-            const cartItem = cart.find(item => item.id === id && item.name === cardName);
+            const cartItem = cart.find(item => String(item.id) === String(id) && item.name === cardName);
+            const currentQty = cartItem ? cartItem.qty : 0;
+            const usedForPool = usedInPosCartForPool('menu:' + Number(id), -1);
 
-            const currentQty =
-                cartItem
-                    ? cartItem.qty
-                    : 0;
+            const plusBtn = card.querySelector('.btn-card-plus');
+            const qtyDisplay = card.querySelector('.qty-display');
 
-            const plusBtn =
-                card.querySelector(
-                    '.btn-card-plus'
-                );
-
-            const qtyDisplay =
-                card.querySelector(
-                    '.qty-display'
-                );
+            const availability = card.dataset.availability || 'Available';
+            const isUnavailable = availability !== 'Available' || stock <= 0;
 
             if (plusBtn) {
-                plusBtn.disabled =
-                    stock <= 0 ||
-                    currentQty >= stock;
+                plusBtn.disabled = isUnavailable || usedForPool >= stock;
             }
 
             if (qtyDisplay) {
-                qtyDisplay.textContent =
-                    currentQty;
+                qtyDisplay.textContent = currentQty;
             }
         });
+}
+
+function renderPosCartBanner() {
+    const banner = document.getElementById('posCartStockBanner');
+    if (!banner) return;
+    if (!posCartStockBanner) {
+        banner.textContent = '';
+        banner.hidden = true;
+        return;
+    }
+    banner.textContent = posCartStockBanner;
+    banner.hidden = false;
 }
 
 function renderCart() {
@@ -1201,6 +1589,7 @@ function renderCart() {
         return;
     }
 
+    renderPosCartBanner();
     cartItems.innerHTML = '';
 
     if (clearCartBtn) {
@@ -1218,19 +1607,23 @@ function renderCart() {
         `;
     } else {
         cart.forEach((item, index) => {
-            const row =
-                document.createElement(
-                    'div'
-                );
+            const poolKey = getPosPoolKey(item);
+            const poolStock = getPosPoolStock(item.id, item.stock);
+            item.stock = poolStock;
+            const usedInOtherRows = usedInPosCartForPool(poolKey, index);
+            const availableForRow = Math.max(0, poolStock - usedInOtherRows);
+            const atMax = availableForRow > 0 && item.qty >= availableForRow;
+            const fb = posCartRowFeedback[index] || null;
 
-            row.className =
-                'cart-row';
+            const row = document.createElement('div');
+            row.className = 'cart-row';
 
             row.innerHTML = `
                 <div>
                     <strong>
                         ${escapeHtml(item.name)}
                     </strong>
+                    ${item.packaging ? `<div style="font-size:0.75rem; color:#64748b; font-weight:600;">Packaging: ${escapeHtml(item.packaging)}</div>` : ''}
 
                     <p class="muted">
                         ${peso.format(item.price)}
@@ -1245,23 +1638,22 @@ function renderCart() {
                         >−</button>
 
                         <input
-                            type="number"
+                            type="text"
+                            inputmode="numeric"
+                            pattern="[0-9]*"
                             class="cart-qty-input"
                             data-cart-index="${index}"
                             data-id="${escapeHtml(item.id)}"
                             value="${item.qty}"
-                            min="1"
-                            max="${item.stock}"
-                            step="1"
-                            inputmode="numeric"
                             aria-label="Quantity for ${escapeHtml(item.name)}"
+                            aria-describedby="posCartMsg-${index}"
                         >
 
                         <button
                             type="button"
                             data-cart-index="${index}"
                             data-plus="${escapeHtml(item.id)}"
-                            ${item.qty >= item.stock ? 'disabled' : ''}
+                            ${atMax ? 'disabled aria-disabled="true" title="Maximum available reached"' : ''}
                             aria-label="Increase quantity"
                         >+</button>
 
@@ -1275,6 +1667,7 @@ function renderCart() {
                             <i class="bi bi-trash"></i>
                         </button>
                     </div>
+                    <div id="posCartMsg-${index}" class="pos-cart-qty-msg ${fb ? 'is-' + fb.tone : ''}" role="status" aria-live="polite" ${fb ? '' : 'hidden'}>${fb ? escapeHtml(fb.text) : ''}</div>
                 </div>
 
                 <strong>
@@ -1285,9 +1678,7 @@ function renderCart() {
                 </strong>
             `;
 
-            cartItems.appendChild(
-                row
-            );
+            cartItems.appendChild(row);
         });
     }
 
@@ -1295,218 +1686,195 @@ function renderCart() {
     updateMenuCardControls();
 }
 
+function commitPosCartQtyInput(index, input, opts = {}) {
+    const item = cart[index];
+    if (!item || !input) return;
+    if (!opts.force && input.dataset.dirty !== '1') {
+        return;
+    }
+    input.dataset.dirty = '0';
+
+    const poolKey = getPosPoolKey(item);
+    const poolStock = getPosPoolStock(item.id, item.stock);
+    const usedInOtherRows = usedInPosCartForPool(poolKey, index);
+
+    const res = window.KKStockQty
+        ? window.KKStockQty.resolveRowReplace({
+            rawInput: input.value,
+            currentQty: item.qty,
+            poolStock,
+            usedInOtherRowsForPool: usedInOtherRows,
+            perLineCap: Infinity
+        })
+        : (() => {
+            const avail = Math.max(0, poolStock - usedInOtherRows);
+            let parsed = parseInt(String(input.value || ''), 10);
+            if (isNaN(parsed) || parsed < 1) parsed = 1;
+            const adjusted = parsed > avail;
+            const qty = adjusted ? avail : parsed;
+            return { qty, availableForRow: avail, effectiveMax: avail, adjusted, atMax: qty >= avail, reason: adjusted ? 'stock_limit' : 'ok', message: adjusted ? `Adjusted to ${qty} (stock limit).` : '' };
+        })();
+
+    if (res.qty <= 0) {
+        cart.splice(index, 1);
+        shiftPosRowFeedbackAfterRemoval(index);
+        posCartStockBanner = `${item.name} has no remaining stock and was removed.`;
+        renderCart();
+        return;
+    }
+
+    item.qty = res.qty;
+    item.stock = poolStock;
+    input.value = String(res.qty);
+
+    if (res.message) {
+        posCartRowFeedback[index] = {
+            text: res.message,
+            tone: (res.reason === 'invalid' || res.reason === 'below_min') ? 'error' : 'warning'
+        };
+    } else if (res.atMax) {
+        posCartRowFeedback[index] = {
+            text: `Maximum available: ${res.effectiveMax}.`,
+            tone: 'info'
+        };
+    } else {
+        delete posCartRowFeedback[index];
+    }
+
+    posCartStockBanner = '';
+    renderCart();
+}
+
+function flushPosPendingQtyEdits() {
+    if (!cartItems) return;
+    cartItems.querySelectorAll('.cart-qty-input[data-dirty="1"]').forEach(input => {
+        const idx = Number(input.dataset.cartIndex);
+        if (Number.isInteger(idx) && cart[idx]) {
+            commitPosCartQtyInput(idx, input, { force: true });
+        }
+    });
+}
+
 if (cartItems) {
-    cartItems.addEventListener(
-        'click',
-        event => {
-            const plus =
-                event.target.closest(
-                    '[data-plus]'
-                );
+    cartItems.addEventListener('click', event => {
+        const plus = event.target.closest('[data-plus]');
+        const minus = event.target.closest('[data-minus]');
+        const remove = event.target.closest('[data-remove]');
 
-            const minus =
-                event.target.closest(
-                    '[data-minus]'
-                );
+        if (!plus && !minus && !remove) return;
+        flushPosPendingQtyEdits();
 
-            const remove =
-                event.target.closest(
-                    '[data-remove]'
-                );
-
-            if (plus) {
-                const item = cart[Number(plus.dataset.cartIndex)];
-
-                if (item) {
-                    if (
-                        item.qty >=
-                        item.stock
-                    ) {
-                        showPosAlert(
-                            'Stock Limit Reached',
-                            `Only ${item.stock} pieces are available in stock.`
-                        );
-                        return;
-                    }
-
-                    item.qty += 1;
+        if (plus) {
+            const index = Number(plus.dataset.cartIndex);
+            const item = cart[index];
+            if (item) {
+                const poolKey = getPosPoolKey(item);
+                const poolStock = getPosPoolStock(item.id, item.stock);
+                const usedInOtherRows = usedInPosCartForPool(poolKey, index);
+                const availableForRow = Math.max(0, poolStock - usedInOtherRows);
+                if (item.qty + 1 > availableForRow) {
+                    posCartRowFeedback[index] = {
+                        text: usedInOtherRows > 0
+                            ? `Maximum for this row: ${availableForRow}. ${usedInOtherRows} in other rows.`
+                            : `Maximum available: ${availableForRow}.`,
+                        tone: 'warning'
+                    };
                     renderCart();
+                    return;
                 }
-
-                return;
-            }
-
-            if (minus) {
-                const index = Number(minus.dataset.cartIndex);
-                if (cart[index]) {
-                    cart[index].qty -= 1;
-                    if (cart[index].qty <= 0) cart.splice(index, 1);
-                    renderCart();
+                item.qty += 1;
+                if (item.qty >= availableForRow) {
+                    posCartRowFeedback[index] = {
+                        text: `Maximum available: ${availableForRow}.`,
+                        tone: 'info'
+                    };
+                } else {
+                    delete posCartRowFeedback[index];
                 }
-                return;
+                posCartStockBanner = '';
+                renderCart();
             }
+            return;
+        }
 
-            if (remove) {
-                cart.splice(Number(remove.dataset.cartIndex), 1);
+        if (minus) {
+            const index = Number(minus.dataset.cartIndex);
+            if (cart[index]) {
+                cart[index].qty -= 1;
+                if (cart[index].qty <= 0) {
+                    cart.splice(index, 1);
+                    shiftPosRowFeedbackAfterRemoval(index);
+                } else {
+                    delete posCartRowFeedback[index];
+                }
+                posCartStockBanner = '';
+                renderCart();
+            }
+            return;
+        }
+
+        if (remove) {
+            const index = Number(remove.dataset.cartIndex);
+            if (index >= 0 && index < cart.length) {
+                cart.splice(index, 1);
+                shiftPosRowFeedbackAfterRemoval(index);
+                posCartStockBanner = '';
                 renderCart();
             }
         }
-    );
+    });
 
-    cartItems.addEventListener(
-        'input',
-        event => {
-            if (
-                !event.target.classList.contains(
-                    'cart-qty-input'
-                )
-            ) {
-                return;
-            }
-
-            const input =
-                event.target;
-
-            const id =
-                input.dataset.id;
-
-            const item = cart[Number(input.dataset.cartIndex)];
-
-            if (!item) {
-                return;
-            }
-
-            let value =
-                input.value.replace(
-                    /\D/g,
-                    ''
-                );
-
-            if (value === '') {
-                updateTotalsDisplay();
-                return;
-            }
-
-            let newQty =
-                parseInt(
-                    value,
-                    10
-                );
-
-            if (
-                isNaN(newQty) ||
-                newQty < 1
-            ) {
-                newQty = 1;
-            }
-
-            if (
-                newQty >
-                item.stock
-            ) {
-                newQty =
-                    item.stock;
-            }
-
-            item.qty =
-                newQty;
-
-            input.value =
-                String(
-                    newQty
-                );
-
-            const row =
-                input.closest(
-                    '.cart-row'
-                );
-
-            if (row) {
-                const rowTotal =
-                    row.querySelector(
-                        ':scope > strong:last-child'
-                    );
-
-                if (rowTotal) {
-                    rowTotal.textContent =
-                        peso.format(
-                            item.price *
-                            item.qty
-                        );
-                }
-            }
-
-            updateTotalsDisplay();
-            updateMenuCardControls();
+    cartItems.addEventListener('input', event => {
+        if (!event.target.classList.contains('cart-qty-input')) {
+            return;
         }
-    );
-
-    cartItems.addEventListener(
-        'change',
-        event => {
-            if (
-                !event.target.classList.contains(
-                    'cart-qty-input'
-                )
-            ) {
-                return;
+        const input = event.target;
+        input.dataset.dirty = '1';
+        const index = Number(input.dataset.cartIndex);
+        if (posCartRowFeedback[index] && posCartRowFeedback[index].tone === 'error') {
+            delete posCartRowFeedback[index];
+            const msgEl = document.getElementById(`posCartMsg-${index}`);
+            if (msgEl) {
+                msgEl.textContent = '';
+                msgEl.hidden = true;
+                msgEl.className = 'pos-cart-qty-msg';
             }
-
-            const input =
-                event.target;
-
-            const id =
-                input.dataset.id;
-
-            const item = cart[Number(input.dataset.cartIndex)];
-
-            if (!item) {
-                return;
-            }
-
-            let newQty =
-                parseInt(
-                    input.value,
-                    10
-                );
-
-            if (
-                isNaN(newQty) ||
-                newQty < 1
-            ) {
-                newQty = 1;
-            }
-
-            if (
-                newQty >
-                item.stock
-            ) {
-                showPosAlert(
-                    'Stock Limit Reached',
-                    `Only ${item.stock} pieces are available in stock.`
-                );
-
-                newQty =
-                    item.stock;
-            }
-
-            item.qty =
-                newQty;
-
-            input.value =
-                String(
-                    newQty
-                );
-
-            renderCart();
         }
-    );
+    });
+
+    cartItems.addEventListener('keydown', event => {
+        if (!event.target.classList.contains('cart-qty-input') || event.isComposing) {
+            return;
+        }
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            const input = event.target;
+            const index = Number(input.dataset.cartIndex);
+            commitPosCartQtyInput(index, input, { force: true });
+            input.blur();
+        }
+    });
+
+    cartItems.addEventListener('focusout', event => {
+        if (!event.target.classList.contains('cart-qty-input')) {
+            return;
+        }
+        const input = event.target;
+        const index = Number(input.dataset.cartIndex);
+        commitPosCartQtyInput(index, input);
+    });
 }
 
 if (discountInput) {
     discountInput.addEventListener(
         'input',
         () => {
+            // When cashier manually enters a custom discount, clear active Senior/PWD preset
+            if (currentDiscountType) {
+                currentDiscountType = null;
+                currentDiscountIdNumber = '';
+                currentDiscountCustomerName = '';
+            }
             const value = Number(discountInput.value || 0);
             if (value > 100) discountInput.value = '100';
             if (value < 0) discountInput.value = '0';
@@ -1514,6 +1882,110 @@ if (discountInput) {
         }
     );
 }
+
+// Senior Citizen and PWD Discount Helper Functions
+let pendingQuickDiscountType = null;
+
+window.toggleQuickDiscount = function(type) {
+    const fullType = type === 'Senior' ? 'Senior Citizen' : 'PWD';
+
+    if (currentDiscountType === fullType) {
+        // Cashier clicked the active one again: remove discount
+        window.removeQuickDiscount();
+        return;
+    }
+
+    if (cart.length === 0) {
+        showPosAlert('Empty Cart', 'Please add items to the cart first before applying a discount.');
+        return;
+    }
+
+    pendingQuickDiscountType = fullType;
+    openSeniorPwdModal(fullType);
+};
+
+window.removeQuickDiscount = function() {
+    currentDiscountType = null;
+    currentDiscountIdNumber = '';
+    currentDiscountCustomerName = '';
+    if (discountInput) discountInput.value = 0;
+    renderCart();
+};
+
+function openSeniorPwdModal(type) {
+    const modal = document.getElementById('seniorPwdModalOverlay');
+    const title = document.getElementById('spModalTitle');
+    const label = document.getElementById('spIdLabel');
+    const iconWrap = document.getElementById('spModalIconWrap');
+    const errBox = document.getElementById('spModalErrorMsg');
+    const nameInp = document.getElementById('spCustomerName');
+    const idInp = document.getElementById('spIdNumber');
+
+    if (!modal) return;
+
+    if (errBox) errBox.style.display = 'none';
+
+    if (type === 'Senior Citizen') {
+        if (title) title.textContent = 'Senior Citizen Verification';
+        if (label) label.textContent = 'Senior Citizen ID / OSCA #';
+        if (iconWrap) {
+            iconWrap.style.background = '#fef3c7';
+            iconWrap.style.color = '#d97706';
+            iconWrap.innerHTML = '<i class="bi bi-person-badge-fill"></i>';
+        }
+    } else {
+        if (title) title.textContent = 'PWD Verification';
+        if (label) label.textContent = 'PWD ID / Card #';
+        if (iconWrap) {
+            iconWrap.style.background = '#e0e7ff';
+            iconWrap.style.color = '#4338ca';
+            iconWrap.innerHTML = '<i class="bi bi-universal-access"></i>';
+        }
+    }
+
+    if (nameInp) nameInp.value = currentDiscountCustomerName || '';
+    if (idInp) idInp.value = currentDiscountIdNumber || '';
+
+    modal.hidden = false;
+    setTimeout(() => {
+        if (nameInp && !nameInp.value) nameInp.focus();
+        else if (idInp) idInp.focus();
+    }, 50);
+}
+
+window.closeSeniorPwdModal = function() {
+    const modal = document.getElementById('seniorPwdModalOverlay');
+    if (modal) modal.hidden = true;
+    pendingQuickDiscountType = null;
+};
+
+window.confirmSeniorPwdDiscount = function() {
+    const nameInp = document.getElementById('spCustomerName');
+    const idInp = document.getElementById('spIdNumber');
+    const errBox = document.getElementById('spModalErrorMsg');
+
+    const nameVal = (nameInp ? nameInp.value : '').trim();
+    const idVal = (idInp ? idInp.value : '').trim();
+
+    if (!nameVal || !idVal) {
+        if (errBox) {
+            errBox.textContent = 'Please enter both the customer full name and ID card number.';
+            errBox.style.display = 'block';
+        }
+        return;
+    }
+
+    currentDiscountType = pendingQuickDiscountType;
+    currentDiscountCustomerName = nameVal;
+    currentDiscountIdNumber = idVal;
+
+    if (discountInput) {
+        discountInput.value = 20;
+    }
+
+    window.closeSeniorPwdModal();
+    renderCart();
+};
 
 if (cashInput) {
     cashInput.addEventListener(
@@ -1684,6 +2156,22 @@ function showCheckoutSuccessScreen(
                             : ''
                     }
 
+                    ${
+                        orderData.discount > 0
+                            ? `
+                                <div class="pos-checkout-detail-row">
+                                    <span class="pos-checkout-detail-label">
+                                        Discount ${orderData.discountType ? '(' + escapeHtml(orderData.discountType) + ')' : ''}
+                                    </span>
+
+                                    <span class="pos-checkout-detail-value" style="color:#b91c1c; font-weight:700;">
+                                        -${peso.format(orderData.discount)}
+                                    </span>
+                                </div>
+                            `
+                            : ''
+                    }
+
                     <div class="pos-checkout-total-row">
                         <span class="pos-checkout-total-label">
                             Total
@@ -1776,6 +2264,7 @@ function generatePrintReceiptHtml(
                         vertical-align: top;
                     ">
                         ${escapeHtml(item.name)}
+                        ${item.notes ? `<div style="font-size: 9px; color: #555;">${escapeHtml(item.notes)}</div>` : ''}
                     </td>
 
                     <td style="
@@ -1948,7 +2437,7 @@ function generatePrintReceiptHtml(
                                 <td style="
                                     padding: 1px 0;
                                 ">
-                                    Discount (${Number(orderData.discountPercent || 0).toFixed(2).replace(/\.00$/, '')}%):
+                                    Discount ${orderData.discountType ? '(' + escapeHtml(orderData.discountType) + ')' : '(' + Number(orderData.discountPercent || 0).toFixed(2).replace(/\.00$/, '') + '%)'}:
                                 </td>
 
                                 <td style="
@@ -1960,6 +2449,17 @@ function generatePrintReceiptHtml(
                                     )}
                                 </td>
                             </tr>
+                            ${
+                                orderData.discountIdNumber
+                                    ? `
+                                        <tr>
+                                            <td colspan="2" style="padding: 1px 0; font-size: 9px; color: #555;">
+                                                ID: ${escapeHtml(orderData.discountIdNumber)} ${orderData.discountCustomerName ? '— ' + escapeHtml(orderData.discountCustomerName) : ''}
+                                            </td>
+                                        </tr>
+                                    `
+                                    : ''
+                            }
                         `
                         : ''
                 }
@@ -2228,6 +2728,9 @@ function updateMenuStockAfterCheckout(completedCart) {
 
                     if (variant && String(variant.id) === itemId) {
                         variant.stock = Math.max(0, Math.floor(Number(variant.stock ?? 0)) - soldQty);
+                        if (variant.stock <= 0) {
+                            variant.availability = 'Unavailable';
+                        }
                         changed = true;
                     }
                 });
@@ -2242,6 +2745,7 @@ function updateMenuStockAfterCheckout(completedCart) {
 
                         if (currentVariant) {
                             card.dataset.stock = String(currentVariant.stock);
+                            card.dataset.availability = currentVariant.availability || (currentVariant.stock <= 0 ? 'Unavailable' : 'Available');
 
                             if (currentVariant.stock <= 0) {
                                 card.classList.add('unavailable');
@@ -2259,7 +2763,7 @@ function updateMenuStockAfterCheckout(completedCart) {
                                     if (currentVariant.stock <= 5) {
                                         badge.classList.add('low-stock');
                                     }
-                                    badge.textContent = `${currentVariant.stock} pcs left`;
+                                    badge.textContent = currentVariant.stock <= 5 ? `Only ${currentVariant.stock} left` : `${currentVariant.stock} pcs left`;
                                 }
                             }
                         }
@@ -2290,7 +2794,7 @@ function updateMenuStockAfterCheckout(completedCart) {
                         if (newStock <= 5) {
                             badge.classList.add('low-stock');
                         }
-                        badge.textContent = `${newStock} pcs left`;
+                        badge.textContent = newStock <= 5 ? `Only ${newStock} left` : `${newStock} pcs left`;
                     }
                 }
             }
@@ -2298,6 +2802,122 @@ function updateMenuStockAfterCheckout(completedCart) {
     });
 
     updateMenuCardControls();
+}
+
+function syncPosStockUpdates(updates) {
+    if (!Array.isArray(updates) || !updates.length) return;
+    const byId = new Map();
+    updates.forEach(u => {
+        if (u && u.id != null) {
+            byId.set(String(u.id), {
+                stock: Math.max(0, Math.floor(Number(u.stock ?? 0))),
+                availability: u.availability || 'Available'
+            });
+        }
+    });
+    if (!byId.size) return;
+
+    document.querySelectorAll('.food-card').forEach(card => {
+        if (card.dataset.variants) {
+            try {
+                const variants = JSON.parse(card.dataset.variants);
+                let changed = false;
+                Object.keys(variants).forEach(sz => {
+                    const v = variants[sz];
+                    if (v && byId.has(String(v.id))) {
+                        const fresh = byId.get(String(v.id));
+                        v.stock = fresh.stock;
+                        v.availability = fresh.availability;
+                        changed = true;
+                    }
+                });
+                if (changed) {
+                    card.dataset.variants = JSON.stringify(variants);
+                    const activeSize = card.querySelector('.size-btn.active')?.dataset.size || 'S';
+                    const activeVar = variants[activeSize];
+                    if (activeVar) {
+                        card.dataset.stock = String(activeVar.stock);
+                        card.dataset.availability = activeVar.availability;
+                        card.classList.toggle('unavailable', activeVar.availability !== 'Available' || activeVar.stock <= 0);
+                        const badge = card.querySelector('.stock-badge');
+                        if (badge) {
+                            badge.classList.remove('low-stock', 'out-of-stock');
+                            if (activeVar.availability !== 'Available') {
+                                badge.classList.add('out-of-stock');
+                                badge.textContent = 'Unavailable';
+                            } else if (activeVar.stock <= 0) {
+                                badge.classList.add('out-of-stock');
+                                badge.textContent = 'Out of Stock';
+                            } else {
+                                if (activeVar.stock <= 5) badge.classList.add('low-stock');
+                                badge.textContent = activeVar.stock <= 5 ? `Only ${activeVar.stock} left` : `${activeVar.stock} pcs left`;
+                            }
+                        }
+                    }
+                }
+            } catch (_) {}
+            return;
+        }
+        if (byId.has(String(card.dataset.id))) {
+            const fresh = byId.get(String(card.dataset.id));
+            card.dataset.stock = String(fresh.stock);
+            card.dataset.availability = fresh.availability;
+            card.classList.toggle('unavailable', fresh.availability !== 'Available' || fresh.stock <= 0);
+            const badge = card.querySelector('.stock-badge');
+            if (badge) {
+                badge.classList.remove('low-stock', 'out-of-stock');
+                if (fresh.availability !== 'Available') {
+                    badge.classList.add('out-of-stock');
+                    badge.textContent = 'Unavailable';
+                } else if (fresh.stock <= 0) {
+                    badge.classList.add('out-of-stock');
+                    badge.textContent = 'Out of Stock';
+                } else {
+                    if (fresh.stock <= 5) badge.classList.add('low-stock');
+                    badge.textContent = fresh.stock <= 5 ? `Only ${fresh.stock} left` : `${fresh.stock} pcs left`;
+                }
+            }
+        }
+    });
+
+    const used = new Map();
+    const removed = [];
+    const adjusted = [];
+    const nextCart = [];
+    const nextFeedback = {};
+    for (let i = 0; i < cart.length; i++) {
+        const item = cart[i];
+        const fresh = byId.get(String(item.id));
+        const maxStock = fresh ? (fresh.availability === 'Available' ? fresh.stock : 0) : getPosPoolStock(item.id, item.stock);
+        item.stock = maxStock;
+        const poolKey = getPosPoolKey(item);
+        const rem = Math.max(0, maxStock - (used.get(poolKey) || 0));
+        const kept = Math.min(item.qty, rem);
+        if (kept <= 0) {
+            removed.push(item.name);
+            continue;
+        }
+        const newIdx = nextCart.length;
+        if (kept !== item.qty) {
+            adjusted.push(`${item.name} (${item.qty} → ${kept})`);
+            nextFeedback[newIdx] = {
+                text: `Adjusted to ${kept} (current stock).`,
+                tone: 'warning'
+            };
+        } else if (posCartRowFeedback[i]) {
+            nextFeedback[newIdx] = posCartRowFeedback[i];
+        }
+        item.qty = kept;
+        nextCart.push(item);
+        used.set(poolKey, (used.get(poolKey) || 0) + kept);
+    }
+    cart = nextCart;
+    posCartRowFeedback = nextFeedback;
+    const notes = [];
+    if (removed.length) notes.push(`Removed unavailable: ${removed.join(', ')}.`);
+    if (adjusted.length) notes.push(`Adjusted to match stock: ${adjusted.join(', ')}.`);
+    if (notes.length) posCartStockBanner = notes.join(' ');
+    renderCart();
 }
 
 const checkoutBtn =
@@ -2309,6 +2929,7 @@ if (checkoutBtn) {
     checkoutBtn.addEventListener(
         'click',
         async () => {
+            flushPosPendingQtyEdits();
             const orderType =
                 document.getElementById(
                     'orderType'
@@ -2407,6 +3028,42 @@ if (checkoutBtn) {
                 return;
             }
 
+            const cashierAttested = currentPaymentMode === 'gcash'
+                ? Boolean(document.getElementById('gcashCashierAttested')?.checked)
+                : false;
+
+            if (currentPaymentMode === 'gcash' && !cashierAttested) {
+                showPosAlert(
+                    'Verification Required',
+                    'Cashier must attest that payment was verified on merchant phone / POS terminal before completing checkout.'
+                );
+                return;
+            }
+
+            // Checkout Confirmation Modal
+            if (window.kkConfirm) {
+                const confirmed = await window.kkConfirm({
+                    title: 'Complete Order Checkout?',
+                    details: [
+                        { label: 'Order Type', value: orderType + (tableNo ? ' · Table ' + tableNo : '') },
+                        { label: 'Payment Method', value: currentPaymentMode === 'gcash' ? 'GCash' : 'Cash' },
+                        { label: 'Total Amount', value: peso.format(data.total) }
+                    ],
+                    message: `Confirm completing this ${currentPaymentMode === 'gcash' ? 'GCash' : 'Cash'} order checkout?`,
+                    confirmText: 'Complete Checkout',
+                    cancelText: 'Cancel',
+                    variant: 'primary'
+                });
+                if (!confirmed) {
+                    return;
+                }
+            } else {
+                const confirmMsg = `Complete order checkout for ${peso.format(data.total)} via ${currentPaymentMode === 'gcash' ? 'GCash' : 'Cash'}?`;
+                if (!confirm(confirmMsg)) {
+                    return;
+                }
+            }
+
             const payload = {
                 cart,
                 orderType,
@@ -2420,8 +3077,12 @@ if (checkoutBtn) {
                     'gcash'
                         ? gcashRef
                         : null,
+                cashierAttested: cashierAttested,
                 discountPercent: data.discountPercent,
                 discount: data.discount,
+                discountType: data.discountType,
+                discountIdNumber: data.discountIdNumber,
+                discountCustomerName: data.discountCustomerName,
                 subtotal: data.subtotal,
                 tax: data.tax,
                 total: data.total,
@@ -2429,10 +3090,13 @@ if (checkoutBtn) {
                 change: data.change
             };
 
-            checkoutBtn.disabled =
-                true;
+            const originalBtnHtml = checkoutBtn.innerHTML;
+            checkoutBtn.disabled = true;
+            checkoutBtn.innerHTML = '<i class="bi bi-arrow-repeat spin-icon"></i> Processing...';
 
+            const retryScope = 'pos:' + (typeof currentActiveCashier !== 'undefined' && currentActiveCashier ? currentActiveCashier.id : 'staff');
             try {
+                payload.request_key = KKCheckoutRetry.key(retryScope, payload);
                 const res =
                     await fetch(
                         'process_order.php',
@@ -2441,7 +3105,9 @@ if (checkoutBtn) {
                                 'POST',
                             headers: {
                                 'Content-Type':
-                                    'application/json'
+                                    'application/json',
+                                'X-CSRF-Token':
+                                    typeof KK_CSRF_TOKEN !== 'undefined' ? KK_CSRF_TOKEN : ''
                             },
                             body:
                                 JSON.stringify(
@@ -2494,6 +3160,12 @@ if (checkoutBtn) {
                             data.discountPercent,
                         discount:
                             data.discount,
+                        discountType:
+                            data.discountType,
+                        discountIdNumber:
+                            data.discountIdNumber,
+                        discountCustomerName:
+                            data.discountCustomerName,
                         total:
                             data.total,
                         cash:
@@ -2512,7 +3184,11 @@ if (checkoutBtn) {
                     showCheckoutSuccessScreen(
                         lastCompletedOrder
                     );
+                    KKCheckoutRetry.complete(retryScope);
                 } else {
+                    if (Array.isArray(json.stock_updates)) {
+                        syncPosStockUpdates(json.stock_updates);
+                    }
                     showPosAlert(
                         'Order Not Completed',
                         json.msg ||
@@ -2536,6 +3212,7 @@ if (checkoutBtn) {
             } finally {
                 checkoutBtn.disabled =
                     false;
+                checkoutBtn.innerHTML = originalBtnHtml;
             }
         }
     );
@@ -2602,6 +3279,12 @@ if (printBtn) {
                         data.subtotal,
                     discount:
                         data.discount,
+                    discountType:
+                        data.discountType,
+                    discountIdNumber:
+                        data.discountIdNumber,
+                    discountCustomerName:
+                        data.discountCustomerName,
                     total:
                         data.total,
                     cash:
@@ -2667,14 +3350,18 @@ function onlineOrderStatusClass(status) {
     return '';
 }
 
+let onlineOrdersData = [];
+
 function renderOnlineOrders(orders) {
+    onlineOrdersData = Array.isArray(orders) ? orders : [];
     if (!onlineOrdersList) return;
 
     if (!orders.length) {
         onlineOrdersList.innerHTML = `
             <div class="online-orders-empty">
-                <i class="bi bi-phone" style="font-size:2rem; display:block; margin-bottom:8px;"></i>
-                No active online orders today.
+                <span class="online-empty-icon"><i class="bi bi-bag-check"></i></span>
+                <strong>No active online orders</strong>
+                <p>Today’s active Kenji’s Kitchen online orders will appear here.<br>Use Refresh to check for new orders.</p>
             </div>
         `;
         return;
@@ -2717,14 +3404,112 @@ function renderOnlineOrders(orders) {
                     ${itemHtml || '<div class="online-order-meta">No item details available.</div>'}
                 </div>
 
-                <div class="online-order-footer">
-                    <span>${escapeHtml(order.payment_method || 'Payment not set')}</span>
-                    <span class="online-order-total">${peso.format(Number(order.total || 0))}</span>
+                <div class="online-order-footer" style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+                    <div>
+                        <span>${escapeHtml(order.payment_method || 'Payment not set')}</span>
+                        ${order.payment_method === 'GCash' ? (order.payment_status === 'Paid' ? '<span class="badge" style="font-size:0.7rem; background:#10B981; color:#fff; padding:2px 6px; border-radius:4px; margin-left:4px;">Verified</span>' : '<span class="badge" style="font-size:0.7rem; background:#F59E0B; color:#fff; padding:2px 6px; border-radius:4px; margin-left:4px;">Pending</span>') : ''}
+                        <strong class="online-order-total" style="margin-left:6px;">${peso.format(Number(order.total || 0))}</strong>
+                        ${order.payment_reference ? `<div style="font-size:0.72rem; color:#6B7280;">Ref: ${escapeHtml(order.payment_reference)}${Number(order.has_payment_proof) === 1 ? ` · <a href="../online/api/payment_proof.php?order_id=${Number(order.id)}" target="_blank" rel="noopener noreferrer" style="color:#2563EB;font-weight:700;text-decoration:underline;"><i class="bi bi-image"></i> View Screenshot</a>` : ''}</div>` : ''}
+                    </div>
+                    <div>
+                        ${(order.payment_method === 'GCash' && order.payment_status === 'Pending') ? `
+                            <button type="button" class="btn btn-sm" onclick="verifyOnlineGCashPayment(${order.id}, '${escapeHtml(order.payment_reference || '')}')" style="padding:5px 12px; font-size:0.8rem; border-radius:6px; cursor:pointer; background:#2563EB; color:#fff; border:none; font-weight:700; margin-right:6px;">
+                                <i class="bi bi-shield-check"></i> Verify GCash
+                            </button>
+                        ` : ''}
+                        ${order.order_type === 'ONLINE' ? `
+                            <a class="btn btn-sm btn-primary" href="../delivery/index.php" style="padding:5px 12px; font-size:0.8rem; border-radius:6px; background:#F59E0B; color:#fff; text-decoration:none; font-weight:700;">Manage Delivery</a>
+                        ` : order.status === 'Ready' ? `
+                            <button type="button" class="btn btn-sm btn-primary" onclick="completeOnlineOrder(${order.id})" style="padding:5px 12px; font-size:0.8rem; border-radius:6px; cursor:pointer; background:#F59E0B; color:#fff; border:none; font-weight:700;">
+                                <i class="bi bi-check2-circle"></i> Complete Order
+                            </button>
+                        ` : '<span class="online-order-meta">Awaiting kitchen readiness</span>'}
+                    </div>
                 </div>
             </div>
         `;
     }).join('');
 }
+
+window.verifyOnlineGCashPayment = async function(orderId, ref) {
+    const order = onlineOrdersData.find(o => Number(o.id) === Number(orderId));
+    if (window.kkConfirm) {
+        const confirmed = await window.kkConfirm({
+            title: 'Verify GCash Payment?',
+            details: [
+                { label: 'Order Number', value: order?.order_no || ('#' + orderId) },
+                { label: 'Order Total', value: peso.format(Number(order?.total || 0)) },
+                { label: 'GCash Reference', value: ref || order?.payment_reference || 'N/A' }
+            ],
+            message: 'Confirm that you have verified this GCash payment in your account before marking this order as Paid.',
+            confirmText: 'Verify GCash Payment',
+            cancelText: 'Cancel',
+            variant: 'primary'
+        });
+        if (!confirmed) return;
+    }
+    try {
+        const csrf = typeof KK_CSRF_TOKEN !== 'undefined' ? KK_CSRF_TOKEN : '';
+        const res = await fetch('../reports/complete_online_payment.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrf
+            },
+            body: JSON.stringify({ order_id: Number(orderId), csrf_token: csrf })
+        });
+        const data = await res.json();
+        if (data.ok) {
+            if (window.kkNotify) window.kkNotify(data.message || 'GCash payment verified successfully.', 'success', { title: 'Payment Verified' });
+            loadOnlineOrders(true);
+        } else {
+            if (window.kkNotify) window.kkNotify(data.message || 'Unable to verify payment.', 'error', { title: 'Verification Error' });
+        }
+    } catch (e) {
+        if (window.kkNotify) window.kkNotify('Network error while verifying payment.', 'error', { title: 'Network Error' });
+    }
+};
+
+window.completeOnlineOrder = async function(orderId) {
+    const order = onlineOrdersData.find(o => Number(o.id) === Number(orderId));
+    const isAlreadyPaid = String(order?.payment_status || '') === 'Paid';
+    const totalFormatted = peso.format(Number(order?.total || 0));
+    const paymentMethod = order?.payment_method || 'Cash';
+
+    if (window.kkConfirm) {
+        const confirmed = await window.kkConfirm({
+            title: 'Complete Pickup Order?',
+            details: [
+                { label: 'Order Number', value: order?.order_no || ('#' + orderId) },
+                { label: 'Amount to Collect', value: isAlreadyPaid ? `${totalFormatted} (Paid)` : totalFormatted },
+                { label: 'Payment Method', value: paymentMethod }
+            ],
+            message: isAlreadyPaid
+                ? 'Confirm that this paid pickup order is being handed over to the customer.'
+                : "Confirm that you have received the customer's payment before completing this order.",
+            confirmText: 'Confirm Payment & Complete Order',
+            cancelText: 'Cancel',
+            variant: 'primary'
+        });
+        if (!confirmed) return;
+    }
+    try {
+        const res = await fetch('../serving/api_mark_served.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': typeof KK_CSRF_TOKEN !== 'undefined' ? KK_CSRF_TOKEN : '' },
+            body: JSON.stringify({ order_id: orderId, confirm_payment: true })
+        });
+        const data = await res.json();
+        if (data.ok) {
+            if (window.kkNotify) window.kkNotify(data.msg || 'Pickup order completed and marked as served.', 'success', { title: 'Order Completed' });
+            loadOnlineOrders(true);
+        } else {
+            if (window.kkNotify) window.kkNotify(data.msg || 'Unable to complete order.', 'error', { title: 'Completion Error' });
+        }
+    } catch (e) {
+        if (window.kkNotify) window.kkNotify('Network error while completing order.', 'error', { title: 'Network Error' });
+    }
+};
 
 async function loadOnlineOrders(showLoading = false) {
     if (!onlineOrdersList) return;

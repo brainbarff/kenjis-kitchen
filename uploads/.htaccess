@@ -1,0 +1,19 @@
+Options -Indexes -ExecCGI
+
+<IfModule php_module>
+    php_flag engine off
+</IfModule>
+<IfModule php8_module>
+    php_flag engine off
+</IfModule>
+
+<FilesMatch "(?i)\.(php[0-9]?|phtml|phps|phar|pl|py|cgi|asp|aspx|sh|bat|cmd|exe|dll|jsp|htaccess|htpasswd|ini|html?|xhtml|shtml|js|mjs|svg)$">
+    SetHandler none
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>

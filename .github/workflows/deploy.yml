@@ -1,0 +1,63 @@
+name: Deploy Kenji's Kitchen to Hostinger
+
+on:
+  push:
+    branches:
+      - production
+  workflow_dispatch:
+
+concurrency:
+  group: production-ftps-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: FTPS Deploy to Hostinger
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout production branch
+        uses: actions/checkout@v4
+
+      - name: Verify PHP syntax before deploy
+        run: |
+          find . -type f -name '*.php' -not -path './.git/*' -print0 | xargs -0 -n1 php -l
+
+      - name: Sync files to Hostinger via FTPS
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftps
+          port: 21
+          security: loose
+          local-dir: ./
+          server-dir: ./
+          exclude: |
+            **/.git*
+            **/.git*/**
+            .github/**
+            tests/**
+            tools/**
+            Documentation/**
+            handover/**
+            functions/**
+            node_modules/**
+            public-ordering/**
+            public-admin/**
+            **/*.sql
+            **/*.sql.gz
+            **/*.csv
+            **/*.bat
+            **/*.sh
+            **/*.md
+            **/*.log
+            **/*.bak
+            **/*.dump
+            .env
+            .env.*
+            seed_flash_sale.php
+            database/seed_*.php
+            uploads/payment_proofs/**
+            uploads/private_proofs/**

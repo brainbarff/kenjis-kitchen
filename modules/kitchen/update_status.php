@@ -10,7 +10,8 @@ $id = (int) ($data['id'] ?? 0);
 $status = $data['status'] ?? '';
 $allowed = ['Preparing', 'Ready'];
 
-if (!$id || !in_array($status, $allowed, true)) {
+if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !verify_csrf_token() || !$id || !in_array($status, $allowed, true)) {
+    http_response_code(($_SERVER['REQUEST_METHOD'] !== 'POST') ? 405 : 403);
     echo json_encode(['ok' => false]);
     exit;
 }
@@ -18,12 +19,12 @@ if (!$id || !in_array($status, $allowed, true)) {
 require_once ROOT_PATH . '/includes/realtime.php';
 
 if ($status === 'Preparing') {
-    $stmt = $conn->prepare("UPDATE orders SET status = 'Preparing', preparing_at = NOW() WHERE id = ? AND status = 'Pending'");
+    $stmt = $conn->prepare("UPDATE orders SET status = 'Preparing', preparing_at = NOW() WHERE id = ? AND status = 'Pending' AND kitchen_queued_at IS NOT NULL AND (order_channel <> 'ONLINE' OR EXISTS (SELECT 1 FROM payments p WHERE p.order_id = orders.id AND (p.payment_method <> 'GCash' OR p.payment_status = 'Paid')))");
     $stmt->execute([$id]);
 }
 
 if ($status === 'Ready') {
-    $stmt = $conn->prepare("UPDATE orders SET status = 'Ready', ready_at = NOW() WHERE id = ? AND status = 'Preparing'");
+    $stmt = $conn->prepare("UPDATE orders SET status = 'Ready', ready_at = NOW() WHERE id = ? AND status = 'Preparing' AND kitchen_queued_at IS NOT NULL AND (order_channel <> 'ONLINE' OR EXISTS (SELECT 1 FROM payments p WHERE p.order_id = orders.id AND (p.payment_method <> 'GCash' OR p.payment_status = 'Paid')))");
     $stmt->execute([$id]);
 }
 

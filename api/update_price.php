@@ -28,7 +28,7 @@ if ($origin !== '') {
     header('Vary: Origin');
 }
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
+header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, X-CSRF-Token');
 header('Content-Type: application/json; charset=UTF-8');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -36,9 +36,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
 
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
+require_once dirname(__DIR__) . '/config/config.php';
+kk_start_session();
 
 require_once dirname(__DIR__) . '/config/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
@@ -76,11 +75,16 @@ if (!can_access('admin')) {
     json_res(['ok' => false, 'message' => 'Unauthorized. Admin permissions required.'], 403);
 }
 
-processPendingPriceUpdates($conn);
-
 // Decode JSON or POST form data
 $raw = file_get_contents('php://input');
 $data = json_decode($raw, true) ?: $_POST;
+
+$submittedToken = (is_array($data) && isset($data['csrf_token'])) ? $data['csrf_token'] : null;
+if (!verify_csrf_token($submittedToken)) {
+    json_res(['ok' => false, 'message' => 'Invalid or expired security token. Please reload the page and try again.'], 403);
+}
+
+processPendingPriceUpdates($conn);
 
 $action = $data['action'] ?? 'single';
 $userId = (int)($_SESSION['u_id'] ?? 1);

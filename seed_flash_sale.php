@@ -25,6 +25,11 @@
  */
 
 /* ── 0. Bootstrap ─────────────────────────────────────────────────────────── */
+if (PHP_SAPI !== 'cli') {
+    http_response_code(403);
+    exit('Forbidden: CLI execution only.');
+}
+
 define('ROOT_PATH', __DIR__);
 require_once __DIR__ . '/config/db.php';   // PDO $conn
 require_once __DIR__ . '/config/config.php';

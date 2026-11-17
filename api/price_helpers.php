@@ -12,6 +12,9 @@
  */
 function processPendingPriceUpdates($conn) {
     try {
+        if ($conn instanceof PDO && $conn->inTransaction()) {
+            return;
+        }
         $now = date('Y-m-d H:i:s');
         $dueStmt = $conn->prepare("
             SELECT id, item_name, price, pending_price, pending_price_effective
@@ -23,23 +26,31 @@ function processPendingPriceUpdates($conn) {
         $dueStmt->execute([$now]);
         $dueItems = $dueStmt->fetchAll();
 
-        foreach ($dueItems as $item) {
-            $update = $conn->prepare("
-                UPDATE menu_items
-                SET price = pending_price, pending_price = NULL, pending_price_effective = NULL
-                WHERE id = ?
-            ");
-            $update->execute([$item['id']]);
-
-            // Mark audit log entry as applied
-            $log = $conn->prepare("
-                UPDATE price_change_logs
-                SET status = 'Applied'
-                WHERE menu_item_id = ? AND status = 'Scheduled' AND effective_at <= ?
-            ");
-            $log->execute([$item['id'], $now]);
+        if (!$dueItems) {
+            return;
         }
-    } catch (Exception $e) {
+
+        $update = $conn->prepare("
+            UPDATE menu_items
+            SET price = pending_price, pending_price = NULL, pending_price_effective = NULL
+            WHERE id = ?
+              AND pending_price IS NOT NULL
+              AND pending_price_effective IS NOT NULL
+              AND pending_price_effective <= ?
+        ");
+        $log = $conn->prepare("
+            UPDATE price_change_logs
+            SET status = 'Applied'
+            WHERE menu_item_id = ? AND status = 'Scheduled' AND effective_at <= ?
+        ");
+
+        foreach ($dueItems as $item) {
+            $update->execute([$item['id'], $now]);
+            if ($update->rowCount() === 1) {
+                $log->execute([$item['id'], $now]);
+            }
+        }
+    } catch (Throwable $e) {
         error_log('processPendingPriceUpdates error: ' . $e->getMessage());
     }
 }

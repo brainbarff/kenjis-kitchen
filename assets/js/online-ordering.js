@@ -205,6 +205,25 @@ function setAuthTab(tab) {
     document.getElementById('authTitle').textContent = signIn ? 'Sign In' : 'Create Account';
 }
 
+function notifyOnline(msg, type = 'info') {
+    if (typeof window.kkNotify === 'function') {
+        window.kkNotify(msg, type);
+        return;
+    }
+    let container = document.getElementById('kkToastContainer');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'kkToastContainer';
+        container.style.cssText = 'position:fixed;top:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:10px;max-width:360px;';
+        document.body.appendChild(container);
+    }
+    const toast = document.createElement('div');
+    toast.style.cssText = 'background:#16161b;color:#f5f2eb;padding:12px 16px;border-radius:10px;border-left:4px solid ' + (type === 'error' ? '#ef4444' : type === 'success' ? '#22c55e' : '#f59e0b') + ';box-shadow:0 8px 24px rgba(0,0,0,.35);font-size:.88rem;';
+    toast.textContent = msg;
+    container.appendChild(toast);
+    setTimeout(() => toast.remove(), 4000);
+}
+
 function setAccountUI() {
     const btn = document.getElementById('accountBtn');
     if (!state.user) {
@@ -214,13 +233,21 @@ function setAccountUI() {
     }
     btn.textContent = state.user.full_name;
     btn.onclick = async () => {
-        if (!confirm('Log out of your customer account?')) return;
+        if (typeof window.kkConfirm === 'function') {
+            const ok = await window.kkConfirm({
+                title: 'Sign Out',
+                message: 'Log out of your customer account?',
+                confirmText: 'Log Out'
+            });
+            if (!ok) return;
+        }
         await apiFetch(`${API_BASE}/auth.php?action=logout`);
         state.user = null;
         state.latestOrder = null;
         setAccountUI();
         renderTracking(null);
         renderHistory([]);
+        notifyOnline('You have been logged out.', 'info');
     };
 }
 
@@ -289,7 +316,7 @@ async function placeOrder(event) {
     btn.querySelector('.btn-text').textContent = 'Place Order';
 
     if (result.status !== 'success') {
-        alert(result.message || 'Order could not be placed.');
+        notifyOnline(result.message || 'Order could not be placed.', 'error');
         return;
     }
 
@@ -303,7 +330,7 @@ async function placeOrder(event) {
     document.getElementById('checkoutForm').reset();
     document.getElementById('gcashReferenceWrap').hidden = false;
     document.getElementById('checkoutSection').scrollIntoView({ behavior: 'smooth' });
-    alert(`Order ${result.data.order_number} was placed successfully.`);
+    notifyOnline(`Order ${result.data.order_number} was placed successfully.`, 'success');
     pollLatestOrder();
 }
 

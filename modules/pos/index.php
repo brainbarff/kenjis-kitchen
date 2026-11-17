@@ -1,7 +1,12 @@
 <?php
 require_once dirname(__DIR__, 2) . '/includes/auth.php';
 require_once ROOT_PATH . '/config/db.php';
+require_once ROOT_PATH . '/api/price_helpers.php';
+require_once ROOT_PATH . '/includes/gcash_verification.php';
 require_role(['admin', 'cashier']);
+
+processPendingPriceUpdates($conn);
+expire_overdue_gcash_orders($conn, (int)(current_user()['id'] ?? 0) ?: null);
 
 $page = 'pos';
 $title = 'Point of Sale';
@@ -10,6 +15,11 @@ $orderSounds = true;
 $bodyClass = 'pos-page';
 
 $categories = $conn->query("SELECT * FROM categories WHERE status = 'Active' ORDER BY sort_order ASC")->fetchAll();
+// Keep POS navigation aligned with Menu Management without changing stored categories.
+$posCategoryOrder = ['add-ons' => 0, 'student meals' => 1, 'pulutan & pares' => 2, 'drinks' => 3, 'silog' => 4, 'silog meals' => 4, 'silog set meals' => 5, 'bilao favorites' => 6];
+usort($categories, static function ($a, $b) use ($posCategoryOrder) {
+    return ($posCategoryOrder[strtolower($a['category_name'])] ?? 99) <=> ($posCategoryOrder[strtolower($b['category_name'])] ?? 99);
+});
 $raw_items = $conn->query("
     SELECT menu_items.*, categories.category_name
     FROM menu_items
@@ -44,67 +54,33 @@ $orderTicket = str_pad($today_count, 4, '0', STR_PAD_LEFT);
 
 require_once ROOT_PATH . '/config/bilao-pricing.php';
 $official_specs = bilao_pricing_specs();
+$resolved_bilao_groups = resolve_bilao_variant_states($conn);
 
 $bilao_groups = [];
-foreach ($official_specs as $dish => $spec) {
-    $bilao_groups[$dish] = [
-        'subcat'   => $spec['subcat'],
-        'image'    => null,
-        'variants' => []
-    ];
+foreach ($resolved_bilao_groups as $dish => $groupInfo) {
+    if (!empty($groupInfo['all_variants_archived'])) {
+        continue;
+    }
+    $bilao_groups[$dish] = $groupInfo;
 }
 
 $regular_items = [];
 
 foreach ($raw_items as $item) {
+    if ((int)($item['is_archived'] ?? 0) === 1) {
+        continue;
+    }
     if ($bilaoCatId && (int)$item['category_id'] === (int)$bilaoCatId) {
-        foreach (array_keys($official_specs) as $dish) {
-            if (stripos($item['item_name'], $dish) !== false) {
-                $variantName = (string)$item['item_name'];
-                $size = 'S';
-                if (preg_match('/\b(?:XL|X-LARGE|EXTRA\s+LARGE)\b/i', $variantName)) {
-                    $size = 'XL';
-                } elseif (preg_match('/\b(?:LARGE|L)\b/i', $variantName)) {
-                    $size = 'L';
-                } elseif (preg_match('/\b(?:MEDIUM|M)\b/i', $variantName)) {
-                    $size = 'M';
-                }
-
-                if (!empty($item['image']) && empty($bilao_groups[$dish]['image'])) {
-                    $bilao_groups[$dish]['image'] = $item['image'];
-                }
-
-                $bilao_groups[$dish]['variants'][$size] = [
-                    'id'           => (int)$item['id'],
-                    'price'        => (float)$official_specs[$dish]['rates'][$size]['price'],
-                    'desc'         => $official_specs[$dish]['rates'][$size]['desc'],
-                    'stock'        => max(0, (int)($item['stock'] ?? 0)),
-                    'availability' => $item['availability'] ?? 'Available'
-                ];
-                break;
-            }
-        }
-    } else {
-        $regular_items[] = $item;
+        continue;
     }
-}
 
-foreach ($bilao_groups as $dish => &$group) {
-    $first_available_id = !empty($group['variants']) ? reset($group['variants'])['id'] : 1;
-    foreach (['S', 'M', 'L', 'XL'] as $sz) {
-        if (!isset($group['variants'][$sz])) {
-            $fallback_variant = reset($group['variants']);
-            $group['variants'][$sz] = [
-                'id'           => $first_available_id,
-                'price'        => (float)$official_specs[$dish]['rates'][$sz]['price'],
-                'desc'         => $official_specs[$dish]['rates'][$sz]['desc'],
-                'stock'        => isset($fallback_variant['stock']) ? (int)$fallback_variant['stock'] : 0,
-                'availability' => $fallback_variant['availability'] ?? 'Available'
-            ];
-        }
+    $isDrinks = strcasecmp((string)($item['category_name'] ?? ''), 'Drinks') === 0;
+    if ($isDrinks && is_one_liter_grouped_drink_name((string)$item['item_name'])) {
+        continue;
     }
+
+    $regular_items[] = $item;
 }
-unset($group);
 
 include ROOT_PATH . '/includes/header.php';
 ?>
@@ -119,13 +95,127 @@ include ROOT_PATH . '/includes/header.php';
 
     .pos-layout {
         display: grid;
-        grid-template-columns: 1fr 380px;
+        grid-template-columns: minmax(0, 1fr) 360px;
         gap: 20px;
-        height: calc(100vh - 120px);
-        max-height: calc(100vh - 120px);
+        height: calc(100vh - 110px);
+        max-height: calc(100vh - 110px);
         overflow: hidden;
         align-items: stretch;
         padding-bottom: 8px;
+    }
+
+    .pos-products-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 12px;
+        flex-shrink: 0;
+        flex-wrap: nowrap;
+        width: 100%;
+    }
+
+    .pos-category-scroller-wrap {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex: 1;
+        min-width: 0;
+        position: relative;
+    }
+
+    .pos-category-nav-btn {
+        flex-shrink: 0;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        border: 1px solid #cbd5e1;
+        background: #ffffff;
+        color: #334155;
+        font-size: 0.95rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        user-select: none;
+    }
+
+    .pos-category-nav-btn:hover:not(:disabled) {
+        background: #F2C12E;
+        border-color: #F2C12E;
+        color: #232323;
+        transform: scale(1.05);
+    }
+
+    .pos-category-nav-btn:disabled {
+        opacity: 0.35;
+        cursor: not-allowed;
+        pointer-events: none;
+    }
+
+    .pos-products-header .tabs {
+        display: flex;
+        gap: 6px;
+        overflow-x: auto;
+        overflow-y: hidden;
+        padding: 4px 2px;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+        flex: 1;
+        min-width: 0;
+        white-space: nowrap;
+        flex-wrap: nowrap;
+        scroll-behavior: smooth;
+        cursor: grab;
+    }
+
+    .pos-products-header .tabs:active {
+        cursor: grabbing;
+    }
+
+    .pos-products-header .tabs .tab {
+        flex-shrink: 0;
+        white-space: nowrap;
+    }
+
+    .pos-products-header .tabs::-webkit-scrollbar {
+        display: none;
+    }
+
+    .pos-search-box {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 999px;
+        padding: 0 16px;
+        height: 42px;
+        width: 250px;
+        max-width: 100%;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02);
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .pos-search-box:focus-within {
+        border-color: #F2C12E;
+        box-shadow: 0 0 0 3px rgba(242, 193, 46, 0.2);
+    }
+
+    .pos-search-box i {
+        color: #94a3b8;
+        font-size: 0.95rem;
+    }
+
+    .pos-search-box input {
+        border: none;
+        outline: none;
+        background: transparent;
+        font-size: 0.85rem;
+        width: 100%;
+        color: #1e293b;
     }
 
     .pos-layout > section {
@@ -155,7 +245,7 @@ include ROOT_PATH . '/includes/header.php';
         overflow-y: auto;
         overflow-x: hidden;
         display: grid !important;
-        grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)) !important;
+        grid-template-columns: repeat(auto-fill, minmax(min(100%, 180px), 1fr)) !important;
         grid-auto-rows: max-content !important;
         gap: 14px !important;
         padding-right: 6px;
@@ -192,19 +282,32 @@ include ROOT_PATH . '/includes/header.php';
         box-sizing: border-box;
         overflow: hidden;
         border: 1px solid #f1f5f9;
-        min-height: 245px !important;
+        min-height: 250px !important;
         height: auto !important;
         flex-shrink: 0 !important;
+        box-shadow: 0 3px 12px rgba(0, 0, 0, 0.03);
+        transition: transform 0.16s ease, box-shadow 0.16s ease;
+    }
+
+    .food-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.06);
+    }
+
+    .food-card.unavailable {
+        opacity: 0.55;
+        filter: grayscale(0.5);
+        pointer-events: none;
     }
 
     .food-card img {
         width: 100%;
-        height: 125px !important;
-        min-height: 125px !important;
-        max-height: 125px !important;
-        object-fit: contain;
-        padding: 6px 6px 0 6px;
-        background-color: transparent;
+        height: 135px !important;
+        min-height: 135px !important;
+        max-height: 135px !important;
+        object-fit: cover;
+        border-radius: 10px;
+        background-color: #f8fafc;
         transition: transform 0.2s ease;
         flex-shrink: 0 !important;
     }
@@ -357,7 +460,31 @@ include ROOT_PATH . '/includes/header.php';
     .receipt-header-actions {
         display: flex;
         align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+    }
+
+    .receipt-header-row2 {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
         gap: 8px;
+        margin-top: 6px;
+    }
+
+    .receipt-header-row2-left {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex: 1;
+        min-width: 0;
+    }
+
+    .receipt-header-row2-right {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-shrink: 0;
     }
 
     .btn-online-orders {
@@ -1027,6 +1154,81 @@ include ROOT_PATH . '/includes/header.php';
         gap: 8px;
     }
 
+    .pos-discount-quick-btns {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        margin: 4px 0 6px;
+        width: 100%;
+    }
+
+    .pos-disc-btn {
+        flex: 1;
+        padding: 5px 6px;
+        border: 1px solid #cbd5e1;
+        background: #ffffff;
+        color: #334155;
+        border-radius: 6px;
+        font-size: 0.74rem;
+        font-weight: 700;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        transition: all 0.15s ease;
+        user-select: none;
+    }
+
+    .pos-disc-btn:hover {
+        border-color: #F2C12E;
+        background: #fffbeb;
+        color: #92400e;
+    }
+
+    .pos-disc-btn.active {
+        background: #F2C12E;
+        border-color: #d97706;
+        color: #232323;
+        box-shadow: 0 1px 3px rgba(242, 193, 46, 0.4);
+    }
+
+    .pos-disc-badge-row {
+        display: none;
+        align-items: center;
+        justify-content: space-between;
+        background: #fef3c7;
+        border: 1px solid #fde68a;
+        border-radius: 6px;
+        padding: 3px 8px;
+        font-size: 0.72rem;
+        color: #92400e;
+        margin-bottom: 4px;
+    }
+
+    .pos-disc-badge-row .badge-text {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-weight: 700;
+    }
+
+    .pos-disc-badge-row .remove-btn {
+        background: none;
+        border: none;
+        color: #b45309;
+        font-size: 0.95rem;
+        cursor: pointer;
+        line-height: 1;
+        padding: 0 2px;
+        display: inline-flex;
+        align-items: center;
+    }
+
+    .pos-disc-badge-row .remove-btn:hover {
+        color: #b91c1c;
+    }
+
     .discount-control {
         display: inline-flex;
         align-items: center;
@@ -1120,14 +1322,14 @@ include ROOT_PATH . '/includes/header.php';
     }
 
     .btn-pay-toggle {
-        height: 30px;
-        font-size: 0.8rem;
+        height: 40px;
+        font-size: 0.85rem;
         font-weight: 700;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        gap: 6px;
-        border-radius: 6px;
+        gap: 8px;
+        border-radius: 10px;
         cursor: pointer;
         background: #ffffff;
         color: #475569;
@@ -1144,11 +1346,11 @@ include ROOT_PATH . '/includes/header.php';
     }
 
     .btn-pay-toggle.active {
-        background: #ffffff !important;
-        color: #0f172a !important;
-        border: 2px solid #0f172a !important;
+        background: rgba(242, 193, 46, 0.12) !important;
+        color: #1e1e1e !important;
+        border: 2px solid #F2C12E !important;
         font-weight: 800;
-        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
+        box-shadow: 0 2px 8px rgba(242, 193, 46, 0.25);
     }
 
     .btn-pay-toggle::before,
@@ -1160,30 +1362,41 @@ include ROOT_PATH . '/includes/header.php';
     .receipt-btn-group {
         display: grid;
         grid-template-columns: 1fr;
-        gap: 6px;
+        gap: 8px;
+        margin-top: 6px;
     }
 
     .receipt-btn-group .btn {
-        height: 36px;
-        font-size: 0.82rem;
-        font-weight: 700;
+        height: 44px;
+        font-size: 0.92rem;
+        font-weight: 800;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        gap: 5px;
-        border-radius: 6px;
+        gap: 8px;
+        border-radius: 10px;
         cursor: pointer;
         box-sizing: border-box;
+        transition: all 0.16s ease;
     }
 
     .receipt-btn-group #checkoutBtn {
-        background: #f59e0b;
-        color: #0f172a;
-        border: 1px solid #d97706;
+        background: #F2C12E;
+        color: #1e1e1e;
+        border: 1px solid #E0B028;
+        box-shadow: 0 4px 14px rgba(242, 193, 46, 0.35);
     }
 
-    .receipt-btn-group #checkoutBtn:hover {
-        background: #eab308;
+    .receipt-btn-group #checkoutBtn:hover:not(:disabled) {
+        background: #e5b422;
+        transform: translateY(-1px);
+        box-shadow: 0 6px 18px rgba(242, 193, 46, 0.45);
+    }
+
+    .receipt-btn-group #checkoutBtn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        box-shadow: none;
     }
 
     .sub-tab {
@@ -1278,6 +1491,83 @@ include ROOT_PATH . '/includes/header.php';
         color: #ffffff;
         border-color: #d97706;
         box-shadow: 0 2px 4px rgba(245, 158, 11, 0.3);
+    }
+
+    .bilao-pkg-row {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 6px;
+        width: 100%;
+    }
+
+    .bilao-pkg-row.pkg-needs-selection {
+        padding: 3px;
+        border-radius: 9px;
+        outline: 2px solid #dc2626;
+        background: #fef2f2;
+    }
+
+    .bilao-pkg-btn {
+        min-width: 0;
+        padding: 0 8px;
+        height: 32px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        border: 1px solid #e2e8f0;
+        background: #ffffff;
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: #475569;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+
+    .bilao-pkg-btn:hover:not(:disabled) {
+        border-color: #c39a19;
+        background: #fff7d9;
+        color: #242424;
+    }
+
+    .bilao-pkg-btn.active {
+        background: #1f2937;
+        color: #ffffff;
+        border-color: #1f2937;
+    }
+
+    .bilao-pkg-hint {
+        font-size: 0.72rem;
+        color: #6b7280;
+        margin: 0;
+    }
+
+    .bilao-pkg-hint.is-error {
+        color: #dc2626;
+        font-weight: 700;
+    }
+
+    .food-card.bilao-card.unavailable {
+        pointer-events: auto;
+        cursor: default;
+        opacity: 1;
+    }
+
+    .food-card.bilao-card.unavailable img,
+    .food-card.bilao-card.unavailable .bilao-title,
+    .food-card.bilao-card.unavailable .bilao-desc,
+    .food-card.bilao-card.unavailable .bilao-price,
+    .food-card.bilao-card.unavailable .bilao-reservation-note {
+        opacity: 0.5;
+    }
+
+    .food-card.bilao-card.unavailable .bilao-sizes-row,
+    .food-card.bilao-card.unavailable .bilao-size-btn,
+    .food-card.bilao-card.unavailable .bilao-pkg-row,
+    .food-card.bilao-card.unavailable .bilao-pkg-btn {
+        pointer-events: auto;
+        cursor: pointer;
     }
 
     .bilao-price {
@@ -1413,15 +1703,29 @@ include ROOT_PATH . '/includes/header.php';
         }
 
         .menu-grid {
-            grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)) !important;
+            grid-template-columns: repeat(auto-fill, minmax(min(100%, 180px), 1fr)) !important;
             overflow-y: visible;
             max-height: none;
         }
     }
 
+    .pos-mobile-order-bar,
+    .pos-back-to-menu-btn {
+        display: none;
+    }
+
     @media (max-width: 900px) {
         .pos-layout {
-            grid-template-columns: 1fr;
+            grid-template-columns: minmax(0, 1fr);
+            padding-bottom: 84px;
+        }
+
+        .pos-layout > section,
+        .pos-layout > aside {
+            min-width: 0;
+            max-width: 100%;
+            width: 100%;
+            box-sizing: border-box;
         }
 
         .receipt-panel {
@@ -1429,10 +1733,84 @@ include ROOT_PATH . '/includes/header.php';
             height: auto;
             max-height: none;
             overflow: visible;
+            scroll-margin-top: 84px;
         }
 
         .menu-grid {
-            grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr)) !important;
+            grid-template-columns: repeat(auto-fill, minmax(min(100%, 180px), 1fr)) !important;
+        }
+
+        .pos-mobile-order-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            position: fixed;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 900;
+            padding: 12px 16px max(12px, env(safe-area-inset-bottom, 0px));
+            background: #1e1e1e;
+            color: #ffffff;
+            border-top: 1px solid rgba(255, 255, 255, 0.12);
+            box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.22);
+            transition: transform 0.2s ease, opacity 0.2s ease;
+        }
+
+        .pos-mobile-order-bar.is-hidden {
+            transform: translateY(100%);
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .pos-mobile-order-meta {
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+
+        .pos-mobile-order-meta small {
+            color: #cbd5e1;
+            font-size: 0.78rem;
+            font-weight: 600;
+        }
+
+        .pos-mobile-order-meta strong {
+            color: #f2c12e;
+            font-size: 1.05rem;
+            font-weight: 800;
+        }
+
+        .pos-mobile-order-cta {
+            min-height: 44px;
+            padding: 10px 16px;
+            border: 0;
+            border-radius: 10px;
+            background: #f2c12e;
+            color: #1e1e1e;
+            font-weight: 800;
+            font-size: 0.9rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .pos-back-to-menu-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            min-height: 36px;
+            padding: 6px 10px;
+            border-radius: 8px;
+            border: 1px solid #d6d6d6;
+            background: #ffffff;
+            color: #242424;
+            font-size: 0.8rem;
+            font-weight: 700;
+            cursor: pointer;
         }
     }
 
@@ -1441,10 +1819,38 @@ include ROOT_PATH . '/includes/header.php';
             gap: 12px;
         }
 
+        .pos-products-header {
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .pos-category-scroller-wrap {
+            flex: 1 1 100%;
+            width: 100%;
+            max-width: 100%;
+            min-width: 0;
+        }
+
+        .pos-search {
+            width: 100%;
+            flex: 1 1 100%;
+        }
+
         .menu-grid {
             grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
             gap: 10px !important;
             padding-right: 0;
+        }
+
+        .food-card,
+        .bilao-card {
+            min-width: 0;
+            max-width: 100%;
+            box-sizing: border-box;
+        }
+
+        .bilao-centered-card {
+            grid-column: 1 / -1;
         }
 
         .food-card {
@@ -1512,6 +1918,10 @@ include ROOT_PATH . '/includes/header.php';
     }
 
     @media print {
+        .pos-mobile-order-bar {
+            display: none !important;
+        }
+
         body, html {
             overflow: visible !important;
             height: auto !important;
@@ -1547,15 +1957,80 @@ include ROOT_PATH . '/includes/header.php';
     .pos-print-only {
         display: none;
     }
+
+    /* Consistent POS controls and a readable, separated order workspace. */
+    .pos-page .food-card { border-color:#e9e9e5; }
+    .pos-page .food-card img { object-fit:contain; }
+    .pos-page .card-desc { line-height:1.45; }
+    .pos-page .bilao-centered-card { padding:10px; text-align:left; }
+    .pos-page .bilao-center-content { align-items:stretch; text-align:left; gap:10px; }
+    .pos-page .bilao-title { font-size:1rem; }
+    .pos-page .bilao-price { font-size:1.05rem; }
+    .pos-page .bilao-size-btn.active { background:#f7c62f; border-color:#e8b720; color:#202020; box-shadow:none; }
+    .pos-page .bilao-size-btn:hover:not(:disabled) { border-color:#c39a19; background:#fff7d9; color:#242424; }
+    .pos-page .bilao-reservation-note { background:#fff9e7; padding:8px; border-radius:8px; line-height:1.4; }
+    .pos-page .receipt-header-row { flex-wrap:wrap; gap:12px; }
+    .pos-page .receipt-brand-left { width:100%; }
+    .pos-page .brand-text-col { flex:1; flex-direction:row; align-items:center; justify-content:space-between; gap:8px; }
+    .pos-page .brand-text-col h2 { font-size:17px; }
+    .pos-page .order-pill { font-size:12px; padding:4px 7px; white-space:nowrap; }
+    .pos-page .receipt-header-actions { width:100%; display:grid; grid-template-columns:1fr 1fr; }
+    .pos-page .receipt-header-actions button { justify-content:center; font-size:13px; }
+    .pos-page .receipt-header-row2 { flex-direction:column; align-items:stretch; gap:10px; margin-top:10px; }
+    .pos-page #activeCashierBadgeWrap { width:100%; justify-content:space-between; min-width:0; }
+    .pos-page #activeCashierBadge { display:flex; align-items:center; gap:6px; min-width:0; white-space:normal; text-align:left; }
+    .pos-page #activeCashierName { overflow-wrap:anywhere; }
+    .pos-page #activeCashierBadgeWrap button { flex-shrink:0; font-size:13px!important; text-decoration:none!important; padding:6px!important; color:#785b08!important; }
+    .pos-page .receipt-header-row2-right { justify-content:space-between; }
+    .pos-page .receipt-header-row2-right button { min-height:36px; font-size:13px; }
+    .pos-page .receipt-form-top { margin-top:12px; padding-bottom:12px; gap:10px; }
+    .pos-page .receipt-form-top select, .pos-page .receipt-form-top input { min-height:38px; font-size:14px; border-radius:8px; }
+    .pos-page .receipt-panel { overflow-y:auto; }
+    .pos-page .cart-items { min-height:120px; }
+    .pos-page #cashierAuthModalOverlay input:focus { outline:2px solid #c39a19; outline-offset:2px; border-color:#c39a19!important; }
+    .pos-page #cashierAuthModalOverlay label { font-size:14px!important; }
+    .pos-page #btnCashierLogin:hover { background:#eebc20!important; }
+    .pos-page .tab:focus-visible, .pos-page .bilao-size-btn:focus-visible, .pos-page .receipt-panel button:focus-visible { outline:2px solid #95720a; outline-offset:3px; }
+
+    #closeShiftModalOverlay input:focus, #closeShiftModalOverlay textarea:focus { outline:2px solid #b48b12; outline-offset:2px; border-color:#b48b12!important; }
+    #btnEndShift:hover:not(:disabled) { background:#eebc20!important; }
+    #closeShiftModalOverlay button:focus-visible { outline:2px solid #95720a; outline-offset:3px; }
+
+    #cashDrawerModalOverlay input:focus, #cashDrawerModalOverlay select:focus { outline:2px solid #b48b12; outline-offset:2px; border-color:#b48b12!important; }
+    #drawerReasonSelect { min-height:44px; }
+    #btnUnlockDrawer:hover:not(:disabled), #refreshOnlineOrdersBtn:hover:not(:disabled) { background:#eebc20!important; }
+    .online-orders-modal-head { padding:22px 24px; flex-wrap:wrap; }
+    .online-orders-modal-title { font-size:24px; font-weight:800; color:#242424; }
+    .online-orders-modal-subtitle { font-size:14px; line-height:1.5; color:#626262; }
+    .online-orders-modal-actions { gap:8px; }
+    .online-orders-modal-btn { min-height:40px; padding:0 14px; font-size:14px; border-radius:9px; border-color:#deded9; }
+    #refreshOnlineOrdersBtn { background:#f7c62f; color:#242424; border-color:#e8b720; }
+    .online-orders-list { padding:16px 24px; }
+    .online-orders-empty { padding:40px 16px; font-size:15px; line-height:1.6; color:#626262; }
+    .online-orders-empty .online-empty-icon { display:flex; align-items:center; justify-content:center; width:60px; height:60px; margin:0 auto 16px; border-radius:16px; background:#fff4c9; color:#242424; font-size:28px; }
+    .online-orders-empty strong { display:block; font-size:18px; color:#242424; margin-bottom:6px; }
+    .online-orders-empty p { margin:0; }
+    .online-orders-modal button:focus-visible, #cashDrawerModalOverlay button:focus-visible { outline:2px solid #95720a; outline-offset:3px; }
 </style>
 
 <div class="pos-layout">
-    <section>
-        <div class="tabs">
-            <button class="tab active" data-cat="all">All</button>
-            <?php foreach ($categories as $cat): ?>
-                <button class="tab" data-cat="<?= e($cat['id']) ?>"><?= e($cat['category_name']) ?></button>
-            <?php endforeach; ?>
+    <section class="pos-menu-panel">
+        <!-- Horizontal Categories Bar with Left/Right Scroller -->
+        <div class="pos-products-header">
+            <div class="pos-category-scroller-wrap">
+                <button type="button" class="pos-category-nav-btn" id="catScrollLeftBtn" aria-label="Scroll categories left" title="Scroll left">
+                    <i class="bi bi-chevron-left"></i>
+                </button>
+                <div class="tabs" id="posCategoryTabs">
+                    <button class="tab active" data-cat="all">All</button>
+                    <?php foreach ($categories as $cat): ?>
+                        <button class="tab" data-cat="<?= e($cat['id']) ?>"><?= e(['add-ons' => 'Add-ons', 'silog meals' => 'Silog'][strtolower($cat['category_name'])] ?? $cat['category_name']) ?></button>
+                    <?php endforeach; ?>
+                </div>
+                <button type="button" class="pos-category-nav-btn" id="catScrollRightBtn" aria-label="Scroll categories right" title="Scroll right">
+                    <i class="bi bi-chevron-right"></i>
+                </button>
+            </div>
         </div>
 
         <div class="sub-tabs" id="silogSubFilter">
@@ -1587,7 +2062,8 @@ include ROOT_PATH . '/includes/header.php';
                 }
 
                 $stock = max(0, (int)($item['stock'] ?? 0));
-                $isUnavailable = ($stock <= 0);
+                $availability = $item['availability'] ?? 'Available';
+                $isUnavailable = ($stock <= 0 || $availability !== 'Available');
                 ?>
 
                 <article class="food-card <?= $isUnavailable ? 'unavailable' : '' ?>"
@@ -1597,14 +2073,14 @@ include ROOT_PATH . '/includes/header.php';
                          data-name="<?= e($item['item_name']) ?>"
                          data-price="<?= e($price) ?>"
                          data-stock="<?= e($stock) ?>"
-                         data-availability="<?= e($item['availability']) ?>">
+                         data-availability="<?= e($availability) ?>">
 
-                    <span class="stock-badge <?= $stock <= 0 ? 'out-of-stock' : ($stock <= 5 ? 'low-stock' : '') ?>">
-                        <?= $stock > 0 ? e($stock) . ' pcs left' : 'Out of Stock' ?>
+                    <span class="stock-badge <?= ($stock <= 0 || $availability !== 'Available') ? 'out-of-stock' : ($stock <= 5 ? 'low-stock' : '') ?>">
+                        <?= $availability !== 'Available' ? 'Unavailable' : ($stock <= 0 ? 'Out of Stock' : ($stock <= 5 ? 'Only ' . e($stock) . ' left' : e($stock) . ' pcs left')) ?>
                     </span>
 
                     <?php if ($item['image']): ?>
-                        <img src="<?= BASE_URL ?>/uploads/menu/<?= e($item['image']) ?>" alt="<?= e($item['item_name']) ?>">
+                        <img src="<?= e(menu_image_url($item['image'])) ?>" alt="<?= e($item['item_name']) ?>">
                     <?php else: ?>
                         <img src="<?= BASE_URL ?>/assets/img/food-placeholder.svg" alt="">
                     <?php endif; ?>
@@ -1623,7 +2099,7 @@ include ROOT_PATH . '/includes/header.php';
                             <div class="qty-stepper" onclick="event.stopPropagation();">
                                 <button type="button" class="btn-qty btn-card-minus" data-id="<?= e($item['id']) ?>">−</button>
                                 <span class="qty-display" id="card-qty-<?= e($item['id']) ?>">0</span>
-                                <button type="button" class="btn-qty btn-card-plus" data-id="<?= e($item['id']) ?>" <?= $stock <= 0 ? 'disabled' : '' ?>>+</button>
+                                <button type="button" class="btn-qty btn-card-plus" data-id="<?= e($item['id']) ?>" <?= ($stock <= 0 || $availability !== 'Available') ? 'disabled' : '' ?>>+</button>
                             </div>
                         </div>
                     </div>
@@ -1633,18 +2109,24 @@ include ROOT_PATH . '/includes/header.php';
             <?php if ($bilaoCatId): ?>
                 <?php foreach ($bilao_groups as $dish => $info): ?>
                     <?php
-                    $default_size = 'S';
+                    $default_size = !empty($info['eligible_sizes'])
+                        ? $info['eligible_sizes'][0]
+                        : (!empty($info['active_sizes']) ? $info['active_sizes'][0] : 'S');
                     $default_variant = $info['variants'][$default_size];
                     $init_id = $default_variant['id'];
                     $init_price = $default_variant['price'];
-                    $init_name = $dish . ' S';
+                    $init_name = $dish . ' (' . $default_size . ')';
                     $init_desc = $default_variant['desc'];
                     $json_variants = htmlspecialchars(json_encode($info['variants']), ENT_QUOTES, 'UTF-8');
                     $init_stock = max(0, (int)($default_variant['stock'] ?? 0));
-                    $init_availability = $default_variant['availability'] ?? 'Available';
+                    $init_availability = !empty($default_variant['is_archived']) ? 'Archived' : ($default_variant['availability'] ?? 'Available');
+                    $init_unavailable = ($init_stock <= 0 || $init_availability !== 'Available');
+                    $tray_img_url = $info['tray_image_url'] ?: menu_image_url($info['tray_image'] ?? $info['image'] ?? '');
+                    $bilao_img_url = $info['bilao_image_url'] ?: menu_image_url($info['bilao_image'] ?? $info['image'] ?? '');
+                    $default_img_url = $bilao_img_url ?: ($tray_img_url ?: (BASE_URL . '/assets/img/food-placeholder.svg'));
                     ?>
 
-                    <article class="food-card bilao-card bilao-centered-card"
+                    <article class="food-card bilao-card bilao-centered-card <?= $init_unavailable ? 'unavailable' : '' ?>"
                              data-cat="<?= e($bilaoCatId) ?>"
                              data-subcat="<?= e($info['subcat']) ?>"
                              data-id="<?= e($init_id) ?>"
@@ -1653,28 +2135,44 @@ include ROOT_PATH . '/includes/header.php';
                              data-stock="<?= e($init_stock) ?>"
                              data-availability="<?= e($init_availability) ?>"
                              data-base="<?= e($dish) ?>"
+                             data-size="<?= e($default_size) ?>"
+                             data-packaging=""
+                             data-tray-img="<?= e($tray_img_url) ?>"
+                             data-bilao-img="<?= e($bilao_img_url) ?>"
                              data-variants='<?= $json_variants ?>'>
 
-                        <span class="stock-badge <?= $init_stock <= 0 ? 'out-of-stock' : ($init_stock <= 5 ? 'low-stock' : '') ?>">
-                            <?= $init_stock > 0 ? e($init_stock) . ' pcs left' : 'Out of Stock' ?>
+                        <span class="stock-badge <?= ($init_stock <= 0 || $init_availability !== 'Available') ? 'out-of-stock' : ($init_stock <= 5 ? 'low-stock' : '') ?>">
+                            <?= $init_availability !== 'Available' ? 'Unavailable' : ($init_stock <= 0 ? 'Out of Stock' : ($init_stock <= 5 ? 'Only ' . e($init_stock) . ' left' : e($init_stock) . ' pcs left')) ?>
                         </span>
 
-                        <?php if ($info['image']): ?>
-                            <img src="<?= BASE_URL ?>/uploads/menu/<?= e($info['image']) ?>" alt="<?= e($dish) ?>">
-                        <?php else: ?>
-                            <img src="<?= BASE_URL ?>/assets/img/food-placeholder.svg" alt="">
-                        <?php endif; ?>
+                        <img src="<?= e($default_img_url) ?>" alt="<?= e($dish) ?>">
 
                         <div class="bilao-center-content">
                             <h3 class="bilao-title"><?= e($dish) ?></h3>
                             <p class="bilao-desc"><?= e($init_desc) ?></p>
 
                             <div class="bilao-sizes-row size-group" onclick="event.stopPropagation();">
-                                <button type="button" class="bilao-size-btn size-btn active" data-size="S">S</button>
-                                <button type="button" class="bilao-size-btn size-btn" data-size="M">M</button>
-                                <button type="button" class="bilao-size-btn size-btn" data-size="L">L</button>
-                                <button type="button" class="bilao-size-btn size-btn" data-size="XL">XL</button>
+                                <?php foreach (['S', 'M', 'L', 'XL'] as $szBtn): ?>
+                                    <?php $szArchived = !empty($info['variants'][$szBtn]['is_archived']); ?>
+                                    <button type="button"
+                                            class="bilao-size-btn size-btn <?= $szBtn === $default_size ? 'active' : '' ?>"
+                                            data-size="<?= e($szBtn) ?>"
+                                            title="<?= in_array($szBtn, ['M','L','XL']) ? 'Advance reservation required' : '' ?>"
+                                            <?= $szArchived ? 'disabled hidden style="display:none;"' : '' ?>><?= e($szBtn) ?></button>
+                                <?php endforeach; ?>
                             </div>
+
+                            <div class="bilao-pkg-row" onclick="event.stopPropagation();">
+                                <button type="button" class="bilao-pkg-btn pkg-btn" data-pkg="Tray">Tray</button>
+                                <button type="button" class="bilao-pkg-btn pkg-btn" data-pkg="Bilao">Bilao</button>
+                            </div>
+                            <p class="bilao-pkg-hint">Select Tray or Bilao (required)</p>
+
+                            <?php if (in_array($default_size, ['M','L','XL']) || !empty($info['variants']['M']) || !empty($info['variants']['L']) || !empty($info['variants']['XL'])): ?>
+                            <p class="bilao-reservation-note" style="font-size:0.8rem;color:#343434;margin:3px 0 0;font-weight:500;">
+                                <i class="bi bi-clock"></i> M / L / XL require advance reservation
+                            </p>
+                            <?php endif; ?>
 
                             <strong class="bilao-price"><?= money($init_price) ?></strong>
                         </div>
@@ -1684,18 +2182,45 @@ include ROOT_PATH . '/includes/header.php';
         </div>
     </section>
 
-    <aside class="card receipt-panel">
+    <aside class="card receipt-panel" id="receiptPanel">
         <div class="receipt-brand">
+            <!-- Row 1: Logo + Brand name + main action buttons -->
             <div class="receipt-header-row">
                 <div class="receipt-brand-left">
-                    <img src="<?= BASE_URL ?>/assets/img/logo.jpg" alt="Kenji's Kitchen" class="brand-mark" style="width: 32px; height: 32px; border-radius: 8px; object-fit: cover;">
+                    <img src="<?= BASE_URL ?>/assets/img/logo.png" alt="Kenji's Kitchen" class="brand-mark" style="width: 32px; height: 32px; border-radius: 8px; object-fit: cover;">
                     <div class="brand-text-col">
-                        <h2>KENJI'S kitchen</h2>
+                        <h2>Kenji's Kitchen</h2>
                         <span class="order-pill"><i class="bi bi-receipt"></i> Order #<?= e($orderTicket) ?></span>
                     </div>
                 </div>
 
                 <div class="receipt-header-actions">
+                    <button type="button" class="btn-online-orders" id="openDrawerModalBtn" onclick="openCashDrawerModal()" title="Open Cash Drawer (Security PIN required)" style="background:#0f172a; border-color:#0f172a; color:#fff;">
+                        <i class="bi bi-safe2"></i> Drawer
+                    </button>
+
+                    <button type="button" class="btn-online-orders" id="closeShiftBtn" onclick="openCloseShiftModal()" title="End Shift" style="background:#fff; border-color:#d6d6d6; color:#242424;">
+                        <i class="bi bi-box-arrow-right"></i> End Shift
+                    </button>
+                </div>
+            </div>
+
+            <!-- Row 2: Cashier badge + secondary action buttons -->
+            <div class="receipt-header-row2">
+                <div class="receipt-header-row2-left">
+                    <div id="activeCashierBadgeWrap" style="display:inline-flex; align-items:center; gap:6px;">
+                        <span class="badge" id="activeCashierBadge" style="background:#f5f5f3; color:#242424; font-size:13px; padding:8px 10px; border-radius:8px; font-weight:600;">
+                            <i class="bi bi-person-badge"></i> <span id="activeCashierName">Checking...</span>
+                        </span>
+                        <button type="button" onclick="promptSwitchCashier()" title="Switch Cashier" style="background:none; border:none; color:#64748b; cursor:pointer; font-size:12px; padding:0; text-decoration:underline;">Switch</button>
+                    </div>
+                </div>
+
+                <div class="receipt-header-row2-right">
+                    <button type="button" class="pos-back-to-menu-btn" onclick="document.querySelector('.pos-menu-panel')?.scrollIntoView({behavior:'smooth',block:'start'})">
+                        <i class="bi bi-arrow-up"></i> Menu
+                    </button>
+
                     <button type="button" class="btn-online-orders" id="onlineOrdersBtn" title="View active online orders">
                         <i class="bi bi-phone"></i> Online Orders
                         <span id="onlineOrdersBadge" class="online-orders-badge">0</span>
@@ -1710,7 +2235,7 @@ include ROOT_PATH . '/includes/header.php';
 
         <div class="receipt-form-top">
             <div class="field">
-                <label>Order Type</label>
+                <label for="orderType">Order Type</label>
                 <select id="orderType">
                     <option value="">Select type</option>
                     <option value="DINE-IN">Dine-In</option>
@@ -1719,11 +2244,12 @@ include ROOT_PATH . '/includes/header.php';
             </div>
 
             <div class="field">
-                <label>Table No.</label>
+                <label for="tableNo">Table No.</label>
                 <input id="tableNo" type="text" inputmode="none" readonly maxlength="2" placeholder="1–10" data-keypad-type="table" aria-label="Table number">
             </div>
         </div>
 
+        <div id="posCartStockBanner" class="pos-cart-stock-banner" role="status" aria-live="polite" hidden></div>
         <div class="cart-items" id="cartItems"></div>
 
         <div class="receipt-bottom-section">
@@ -1754,6 +2280,23 @@ include ROOT_PATH . '/includes/header.php';
                 <div>
                     <span>Subtotal</span>
                     <strong id="subtotal">₱0.00</strong>
+                </div>
+
+                <!-- Automatic Senior Citizen & PWD Discount Selector -->
+                <div class="pos-discount-quick-btns">
+                    <button type="button" class="pos-disc-btn" id="btnDiscountSenior" onclick="toggleQuickDiscount('Senior')">
+                        <i class="bi bi-person-heart"></i> Senior (20%)
+                    </button>
+                    <button type="button" class="pos-disc-btn" id="btnDiscountPwd" onclick="toggleQuickDiscount('PWD')">
+                        <i class="bi bi-universal-access"></i> PWD (20%)
+                    </button>
+                </div>
+
+                <div class="pos-disc-badge-row" id="posDiscBadgeRow">
+                    <span class="badge-text" id="posDiscBadgeText">
+                        <i class="bi bi-check-circle-fill"></i> Senior Citizen Applied
+                    </span>
+                    <button type="button" class="remove-btn" onclick="removeQuickDiscount()" title="Remove Discount">&times;</button>
                 </div>
 
                 <div class="discount-line">
@@ -1811,6 +2354,13 @@ include ROOT_PATH . '/includes/header.php';
                 </div>
             </div>
 
+            <div id="tenderGcashAttestWrap" style="display: none; margin-bottom: 6px; padding: 6px 10px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px;">
+                <label style="display: flex; align-items: center; gap: 8px; font-size: 0.78rem; font-weight: 600; color: #1e3a8a; cursor: pointer; user-select: none; margin: 0;">
+                    <input type="checkbox" id="gcashCashierAttested" style="width: 16px; height: 16px; accent-color: #2563eb; cursor: pointer;">
+                    <span>Payment verified on merchant phone / POS terminal</span>
+                </label>
+            </div>
+
             <div class="payment-toggle-row">
                 <button
                     type="button"
@@ -1839,6 +2389,16 @@ include ROOT_PATH . '/includes/header.php';
             </div>
         </div>
     </aside>
+</div>
+
+<div class="pos-mobile-order-bar" id="posMobileOrderBar" aria-label="Quick POS Order Summary">
+    <div class="pos-mobile-order-meta">
+        <small id="posMobileCartCount">0 items in order</small>
+        <strong id="posMobileCartTotal">₱0.00</strong>
+    </div>
+    <button type="button" class="pos-mobile-order-cta" onclick="document.getElementById('receiptPanel')?.scrollIntoView({behavior:'smooth',block:'start'})">
+        View Cart &amp; Checkout <i class="bi bi-arrow-down-circle"></i>
+    </button>
 </div>
 
 <div class="pos-keypad-overlay" id="posKeypadOverlay" hidden>
@@ -1886,6 +2446,197 @@ include ROOT_PATH . '/includes/header.php';
         <div class="online-orders-list" id="onlineOrdersList">
             <div class="online-orders-empty">Loading online orders...</div>
         </div>
+    </div>
+</div>
+
+<!-- Senior Citizen / PWD Verification Modal -->
+<div class="online-orders-overlay" id="seniorPwdModalOverlay" hidden style="background:rgba(15,23,42,0.7); z-index:99999;">
+    <div style="background:#ffffff; border-radius:18px; width:100%; max-width:420px; padding:28px 24px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.35); position:relative; margin:auto;">
+        <button type="button" onclick="closeSeniorPwdModal()" style="position:absolute; top:16px; right:16px; background:none; border:none; font-size:1.4rem; color:#64748b; cursor:pointer; line-height:1;">&times;</button>
+        
+        <div style="text-align:center; margin-bottom:18px;">
+            <div id="spModalIconWrap" style="width:54px; height:54px; background:#fef3c7; color:#d97706; border-radius:16px; display:inline-flex; align-items:center; justify-content:center; font-size:1.6rem; margin-bottom:10px;">
+                <i class="bi bi-person-badge-fill"></i>
+            </div>
+            <h3 id="spModalTitle" style="margin:0 0 4px; font-size:1.25rem; font-weight:800; color:#0f172a;">Senior Citizen Verification</h3>
+            <p style="margin:0; font-size:0.83rem; color:#64748b;">Verify the customer's ID under R.A. 9994 / 10754 (20% Discount).</p>
+        </div>
+
+        <form id="seniorPwdForm" onsubmit="event.preventDefault(); confirmSeniorPwdDiscount();" style="text-align:left;">
+            <div style="margin-bottom:14px;">
+                <label style="display:block; font-size:0.82rem; font-weight:700; color:#334155; margin-bottom:5px;">
+                    Customer Full Name <span style="color:#dc2626;">*</span>
+                </label>
+                <input type="text" id="spCustomerName" placeholder="e.g. Juanita Dela Cruz" required
+                    style="width:100%; font-size:0.95rem; padding:10px 12px; border:1.5px solid #cbd5e1; border-radius:8px; font-weight:600; color:#0f172a;">
+            </div>
+
+            <div style="margin-bottom:14px;">
+                <label style="display:block; font-size:0.82rem; font-weight:700; color:#334155; margin-bottom:5px;">
+                    <span id="spIdLabel">Senior Citizen ID / OSCA #</span> <span style="color:#dc2626;">*</span>
+                </label>
+                <input type="text" id="spIdNumber" placeholder="e.g. OSCA-2024-12345" required
+                    style="width:100%; font-size:0.95rem; padding:10px 12px; border:1.5px solid #cbd5e1; border-radius:8px; font-weight:600; color:#0f172a;">
+            </div>
+
+            <div style="margin-bottom:18px; padding:10px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; font-size:0.78rem; color:#475569;">
+                <div style="display:flex; align-items:center; gap:6px; margin-bottom:4px; font-weight:700; color:#0f172a;">
+                    <i class="bi bi-info-circle-fill" style="color:#0284c7;"></i> Discount Eligibility Note:
+                </div>
+                <div>Per BIR rules, 20% discount applies to individual personal consumption meals. Bilao catering favorites are bulk-sized and non-discountable.</div>
+            </div>
+
+            <div id="spModalErrorMsg" style="display:none; color:#dc2626; font-size:0.82rem; font-weight:700; margin-bottom:14px; background:#fee2e2; padding:8px 12px; border-radius:8px;"></div>
+
+            <div style="display:flex; gap:10px;">
+                <button type="button" onclick="closeSeniorPwdModal()" style="flex:1; padding:10px 14px; border:1px solid #cbd5e1; background:#f8fafc; color:#475569; font-weight:700; border-radius:10px; cursor:pointer;">Cancel</button>
+                <button type="submit" id="btnConfirmSpDiscount" style="flex:1.5; padding:10px 14px; border:none; background:#F2C12E; color:#232323; font-weight:800; border-radius:10px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:6px;">
+                    <i class="bi bi-check2-circle"></i> Apply Discount
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Close Shift Modal -->
+<div class="online-orders-overlay" id="closeShiftModalOverlay" hidden style="background:rgba(20,20,20,0.65); z-index:99999;">
+    <div style="background:#fff; border-radius:18px; width:100%; max-width:440px; max-height:90vh; overflow-y:auto; padding:28px 24px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.35); position:relative; margin:auto;">
+        <button type="button" aria-label="Close End Shift" onclick="closeShiftModal()" style="position:absolute; top:16px; right:16px; background:none; border:none; font-size:1.4rem; color:#64748b; cursor:pointer; line-height:1;">&times;</button>
+        <div style="text-align:center; margin-bottom:18px;">
+            <div style="width:52px; height:52px; background:#f7c62f; border-radius:14px; display:flex; align-items:center; justify-content:center; margin:0 auto 12px;">
+                <i class="bi bi-box-arrow-right" style="font-size:1.5rem; color:#242424;"></i>
+            </div>
+            <h3 style="margin:0 0 6px; font-size:1.5rem; font-weight:800; color:#0f172a;">End Shift</h3>
+            <p style="margin:0; font-size:0.9rem; line-height:1.5; color:#64748b;">Enter the actual cash counted in the drawer to close your shift.</p>
+        </div>
+        <div id="shiftSummaryBox" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px; margin-bottom:16px; font-size:0.83rem; color:#334155; display:none;">
+            <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>Opening Cash</span><span id="ss_opening">—</span></div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>Cash Sales</span><span id="ss_cash_sales">—</span></div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>GCash Sales</span><span id="ss_gcash_sales">—</span></div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>Cash Refunds Out</span><span id="ss_cash_refunds" style="color:#dc2626;">—</span></div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>Total Sales</span><span id="ss_total_sales" style="font-weight:700;">—</span></div>
+            <div style="display:flex; justify-content:space-between; border-top:1px solid #e2e8f0; padding-top:6px; margin-top:6px;"><span>Expected Cash</span><span id="ss_expected" style="font-weight:700; color:#059669;">—</span></div>
+        </div>
+        <div style="margin-bottom:14px;">
+            <label for="closingCashInput" style="font-size:0.9rem; font-weight:700; color:#374151; display:block; margin-bottom:6px;">Actual Cash Counted (₱)</label>
+            <input type="number" id="closingCashInput" min="0" step="0.01" placeholder="0.00"
+                style="width:100%; font-size:1.4rem; text-align:center; padding:10px 14px; border:2px solid #cbd5e1; border-radius:10px; font-weight:700;" autocomplete="off">
+        </div>
+        <div style="margin-bottom:14px;">
+            <label for="shiftRemarksInput" style="font-size:0.9rem; font-weight:700; color:#374151; display:block; margin-bottom:6px;">Remarks / Notes <span id="remarksRequired" style="color:#dc2626; display:none;">* Required (variance too large)</span></label>
+            <textarea id="shiftRemarksInput" rows="2" placeholder="Optional notes about this shift..."
+                style="width:100%; padding:9px 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:0.85rem; resize:vertical;"></textarea>
+        </div>
+        <div id="shiftCloseErrorMsg" style="display:none; color:#dc2626; font-size:0.9rem; font-weight:700; margin-bottom:12px; background:#fee2e2; padding:8px 12px; border-radius:8px;"></div>
+        <div id="shiftCloseSuccessMsg" style="display:none; color:#059669; font-size:0.9rem; line-height:1.5; font-weight:700; margin-bottom:12px; background:#d1fae5; padding:8px 12px; border-radius:8px; text-align:center;"></div>
+        <div style="display:flex; gap:10px;">
+            <button type="button" onclick="closeShiftModal()" style="flex:1; padding:10px 14px; border:1px solid #cbd5e1; background:#f8fafc; color:#475569; font-weight:700; border-radius:10px; cursor:pointer;">Cancel</button>
+            <button type="button" id="btnEndShift" onclick="submitEndShift()" style="flex:1.4; padding:10px 14px; border:none; background:#f7c62f; color:#242424; font-weight:700; border-radius:10px; cursor:pointer;">
+                <i class="bi bi-box-arrow-right"></i> End Shift
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Open Shift Modal -->
+<div class="online-orders-overlay" id="openShiftModalOverlay" hidden role="dialog" aria-modal="true" aria-labelledby="openShiftTitle" aria-describedby="openShiftHelp">
+    <div class="pos-shift-card">
+        <div class="pos-shift-heading">
+            <span class="pos-shift-icon" aria-hidden="true"><i class="bi bi-cash-stack"></i></span>
+            <div><span class="pos-shift-brand">Kenji’s Kitchen · POS</span><h3 id="openShiftTitle">Open shift</h3></div>
+        </div>
+        <p class="pos-shift-cashier"><i class="bi bi-person" aria-hidden="true"></i> <strong id="openShiftCashierName">Cashier</strong></p>
+        <label class="pos-shift-label" for="openingCashInput">Opening cash</label>
+        <p id="openShiftHelp">Enter the cash in your drawer before taking orders.</p>
+        <div class="pos-shift-amount">
+            <span aria-hidden="true">₱</span>
+            <input type="number" id="openingCashInput" min="0" step="0.01" placeholder="0.00" value="" inputmode="decimal" autocomplete="off" aria-label="Opening cash in pesos" aria-describedby="openShiftHelp openShiftErrorMsg"
+                onkeydown="if(event.key==='Enter' && !event.isComposing) { event.preventDefault(); submitOpenShift(); }">
+        </div>
+        <div id="openShiftErrorMsg" role="alert" style="display:none"></div>
+        <div class="pos-shift-actions">
+            <button type="button" id="btnOpenShift" onclick="submitOpenShift()" class="pos-shift-start" style="width:100%;"><i class="bi bi-play-circle-fill" aria-hidden="true"></i> Start shift</button>
+        </div>
+    </div>
+</div>
+
+<!-- Cash Drawer Access Modal -->
+<div class="online-orders-overlay" id="cashDrawerModalOverlay" hidden style="background:rgba(20,20,20,0.65); z-index:99999;">
+    <div style="background:#fff; border-radius:18px; width:100%; max-width:440px; max-height:90vh; overflow-y:auto; padding:26px 24px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.35); text-align:center; position:relative; margin:auto;">
+        <button type="button" aria-label="Close Cash Drawer" onclick="closeCashDrawerModal()" style="position:absolute; top:16px; right:16px; background:none; border:none; font-size:1.4rem; color:#64748b; cursor:pointer; line-height:1;">&times;</button>
+        
+        <div style="width:56px; height:56px; background:#f7c62f; color:#242424; border-radius:16px; display:inline-flex; align-items:center; justify-content:center; font-size:1.6rem; margin-bottom:12px;">
+            <i class="bi bi-safe2-fill"></i>
+        </div>
+        
+        <h3 style="margin:0 0 6px; font-size:1.5rem; font-weight:800; color:#0f172a;">Open Cash Drawer</h3>
+        <p style="margin:0 0 18px; font-size:0.9rem; line-height:1.5; color:#64748b;"><?= role_key() === 'admin' ? 'Select a reason to authorize and record drawer access.' : 'Re-enter your cashier PIN to record drawer access. Physical drawer control requires a connected device.' ?></p>
+        
+        <div id="drawerPinWrap" style="margin-bottom:16px; text-align:left; <?= role_key() === 'admin' ? 'display:none;' : '' ?>">
+            <label for="drawerPinInput" style="display:block; font-size:0.9rem; font-weight:700; color:#475569; margin-bottom:6px;">Security PIN</label>
+            <input type="password" id="drawerPinInput" maxlength="4" placeholder="••••" style="width:100%; font-size:1.6rem; text-align:center; letter-spacing:8px; padding:10px 14px; border:2px solid #cbd5e1; border-radius:10px; font-weight:800;" autocomplete="off" onkeydown="if(event.key==='Enter') submitCashDrawerUnlock()">
+        </div>
+
+        <div style="margin-bottom:18px; text-align:left;">
+            <label for="drawerReasonSelect" style="display:block; font-size:0.9rem; font-weight:700; color:#475569; margin-bottom:6px;">Reason for Opening</label>
+            <select id="drawerReasonSelect" style="width:100%; padding:9px 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:0.9rem; line-height:1.5; font-weight:600; color:#1e293b;">
+                <option value="Customer Change / Panukli Refill">Customer Change / Panukli Refill</option>
+                <option value="Shift Float Deposit (₱4,000)">Shift Float Deposit (₱4,000)</option>
+                <option value="Auditing / Cash Count">Auditing / Cash Count</option>
+                <option value="Manual Drawer Check">Manual Drawer Check</option>
+            </select>
+        </div>
+
+        <div id="drawerErrorMsg" style="display:none; color:#dc2626; font-size:0.82rem; font-weight:700; margin-bottom:14px; background:#fee2e2; padding:8px 12px; border-radius:8px;"></div>
+        <div id="drawerSuccessMsg" style="display:none; color:#059669; font-size:0.9rem; line-height:1.5; font-weight:700; margin-bottom:14px; background:#d1fae5; padding:8px 12px; border-radius:8px;"></div>
+
+        <div style="display:flex; gap:10px;">
+            <button type="button" onclick="closeCashDrawerModal()" style="flex:1; padding:10px 14px; border:1px solid #cbd5e1; background:#f8fafc; color:#475569; font-weight:700; border-radius:10px; cursor:pointer;">Cancel</button>
+            <button type="button" id="btnUnlockDrawer" onclick="submitCashDrawerUnlock()" style="flex:1.4; padding:10px 14px; border:none; background:#f7c62f; color:#242424; font-weight:700; border-radius:10px; cursor:pointer;">
+                <i class="bi bi-unlock-fill"></i> Unlock Drawer
+            </button>
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- 1. Automatic Cashier Authentication Modal -->
+<div id="cashierAuthModalOverlay" style="display:<?= (role_key() === 'admin' || !empty($_SESSION['pos_active_cashier'])) ? 'none' : 'flex' ?>; position:fixed; inset:0; background:rgba(20,20,20,0.65); z-index:999999; backdrop-filter:blur(4px); align-items:center; justify-content:center; padding:16px;">
+    <div style="background:#ffffff; border-radius:20px; width:100%; max-width:420px; padding:32px 28px; box-shadow:0 25px 60px -15px rgba(0,0,0,0.5); text-align:center; position:relative; border:1px solid #e2e8f0;">
+        <?php if (role_key() === 'admin'): ?>
+        <button type="button" onclick="hideCashierAuthModal()" style="position:absolute; top:18px; right:18px; background:none; border:none; font-size:1.6rem; color:#94a3b8; cursor:pointer; line-height:1; width:32px; height:32px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; transition:background 0.2s, color 0.2s;" onmouseover="this.style.background='#f1f5f9'; this.style.color='#0f172a';" onmouseout="this.style.background='none'; this.style.color='#94a3b8';" title="Close">&times;</button>
+        <?php endif; ?>
+        <div style="width:64px; height:64px; background:#f7c62f; color:#242424; border-radius:18px; display:inline-flex; align-items:center; justify-content:center; font-size:2rem; margin-bottom:16px; box-shadow:none;">
+            <i class="bi bi-person-badge-fill"></i>
+        </div>
+
+        <h3 style="margin:0 0 6px; font-size:1.5rem; font-weight:800; color:#0f172a;">Cashier Sign In</h3>
+        <p style="margin:0 0 22px; font-size:0.88rem; color:#64748b;">Sign in to start taking orders at Kenji's Kitchen.</p>
+
+        <form id="cashierAuthForm" onsubmit="event.preventDefault(); submitCashierLogin();" style="text-align:left;">
+            <div style="margin-bottom:16px;">
+                <label for="cashierUsernameInput" style="display:block; font-size:0.82rem; font-weight:700; color:#334155; margin-bottom:6px;">Cashier Username</label>
+                <div style="position:relative;">
+                    <i class="bi bi-person" style="position:absolute; left:14px; top:50%; transform:translateY(-50%); color:#94a3b8; font-size:1.1rem;"></i>
+                    <input type="text" id="cashierUsernameInput" placeholder="e.g. C1 or C2" required style="width:100%; font-size:1rem; padding:11px 14px 11px 40px; border:2px solid #cbd5e1; border-radius:10px; font-weight:600; color:#0f172a; " autocomplete="username" autofocus>
+                </div>
+            </div>
+
+            <div style="margin-bottom:20px;">
+                <label for="cashierPinInput" style="display:block; font-size:0.82rem; font-weight:700; color:#334155; margin-bottom:6px;">4-Digit PIN</label>
+                <div style="position:relative;">
+                    <i class="bi bi-key" style="position:absolute; left:14px; top:50%; transform:translateY(-50%); color:#94a3b8; font-size:1.1rem;"></i>
+                    <input type="password" id="cashierPinInput" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" placeholder="••••" required style="width:100%; font-size:1.4rem; padding:9px 14px 9px 40px; border:2px solid #cbd5e1; border-radius:10px; font-weight:800; letter-spacing:6px; color:#0f172a;" autocomplete="current-password">
+                </div>
+            </div>
+
+            <div id="cashierAuthErrorMsg" style="display:none; color:#dc2626; font-size:0.84rem; font-weight:700; margin-bottom:16px; background:#fee2e2; padding:10px 14px; border-radius:10px;"></div>
+            <div id="cashierAuthSuccessMsg" style="display:none; color:#059669; font-size:0.86rem; font-weight:700; margin-bottom:16px; background:#d1fae5; padding:10px 14px; border-radius:10px;"></div>
+
+            <button type="submit" id="btnCashierLogin" style="width:100%; padding:12px 18px; border:none; background:#f7c62f; color:#242424; font-size:1rem; font-weight:800; border-radius:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; box-shadow:none; transition:all 0.2s;">
+                <i class="bi bi-shield-check"></i> Verify & Access POS
+            </button>
+        </form>
     </div>
 </div>
 
@@ -1999,38 +2750,66 @@ document.addEventListener('DOMContentLoaded', function() {
         const baseName = card.dataset.base;
         const priceTag = card.querySelector('.bilao-price');
         const descTag = card.querySelector('.bilao-desc');
+        const imgTag = card.querySelector('img');
+        const pkgRow = card.querySelector('.bilao-pkg-row');
+        const pkgHint = card.querySelector('.bilao-pkg-hint');
 
         function updateCardState() {
             const activeSize =
                 card.querySelector('.size-btn.active')?.dataset.size || 'S';
+            const activePkg =
+                card.querySelector('.pkg-btn.active')?.dataset.pkg || '';
 
             const variants = JSON.parse(card.dataset.variants || '{}');
             const v = variants[activeSize];
 
             if (v) {
-                const stock = Math.max(0, Number(v.stock ?? 0));
-                const availability = v.availability || 'Available';
-                const unavailable = availability !== 'Available' || stock <= 0;
+                const isArchived = Boolean(v.is_archived);
+                const stock = isArchived ? 0 : Math.max(0, Number(v.stock ?? 0));
+                const availability = isArchived ? 'Archived' : (v.availability || 'Available');
+                const unavailable = isArchived || availability !== 'Available' || stock <= 0;
 
                 card.dataset.id = v.id;
                 card.dataset.price = v.price;
-                card.dataset.name = baseName + ' ' + activeSize;
+                card.dataset.size = activeSize;
+                card.dataset.packaging = activePkg;
+                card.dataset.name = activePkg ? `${baseName} ${activePkg} (${activeSize})` : `${baseName} (${activeSize})`;
                 card.dataset.stock = String(Math.floor(stock));
                 card.dataset.availability = availability;
                 card.classList.toggle('unavailable', unavailable);
+
+                if (imgTag) {
+                    const nextImg = activePkg === 'Tray'
+                        ? (card.dataset.trayImg || card.dataset.bilaoImg)
+                        : (card.dataset.bilaoImg || card.dataset.trayImg);
+                    if (nextImg) imgTag.src = nextImg;
+                }
+
+                if (pkgHint) {
+                    if (activePkg) {
+                        pkgHint.textContent = `Packaging: ${activePkg}`;
+                        pkgHint.classList.remove('is-error');
+                        if (pkgRow) pkgRow.classList.remove('pkg-needs-selection');
+                    } else {
+                        pkgHint.textContent = 'Select Tray or Bilao (required)';
+                    }
+                }
 
                 const stockBadge = card.querySelector('.stock-badge');
                 if (stockBadge) {
                     stockBadge.classList.remove('low-stock', 'out-of-stock');
 
-                    if (stock <= 0) {
+                    if (availability !== 'Available') {
+                        stockBadge.classList.add('out-of-stock');
+                        stockBadge.textContent = 'Unavailable';
+                    } else if (stock <= 0) {
                         stockBadge.classList.add('out-of-stock');
                         stockBadge.textContent = 'Out of Stock';
                     } else {
                         if (stock <= 5) {
                             stockBadge.classList.add('low-stock');
                         }
-                        stockBadge.textContent = Math.floor(stock) + ' pcs left';
+                        stockBadge.textContent = stock <= 5 ? `Only ${Math.floor(stock)} left` : `${Math.floor(stock)} pcs left`;
                     }
                 }
 
@@ -2059,6 +2838,22 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 this.classList.add('active');
                 updateCardState();
+                if (typeof updateMenuCardControls === 'function') {
+                    updateMenuCardControls();
+                }
+            });
+        });
+
+        card.querySelectorAll('.pkg-btn').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+
+                card
+                    .querySelectorAll('.pkg-btn')
+                    .forEach(b => b.classList.remove('active'));
+
+                this.classList.add('active');
+                updateCardState();
             });
         });
 
@@ -2067,6 +2862,376 @@ document.addEventListener('DOMContentLoaded', function() {
 
     updateSubFilterVisibility();
 });
+
+function openCashDrawerModal() {
+    var overlay = document.getElementById('cashDrawerModalOverlay');
+    var pinInput = document.getElementById('drawerPinInput');
+    var err = document.getElementById('drawerErrorMsg');
+    var succ = document.getElementById('drawerSuccessMsg');
+    if (err) err.style.display = 'none';
+    if (succ) succ.style.display = 'none';
+    if (pinInput) pinInput.value = '';
+    if (overlay) {
+        overlay.removeAttribute('hidden');
+        overlay.style.display = 'flex';
+    }
+    setTimeout(function() {
+        if (pinInput) pinInput.focus();
+    }, 100);
+}
+
+function closeCashDrawerModal() {
+    var overlay = document.getElementById('cashDrawerModalOverlay');
+    if (overlay) {
+        overlay.setAttribute('hidden', '');
+        overlay.style.display = 'none';
+    }
+}
+
+async function submitCashDrawerUnlock() {
+    var pinInput = document.getElementById('drawerPinInput');
+    var reasonSelect = document.getElementById('drawerReasonSelect');
+    var err = document.getElementById('drawerErrorMsg');
+    var succ = document.getElementById('drawerSuccessMsg');
+    var btn = document.getElementById('btnUnlockDrawer');
+
+    var pin = (pinInput ? pinInput.value.trim() : '');
+    var reason = (reasonSelect ? reasonSelect.value : '');
+    var isAdminActive = currentActiveCashier && String(currentActiveCashier.role || currentActiveCashier.role_name || '').toLowerCase() === 'admin';
+
+    if (!pin && !isAdminActive) {
+        if (err) { err.textContent = 'Please enter a 4-digit PIN.'; err.style.display = 'block'; }
+        if (succ) succ.style.display = 'none';
+        return;
+    }
+
+    if (btn) btn.disabled = true;
+
+    try {
+        var res = await fetch('<?= BASE_URL ?>/modules/pos/drawer_api.php?action=open_drawer', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': KK_CSRF_TOKEN
+            },
+            body: JSON.stringify({ pin: pin, reason: reason })
+        });
+        var data = await res.json();
+        if (data.ok) {
+            if (err) err.style.display = 'none';
+            if (succ) {
+                succ.innerHTML = '<i class="bi bi-check-circle-fill"></i> ' + data.msg + ' (' + data.pin_role + ')';
+                succ.style.display = 'block';
+            }
+            if (pinInput) pinInput.value = '';
+            setTimeout(function() {
+                closeCashDrawerModal();
+            }, 1200);
+        } else {
+            if (succ) succ.style.display = 'none';
+            if (err) {
+                err.innerHTML = '<i class="bi bi-exclamation-triangle-fill"></i> ' + (data.msg || 'Invalid PIN.');
+                err.style.display = 'block';
+            }
+            if (pinInput) { pinInput.value = ''; pinInput.focus(); }
+        }
+    } catch (e) {
+        if (err) {
+            err.textContent = 'Network or server error while contacting drawer.';
+            err.style.display = 'block';
+        }
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
+// -------------------------------------------------------------
+// POS Cashier Automatic Authentication Flow
+// -------------------------------------------------------------
+let currentActiveCashier = null;
+
+async function checkPosCashierAuth() {
+    try {
+        const res = await fetch('<?= BASE_URL ?>/modules/pos/cashier_auth_api.php?action=current');
+        const data = await res.json();
+        if (data.ok && data.authenticated && data.cashier) {
+            setAuthenticatedCashier(data.cashier);
+        } else {
+            showCashierAuthModal();
+        }
+    } catch (e) {
+        showCashierAuthModal();
+    }
+}
+
+function showCashierAuthModal() {
+    const overlay = document.getElementById('cashierAuthModalOverlay');
+    const uInput = document.getElementById('cashierUsernameInput');
+    const pInput = document.getElementById('cashierPinInput');
+    const err = document.getElementById('cashierAuthErrorMsg');
+    const succ = document.getElementById('cashierAuthSuccessMsg');
+    if (err) err.style.display = 'none';
+    if (succ) succ.style.display = 'none';
+    if (uInput) uInput.value = '';
+    if (pInput) pInput.value = '';
+
+    if (overlay) {
+        overlay.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+    }
+    setTimeout(() => {
+        if (uInput) uInput.focus();
+    }, 150);
+}
+
+function hideCashierAuthModal() {
+    const overlay = document.getElementById('cashierAuthModalOverlay');
+    if (overlay) {
+        overlay.style.display = 'none';
+        document.body.style.overflow = '';
+    }
+}
+
+function setAuthenticatedCashier(cashier) {
+    currentActiveCashier = cashier;
+    const nameEl = document.getElementById('activeCashierName');
+    if (nameEl) {
+        nameEl.textContent = cashier.full_name || cashier.username;
+        nameEl.title = 'Signed in as ' + cashier.username;
+    }
+    const pinWrap = document.getElementById('drawerPinWrap');
+    const isAdminActive = String(cashier.role || cashier.role_name || '').toLowerCase() === 'admin';
+    if (pinWrap) {
+        pinWrap.style.display = isAdminActive ? 'none' : 'block';
+    }
+    hideCashierAuthModal();
+    loadShiftSummary();
+    // After login, check if shift is already open — if not, prompt Cashiers to open one
+    if (!isAdminActive) {
+        checkAndPromptShift(cashier);
+    }
+}
+
+async function checkAndPromptShift(cashier) {
+    try {
+        const res = await fetch('<?= BASE_URL ?>/modules/pos/shift_api.php?action=status&terminal=Main+POS');
+        const data = await res.json();
+        if (data.ok && !data.has_open_shift) {
+            // No open shift — show the Open Shift modal
+            const nameEl = document.getElementById('openShiftCashierName');
+            if (nameEl) nameEl.textContent = cashier.full_name || cashier.username;
+            document.getElementById('openShiftModalOverlay').hidden = false;
+            setTimeout(() => { const inp = document.getElementById('openingCashInput'); if (inp) inp.focus(); }, 100);
+        }
+        // If shift already open, do nothing
+    } catch (_) {}
+}
+
+async function submitOpenShift() {
+    if (document.getElementById('btnOpenShift').disabled) return;
+    const rawCash = document.getElementById('openingCashInput').value.trim();
+    const errBox = document.getElementById('openShiftErrorMsg');
+    if (rawCash === '' || !Number.isFinite(Number(rawCash)) || Number(rawCash) < 0) {
+        errBox.textContent = 'Enter your counted opening cash amount (0.00 or higher).';
+        errBox.style.display = 'block';
+        document.getElementById('openingCashInput')?.focus();
+        return;
+    }
+    const openingCash = Number(rawCash);
+    const btn = document.getElementById('btnOpenShift');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Starting...';
+    errBox.style.display = 'none';
+    try {
+        const res = await fetch('<?= BASE_URL ?>/modules/pos/shift_api.php?action=start', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': KK_CSRF_TOKEN },
+            body: JSON.stringify({ opening_cash: openingCash, terminal: 'Main POS' })
+        });
+        const data = await res.json();
+        if (data.ok) {
+            document.getElementById('openShiftModalOverlay').hidden = true;
+            loadShiftSummary();
+        } else {
+            // If shift already exists for this user/terminal, just close
+            if (data.msg && (data.msg.includes('already') || data.msg.includes('open shift'))) {
+                document.getElementById('openShiftModalOverlay').hidden = true;
+            } else {
+                errBox.textContent = data.msg || 'Failed to start shift.';
+                errBox.style.display = 'block';
+            }
+        }
+    } catch (e) {
+        errBox.textContent = 'Network error. Please try again.';
+        errBox.style.display = 'block';
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-play-circle-fill" aria-hidden="true"></i> Start shift';
+    }
+}
+
+async function submitCashierLogin() {
+    const uInput = document.getElementById('cashierUsernameInput');
+    const pInput = document.getElementById('cashierPinInput');
+    const err = document.getElementById('cashierAuthErrorMsg');
+    const succ = document.getElementById('cashierAuthSuccessMsg');
+    const btn = document.getElementById('btnCashierLogin');
+
+    const username = uInput ? uInput.value.trim() : '';
+    const pin = pInput ? pInput.value.trim() : '';
+
+    if (!username || !pin) {
+        if (err) {
+            err.textContent = 'Please enter both Username and 4-digit PIN.';
+            err.style.display = 'block';
+        }
+        return;
+    }
+
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Verifying...';
+    }
+
+    try {
+        const res = await fetch('<?= BASE_URL ?>/modules/pos/cashier_auth_api.php?action=login', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': KK_CSRF_TOKEN
+            },
+            body: JSON.stringify({ username, pin })
+        });
+        const data = await res.json();
+        if (data.ok && data.cashier) {
+            if (err) err.style.display = 'none';
+            if (succ) {
+                succ.innerHTML = '<i class="bi bi-check-circle-fill"></i> Welcome, ' + data.cashier.full_name + '! Access granted.';
+                succ.style.display = 'block';
+            }
+            setTimeout(() => {
+                setAuthenticatedCashier(data.cashier);
+            }, 800);
+        } else {
+            if (succ) succ.style.display = 'none';
+            if (err) {
+                err.innerHTML = '<i class="bi bi-exclamation-triangle-fill"></i> ' + (data.msg || 'Authentication failed.');
+                err.style.display = 'block';
+            }
+            if (pInput) { pInput.value = ''; pInput.focus(); }
+        }
+    } catch (e) {
+        if (err) {
+            err.textContent = 'Network or server error verifying cashier credentials.';
+            err.style.display = 'block';
+        }
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-shield-check"></i> Verify & Access POS';
+        }
+    }
+}
+
+async function promptSwitchCashier() {
+    try {
+        await fetch('<?= BASE_URL ?>/modules/pos/cashier_auth_api.php?action=logout', { method: 'POST', headers: { 'X-CSRF-Token': KK_CSRF_TOKEN } });
+    } catch (_) {}
+    showCashierAuthModal();
+}
+
+// Automatically initiate cashier check when entering POS
+document.addEventListener('DOMContentLoaded', () => {
+    checkPosCashierAuth();
+});
+var KK_CSRF_TOKEN = <?= json_encode(csrf_token(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+
+/* ===== CLOSE SHIFT MODAL ===== */
+function openCloseShiftModal() {
+    document.getElementById('closeShiftModalOverlay').hidden = false;
+    document.getElementById('shiftCloseErrorMsg').style.display = 'none';
+    document.getElementById('shiftCloseSuccessMsg').style.display = 'none';
+    document.getElementById('closingCashInput').value = '';
+    document.getElementById('shiftRemarksInput').value = '';
+    loadShiftSummary();
+}
+function closeShiftModal() {
+    document.getElementById('closeShiftModalOverlay').hidden = true;
+}
+async function loadShiftSummary() {
+    if (!currentActiveCashier) return;
+    try {
+        const res = await fetch('<?= BASE_URL ?>/modules/pos/shift_api.php?action=status&terminal=Main+POS');
+        const data = await res.json();
+        const box = document.getElementById('shiftSummaryBox');
+        if (data.ok && data.shift) {
+            const s = data.shift;
+            const fmt = v => '₱' + parseFloat(v||0).toLocaleString('en-PH', {minimumFractionDigits:2});
+            document.getElementById('ss_opening').textContent    = fmt(s.opening_cash);
+            document.getElementById('ss_cash_sales').textContent = fmt(s.cash_sales);
+            document.getElementById('ss_gcash_sales').textContent= fmt(s.gcash_sales);
+            const refEl = document.getElementById('ss_cash_refunds');
+            if (refEl) refEl.textContent = (parseFloat(s.cash_refunds||0) > 0 ? '-' : '') + fmt(s.cash_refunds);
+            document.getElementById('ss_total_sales').textContent= fmt(s.total_sales);
+            document.getElementById('ss_expected').textContent   = fmt(s.expected_cash);
+            if (box) box.style.display = 'block';
+        } else {
+            if (box) box.style.display = 'none';
+        }
+    } catch (_) {}
+}
+async function submitEndShift() {
+    const closingCash = parseFloat(document.getElementById('closingCashInput').value);
+    const remarks     = document.getElementById('shiftRemarksInput').value.trim();
+    const errBox      = document.getElementById('shiftCloseErrorMsg');
+    const succBox     = document.getElementById('shiftCloseSuccessMsg');
+    const btn         = document.getElementById('btnEndShift');
+
+    if (isNaN(closingCash) || closingCash < 0) {
+        errBox.textContent = 'Please enter the actual cash amount in the drawer.';
+        errBox.style.display = 'block';
+        return;
+    }
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Closing...';
+    errBox.style.display = 'none';
+
+    try {
+        const res = await fetch('<?= BASE_URL ?>/modules/pos/shift_api.php?action=end', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': KK_CSRF_TOKEN },
+            body: JSON.stringify({ closing_cash: closingCash, remarks })
+        });
+        const data = await res.json();
+        if (data.ok) {
+            const d = data.data;
+            const fmt = v => '₱' + parseFloat(v||0).toLocaleString('en-PH', {minimumFractionDigits:2});
+            const variance = parseFloat(d.variance||0);
+            const varColor = variance < 0 ? '#dc2626' : (variance > 0 ? '#d97706' : '#059669');
+            succBox.innerHTML = `<i class="bi bi-check-circle-fill"></i> Shift closed!<br>
+                Expected: <strong>${fmt(d.expected_cash)}</strong> &nbsp;|&nbsp;
+                Counted: <strong>${fmt(d.closing_cash)}</strong> &nbsp;|&nbsp;
+                Variance: <strong style="color:${varColor}">${variance >= 0 ? '+' : ''}${fmt(d.variance)}</strong>`;
+            succBox.style.display = 'block';
+            setTimeout(() => { closeShiftModal(); promptSwitchCashier(); }, 2500);
+        } else {
+            if (data.msg && data.msg.includes('variance')) {
+                document.getElementById('remarksRequired').style.display = 'inline';
+            }
+            errBox.textContent = data.msg || 'Failed to close shift.';
+            errBox.style.display = 'block';
+        }
+    } catch (e) {
+        errBox.textContent = 'Network error. Please try again.';
+        errBox.style.display = 'block';
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-box-arrow-right"></i> End Shift';
+    }
+}
+
 </script>
 
-<?php $script = 'pos.js?v=' . time(); include ROOT_PATH . '/includes/footer.php'; ?>
+<script src="<?= BASE_URL ?>/assets/js/checkout-retry.js?v=<?= (int)@filemtime(ROOT_PATH . '/assets/js/checkout-retry.js') ?: '20261118' ?>"></script>
+<script src="<?= BASE_URL ?>/assets/js/stock-qty.js?v=<?= filemtime(ROOT_PATH . '/assets/js/stock-qty.js') ?>"></script>
+<?php $script = 'pos.js?v=' . (int)@filemtime(ROOT_PATH . '/assets/js/pos.js'); include ROOT_PATH . '/includes/footer.php'; ?>

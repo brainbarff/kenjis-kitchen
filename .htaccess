@@ -1,0 +1,31 @@
+# Disable directory listing across the project
+Options -Indexes
+DirectoryIndex index.php index.html
+
+# Deny access to hidden dotfiles (.env, .env.example, .gitignore, .firebaserc, etc.)
+<FilesMatch "^\.">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# Deny access to SQL dumps, logs, Markdown docs, lockfiles, batch scripts, and internal server/config/tool/seed files
+<FilesMatch "(?i)^(\.env.*|.*\.sql|.*\.csv|.*\.log|.*\.md|.*\.lock|.*\.bat|.*\.sh|.*\.cjs|.*\.mjs|package(-lock)?\.json|composer\.(json|lock)|firebase\.json|firebase-config\.js|firestore\.rules|server\.js|otpService\.js|set-admin\.js|cleanup_proofs\.php|check_schema\.php|seed_.*\.php|diff_summary\.txt|.*service-account.*\.json)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# Block direct web access to internal tool, test, documentation, and cloud-function directories
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^(?:tools|tests|Documentation|functions|handover)(?:/|$) - [F,L,NC]
+</IfModule>

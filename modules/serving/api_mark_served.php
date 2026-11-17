@@ -1,9 +1,14 @@
 <?php
 require_once dirname(__DIR__, 2) . '/includes/auth.php';
 require_once ROOT_PATH . '/config/db.php';
-require_role(['admin', 'cashier']);
+require_role(['admin', 'cashier', 'kitchen']);
 
 header('Content-Type: application/json');
+if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !verify_csrf_token()) {
+    http_response_code($_SERVER['REQUEST_METHOD'] !== 'POST' ? 405 : 403);
+    echo json_encode(['ok' => false, 'msg' => 'Invalid request method or security token.']);
+    exit;
+}
 
 $data = json_decode(file_get_contents('php://input'), true);
 $id = (int) ($data['order_id'] ?? 0);
@@ -16,13 +21,19 @@ if (!$id) {
 try {
     $conn->beginTransaction();
 
-    $stmt = $conn->prepare("SELECT id, order_type, order_channel, total FROM orders WHERE id = ? AND status = 'Ready' FOR UPDATE");
+    $stmt = $conn->prepare("SELECT id, order_no, order_type, order_channel, total, status, COALESCE(inventory_deducted, 0) AS inventory_deducted FROM orders WHERE id = ? AND status = 'Ready' FOR UPDATE");
     $stmt->execute([$id]);
     $order = $stmt->fetch();
 
     if (!$order) {
         $conn->rollBack();
-        echo json_encode(['ok' => false, 'msg' => 'Order is no longer ready for serving.']);
+        echo json_encode(['ok' => false, 'msg' => 'Order must be marked Ready by the kitchen before it can be served.']);
+        exit;
+    }
+
+    if ($order['order_channel'] === 'ONLINE' && $order['order_type'] === 'ONLINE') {
+        $conn->rollBack();
+        echo json_encode(['ok' => false, 'msg' => 'Delivery orders must be completed through Delivery Status.']);
         exit;
     }
 
@@ -40,12 +51,27 @@ try {
         if ($payment['payment_status'] !== 'Paid') {
             if (strcasecmp($payment['payment_method'], 'GCash') === 0) {
                 $conn->rollBack();
-                echo json_encode(['ok' => false, 'msg' => 'Verify the GCash payment before serving this online order.']);
+                echo json_encode(['ok' => false, 'msg' => 'Verify the GCash payment before completing this online order.']);
                 exit;
             }
 
-            $payStmt = $conn->prepare("UPDATE payments SET payment_status = 'Paid', amount_paid = ?, change_amount = 0, paid_at = NOW() WHERE id = ?");
-            $payStmt->execute([(float)$order['total'], (int)$payment['id']]);
+            $collectionShiftId = null;
+            $shiftStmt = $conn->prepare("SELECT id FROM cashier_shifts WHERE user_id = ? AND status = 'Open' ORDER BY id DESC LIMIT 1 FOR UPDATE");
+            $shiftStmt->execute([(int)$_SESSION['u_id']]);
+            $collectionShiftId = $shiftStmt->fetchColumn() ?: null;
+            if ($collectionShiftId === null && !empty($_SESSION['pos_active_cashier']['id'])) {
+                $shiftStmt->execute([(int)$_SESSION['pos_active_cashier']['id']]);
+                $collectionShiftId = $shiftStmt->fetchColumn() ?: null;
+            }
+            if ($collectionShiftId === null) {
+                $anyOpenShiftStmt = $conn->query("SELECT id FROM cashier_shifts WHERE status = 'Open' ORDER BY id DESC LIMIT 1 FOR UPDATE");
+                $collectionShiftId = $anyOpenShiftStmt ? ($anyOpenShiftStmt->fetchColumn() ?: null) : null;
+            }
+            if (role_key() === 'cashier' && $collectionShiftId === null) {
+                throw new RuntimeException('Open a cashier shift before collecting pickup payment.');
+            }
+            $payStmt = $conn->prepare("UPDATE payments SET payment_status = 'Paid', amount_paid = ?, change_amount = 0, paid_at = NOW(), shift_id = ? WHERE id = ?");
+            $payStmt->execute([(float)$order['total'], $collectionShiftId !== null ? (int)$collectionShiftId : null, (int)$payment['id']]);
         }
     }
 
@@ -61,6 +87,68 @@ try {
     ");
     $stmt->execute([$next, $_SESSION['u_id'], $id]);
 
+    // Only deduct upon serving for legacy ONLINE orders whose stock was not deducted at checkout.
+    // New POS and ONLINE orders have inventory_deducted = 1 at checkout, and legacy POS orders
+    // already deducted stock at checkout even when inventory_deducted was left 0.
+    if ((int)$order['inventory_deducted'] === 0) {
+        $alreadyDeducted = (strtoupper((string)$order['order_channel']) === 'POS');
+
+        if (!$alreadyDeducted) {
+            $logCheckStmt = $conn->prepare("
+                SELECT 1
+                FROM inventory_logs
+                WHERE action = 'Order Deduction' AND remarks LIKE ?
+                LIMIT 1
+            ");
+            $logCheckStmt->execute(['%' . $order['order_no'] . '%']);
+            $alreadyDeducted = (bool)$logCheckStmt->fetchColumn();
+        }
+
+        if (!$alreadyDeducted) {
+            $itemStmt = $conn->prepare("SELECT menu_item_id, quantity FROM order_items WHERE order_id = ?");
+            $itemStmt->execute([$id]);
+            $orderItems = $itemStmt->fetchAll();
+
+            $fallbackDeductions = [];
+            foreach ($orderItems as $oi) {
+                $menuId = (int)($oi['menu_item_id'] ?? 0);
+                $qty = (int)($oi['quantity'] ?? 0);
+                if ($menuId > 0 && $qty > 0) {
+                    $fallbackDeductions[$menuId] = ($fallbackDeductions[$menuId] ?? 0) + $qty;
+                }
+            }
+
+            if ($fallbackDeductions) {
+                ksort($fallbackDeductions);
+                $lockItemStmt = $conn->prepare("SELECT id FROM menu_items WHERE id = ? FOR UPDATE");
+                $stockStmt = $conn->prepare("
+                    UPDATE menu_items
+                    SET stock = GREATEST(0, stock - ?),
+                        availability = CASE WHEN stock <= 0 THEN 'Unavailable' ELSE availability END
+                    WHERE id = ?
+                ");
+                $logStmt = $conn->prepare("INSERT INTO inventory_logs (inventory_id, menu_item_id, user_id, action, quantity, remarks) VALUES (NULL, ?, ?, 'Order Deduction', ?, ?)");
+                $channelPrefix = ($order['order_channel'] === 'ONLINE') ? 'Online order ' : 'Order ';
+                $actingUserId = $_SESSION['u_id'] ?? ($_SESSION['user_id'] ?? 1);
+
+                foreach ($fallbackDeductions as $menuId => $totalQty) {
+                    $lockItemStmt->execute([$menuId]);
+                    if ($lockItemStmt->fetch()) {
+                        $stockStmt->execute([$totalQty, $menuId]);
+                        $logStmt->execute([$menuId, $actingUserId, $totalQty, $channelPrefix . $order['order_no'] . ' completed deduction']);
+                    }
+                }
+            }
+        }
+
+        $conn->prepare("UPDATE orders SET inventory_deducted = 1 WHERE id = ?")->execute([$id]);
+    }
+
+    require_once ROOT_PATH . '/includes/realtime.php';
+    if (function_exists('realtime_publish')) {
+        realtime_publish('kitchen:status_change', ['order_id' => $id, 'status' => $next]);
+    }
+
     $conn->commit();
 
     echo json_encode([
@@ -68,7 +156,16 @@ try {
         'status' => $next,
         'msg' => 'Order has been completed.'
     ]);
-} catch (Exception $e) {
+} catch (RuntimeException $e) {
+    if ($conn->inTransaction()) {
+        $conn->rollBack();
+    }
+
+    echo json_encode([
+        'ok' => false,
+        'msg' => $e->getMessage()
+    ]);
+} catch (Throwable $e) {
     if ($conn->inTransaction()) {
         $conn->rollBack();
     }

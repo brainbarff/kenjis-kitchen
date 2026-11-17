@@ -1,6 +1,6 @@
 <?php
 require_once dirname(__DIR__, 2) . '/includes/auth.php';
-require_login();
+require_role(['admin', 'cashier', 'kitchen']);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -8,8 +8,8 @@ require_login();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Now Serving - Kenji's Kitchen</title>
-    <link rel="icon" type="image/jpeg" href="<?= BASE_URL ?>/assets/img/logo.jpg">
-    <link rel="apple-touch-icon" href="<?= BASE_URL ?>/assets/img/logo.jpg">
+    <link rel="icon" type="image/png" href="<?= BASE_URL ?>/assets/img/logo.png">
+    <link rel="apple-touch-icon" href="<?= BASE_URL ?>/assets/img/logo.png">
     <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/style.css">
 
     <style>
@@ -240,14 +240,32 @@ require_login();
                 min-height: 125px;
             }
         }
-    </style>
+    
+.display-board { background:#fafaf7; }
+.display-head { padding:8px 0 24px; }
+.display-head p { font-size:16px; }
+.display-summary { gap:24px; margin-top:24px; align-items:start; }
+.display-column { background:white; border:1px solid #e6e6df; padding:18px; border-radius:18px; }
+.display-column-head { background:#f7c62f; padding:16px; border-radius:12px; gap:12px; }
+.display-column-head h2 { font-size:clamp(20px,1.6vw,28px); line-height:1.3; }
+.display-column-count { font-size:18px; min-width:36px; height:36px; }
+.display-list { grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; grid-auto-rows:1fr; }
+.display-order { min-height:220px; padding:20px 14px; border-radius:14px; background:#fffdf5; }
+.display-order > div:first-child { display:grid; grid-template-rows:auto auto auto 24px; gap:10px; justify-items:center; }
+.display-order-queue { font-size:clamp(32px,3vw,54px); line-height:1.2; background:none; padding:0; overflow-wrap:anywhere; max-width:100%; }
+.display-order-destination { font-size:clamp(22px,2vw,32px); line-height:1.25; margin:0; overflow-wrap:anywhere; }
+.display-order-type { font-size:14px; line-height:1.4; margin:0; }
+.display-online { font-size:12px; margin:0; align-self:center; }
+.display-empty { font-size:20px; min-height:240px; color:#62625b; line-height:1.6; }
+@media(max-width:600px) { .display-list { grid-template-columns:1fr; } .display-head { flex-wrap:wrap; } .display-column { padding:12px; } }
+</style>
 </head>
 
 <body class="display-page">
     <main class="display-board">
         <header class="display-head">
             <div class="display-brand">
-                <img src="<?= BASE_URL ?>/assets/img/logo.jpg" alt="Kenji's Kitchen Logo" class="display-brand-mark" style="width: 50px; height: 50px; border-radius: 12px; object-fit: cover;">
+                <img src="<?= BASE_URL ?>/assets/img/logo.png" alt="Kenji's Kitchen Logo" class="display-brand-mark" style="width: 50px; height: 50px; border-radius: 12px; object-fit: cover;">
 
                 <div>
                     <h1>Now Serving</h1>

@@ -23,6 +23,7 @@ try {
             o.created_at,
             p.payment_method,
             p.payment_reference,
+            (p.payment_proof_path IS NOT NULL AND p.payment_proof_path <> '') AS has_payment_proof,
             p.payment_status,
             r.receipt_no
         FROM orders o

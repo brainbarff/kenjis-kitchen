@@ -1,7 +1,7 @@
 <?php
 require_once dirname(__DIR__, 2) . '/includes/auth.php';
 require_once ROOT_PATH . '/config/db.php';
-require_role(['admin', 'cashier']);
+require_role(['admin', 'cashier', 'kitchen']);
 
 $page = 'serving';
 $title = 'Order Serving';
@@ -96,13 +96,15 @@ include ROOT_PATH . '/includes/header.php';
 
     .serving-grid {
         display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 12px;
+        grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+        gap: 14px;
         align-items: start;
     }
 
     .serve-card {
-        padding: 14px;
+        min-width: 0;
+        overflow: hidden;
+        padding: 16px;
         border: 1px solid #e5e5e5;
         border-radius: 13px;
         background: #ffffff;
@@ -197,12 +199,14 @@ include ROOT_PATH . '/includes/header.php';
 
     .serve-meta {
         display: grid;
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.28fr);
         gap: 7px;
         margin-bottom: 10px;
     }
 
     .serve-meta-box {
+        min-width: 0;
+        overflow: hidden;
         padding: 8px 9px;
         border: 1px solid #eeeeee;
         border-radius: 7px;
@@ -222,10 +226,9 @@ include ROOT_PATH . '/includes/header.php';
         display: block;
         color: #111111;
         font-size: 0.82rem;
-        line-height: 1.2;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+        line-height: 1.25;
+        white-space: normal;
+        overflow-wrap: anywhere;
     }
 
     .serve-note {
@@ -283,6 +286,7 @@ include ROOT_PATH . '/includes/header.php';
     .serve-actions .btn {
         min-height: 39px;
         padding: 6px 8px;
+        white-space: nowrap;
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -430,18 +434,6 @@ include ROOT_PATH . '/includes/header.php';
         overflow-y: auto;
     }
 
-    @media (max-width: 1200px) {
-        .serving-grid {
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-        }
-    }
-
-    @media (max-width: 950px) {
-        .serving-grid {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
-    }
-
     @media (max-width: 700px) {
         .serve-toolbar {
             flex-direction: column;
@@ -456,6 +448,9 @@ include ROOT_PATH . '/includes/header.php';
             grid-template-columns: 1fr;
         }
     }
+.serving-stat-card[data-serving-filter] { text-align:left; font-family:inherit; cursor:pointer; width:100%; }
+.serving-stat-card[aria-pressed="true"] { border-color:#d8ac22; background:#fff9e7; box-shadow:0 0 0 1px #d8ac22; }
+.serving-stat-card[data-serving-filter]:focus-visible { outline:3px solid #b48b12; outline-offset:3px; }
 </style>
 
 <div class="serving-page">
@@ -479,7 +474,7 @@ include ROOT_PATH . '/includes/header.php';
     </section>
 
     <section class="serving-stats">
-        <article class="serving-stat-card">
+        <button type="button" class="serving-stat-card" data-serving-filter="all" aria-pressed="true">
             <div>
                 <span>Ready Orders</span>
                 <strong id="readyCount">0</strong>
@@ -488,9 +483,9 @@ include ROOT_PATH . '/includes/header.php';
             <div class="serving-stat-icon">
                 <i class="bi bi-bell"></i>
             </div>
-        </article>
+        </button>
 
-        <article class="serving-stat-card">
+        <button type="button" class="serving-stat-card" data-serving-filter="dine" aria-pressed="false">
             <div>
                 <span>Dine-In</span>
                 <strong id="dineInCount">0</strong>
@@ -499,9 +494,9 @@ include ROOT_PATH . '/includes/header.php';
             <div class="serving-stat-icon">
                 <i class="bi bi-table"></i>
             </div>
-        </article>
+        </button>
 
-        <article class="serving-stat-card">
+        <button type="button" class="serving-stat-card" data-serving-filter="pickup" aria-pressed="false">
             <div>
                 <span>Pickup</span>
                 <strong id="pickupCount">0</strong>
@@ -510,7 +505,7 @@ include ROOT_PATH . '/includes/header.php';
             <div class="serving-stat-icon">
                 <i class="bi bi-bag-check"></i>
             </div>
-        </article>
+        </button>
     </section>
 
     <div id="serveError" hidden></div>
@@ -549,4 +544,5 @@ include ROOT_PATH . '/includes/header.php';
     </section>
 </div>
 
-<?php $script = 'serving.js?v=' . time(); include ROOT_PATH . '/includes/footer.php'; ?>
+<script>window.KK_CSRF_TOKEN = <?= json_encode(csrf_token(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;</script>
+<?php $script = 'serving.js?v=' . (@filemtime(ROOT_PATH . '/assets/js/serving.js') ?: '20261118'); include ROOT_PATH . '/includes/footer.php'; ?>

@@ -7,8 +7,14 @@ header('Content-Type: application/json');
 
 $orders = $conn->query("
     SELECT *
-    FROM orders
-    WHERE status IN ('Pending', 'Preparing', 'Ready')
+    FROM orders o
+    WHERE o.status IN ('Pending', 'Preparing', 'Ready')
+      AND o.kitchen_queued_at IS NOT NULL
+      AND (o.order_channel <> 'ONLINE' OR EXISTS (
+          SELECT 1 FROM payments p
+          WHERE p.order_id = o.id
+            AND (p.payment_method <> 'GCash' OR p.payment_status = 'Paid')
+      ))
     ORDER BY kitchen_queued_at ASC, created_at ASC
 ")->fetchAll();
 

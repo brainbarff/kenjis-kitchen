@@ -1,8 +1,14 @@
 <?php
-// Load the project-local environment file for Apache/PHP without overwriting
-// environment variables supplied by the host process.
-$envFile = dirname(__DIR__) . '/.env';
-if (is_readable($envFile)) {
+// Load the environment file (project root .env or Hostinger out-of-webroot private-config/.env)
+// without overwriting environment variables supplied by the host process.
+$envCandidates = [
+    dirname(__DIR__) . '/.env',
+    dirname(__DIR__, 2) . '/private-config/.env',
+];
+foreach ($envCandidates as $envFile) {
+    if (!@is_file($envFile) || !@is_readable($envFile)) {
+        continue;
+    }
     foreach (file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $envLine) {
         $envLine = trim($envLine);
         if ($envLine === '' || $envLine[0] === '#' || strpos($envLine, '=') === false) {
@@ -10,26 +16,125 @@ if (is_readable($envFile)) {
         }
         [$envKey, $envValue] = explode('=', $envLine, 2);
         $envKey = trim($envKey);
-        if ($envKey === '' || getenv($envKey) !== false) {
+        if ($envKey === '' || array_key_exists($envKey, $_ENV) || array_key_exists($envKey, $_SERVER)) {
             continue;
         }
         $envValue = trim($envValue);
         if (strlen($envValue) >= 2 && (($envValue[0] === '"' && substr($envValue, -1) === '"') || ($envValue[0] === "'" && substr($envValue, -1) === "'"))) {
             $envValue = substr($envValue, 1, -1);
         }
-        putenv($envKey . '=' . $envValue);
         $_ENV[$envKey] = $envValue;
+        if (getenv($envKey) === false) {
+            putenv($envKey . '=' . $envValue);
+        }
     }
+    break;
 }
 
 date_default_timezone_set('Asia/Manila');
 
 define('APP_NAME', "Kenji's Kitchen");
 
-$baseUrl = getenv('APP_URL') ?: '/kenjis-kitchen';
+$rawAppUrl = $_ENV['APP_URL'] ?? getenv('APP_URL');
+if ($rawAppUrl !== false && $rawAppUrl !== null) {
+    $baseUrl = trim((string)$rawAppUrl);
+} elseif (PHP_SAPI !== 'cli' && isset($_SERVER['SCRIPT_NAME'])) {
+    $scriptName = str_replace('\\', '/', (string)$_SERVER['SCRIPT_NAME']);
+    // Dynamically detect top-level project folder in URL (e.g. /kenjis-kitchen, /kenjis kitchen, /thesis-system)
+    $parts = explode('/', trim($scriptName, '/'));
+    $rootEntries = ['online-menu', 'onlinemenu', 'online', 'modules', 'pages', 'api', 'assets', 'includes', 'config', 'uploads', 'tools', 'tests', 'login.php', 'logout.php', 'index.php'];
+    if (!empty($parts[0]) && !in_array($parts[0], $rootEntries, true)) {
+        $baseUrl = '/' . $parts[0];
+    } elseif ($scriptName === '/kenjis-kitchen' || strpos($scriptName, '/kenjis-kitchen/') === 0) {
+        $baseUrl = '/kenjis-kitchen';
+    } else {
+        $baseUrl = '';
+    }
+} else {
+    $baseUrl = '/kenjis-kitchen';
+}
 define('BASE_URL', rtrim($baseUrl, '/'));
 define('ROOT_PATH', dirname(__DIR__));
 define('UPLOAD_PATH', ROOT_PATH . '/uploads/menu/');
 
+if (!defined('KK_DELIVERY_BOUNDARY_FILE')) {
+    $customBoundaryFile = $_ENV['KK_DELIVERY_BOUNDARY_FILE'] ?? getenv('KK_DELIVERY_BOUNDARY_FILE');
+    define('KK_DELIVERY_BOUNDARY_FILE', ($customBoundaryFile !== false && $customBoundaryFile !== null && trim((string)$customBoundaryFile) !== '')
+        ? trim((string)$customBoundaryFile)
+        : (ROOT_PATH . '/config/greater_lagro_boundary.json'));
+}
 
+if (!defined('KK_MAP_TILE_URL')) {
+    $customTileUrl = $_ENV['KK_MAP_TILE_URL'] ?? getenv('KK_MAP_TILE_URL');
+    define('KK_MAP_TILE_URL', ($customTileUrl !== false && $customTileUrl !== null && trim((string)$customTileUrl) !== '')
+        ? trim((string)$customTileUrl)
+        : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png');
+}
+
+if (!defined('KK_MAP_TILE_ATTRIBUTION')) {
+    $customTileAttr = $_ENV['KK_MAP_TILE_ATTRIBUTION'] ?? getenv('KK_MAP_TILE_ATTRIBUTION');
+    define('KK_MAP_TILE_ATTRIBUTION', ($customTileAttr !== false && $customTileAttr !== null && trim((string)$customTileAttr) !== '')
+        ? trim((string)$customTileAttr)
+        : '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors');
+}
+
+if (!defined('KK_MAP_TILE_MAX_ZOOM')) {
+    $customMaxZoom = $_ENV['KK_MAP_TILE_MAX_ZOOM'] ?? getenv('KK_MAP_TILE_MAX_ZOOM');
+    define('KK_MAP_TILE_MAX_ZOOM', ($customMaxZoom !== false && $customMaxZoom !== null && (int)$customMaxZoom > 0)
+        ? (int)$customMaxZoom
+        : 19);
+}
+
+if (!function_exists('kk_is_https')) {
+    function kk_is_https(): bool
+    {
+        if (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off') {
+            return true;
+        }
+        if (isset($_SERVER['SERVER_PORT']) && (int)$_SERVER['SERVER_PORT'] === 443) {
+            return true;
+        }
+        if (!empty($_SERVER['HTTP_X_FORWARDED_PROTO'])) {
+            $forwardedProto = strtolower(trim(explode(',', (string)$_SERVER['HTTP_X_FORWARDED_PROTO'])[0]));
+            if ($forwardedProto === 'https') {
+                return true;
+            }
+        }
+        if (!empty($_SERVER['HTTP_X_FORWARDED_SSL']) && strtolower((string)$_SERVER['HTTP_X_FORWARDED_SSL']) === 'on') {
+            return true;
+        }
+        if (!empty($_SERVER['HTTP_X_FORWARDED_PORT']) && (int)$_SERVER['HTTP_X_FORWARDED_PORT'] === 443) {
+            return true;
+        }
+        if (!empty($_SERVER['HTTP_CF_VISITOR']) && stripos((string)$_SERVER['HTTP_CF_VISITOR'], '"https"') !== false) {
+            return true;
+        }
+        if (!empty($_SERVER['REQUEST_SCHEME']) && strtolower((string)$_SERVER['REQUEST_SCHEME']) === 'https') {
+            return true;
+        }
+        return false;
+    }
+}
+
+if (!function_exists('kk_start_session')) {
+    function kk_start_session(): void
+    {
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            return;
+        }
+
+        if (!headers_sent()) {
+            session_set_cookie_params([
+                'lifetime' => 0,
+                'path'     => '/',
+                'domain'   => '',
+                'secure'   => kk_is_https(),
+                'httponly' => true,
+                'samesite' => 'Lax'
+            ]);
+        }
+
+        session_start();
+    }
+}
 ?>

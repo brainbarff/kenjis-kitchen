@@ -8,8 +8,8 @@ $title = 'Sales Performance';
 $heading = 'Sales Performance';
 
 $today = date('Y-m-d');
-$fromDate = $_GET['from_date'] ?? date('Y-m-01');
-$toDate = $_GET['to_date'] ?? $today;
+$fromDate = kk_report_date($_GET['from_date'] ?? null, date('Y-m-01'));
+$toDate = kk_report_date($_GET['to_date'] ?? null, $today);
 
 $fromObject = DateTime::createFromFormat('Y-m-d', $fromDate);
 $toObject = DateTime::createFromFormat('Y-m-d', $toDate);
@@ -37,6 +37,8 @@ if ($currentPage < 1) {
     $currentPage = 1;
 }
 
+$settledOrders = kk_report_paid_orders_sql();
+
 $latestPayment = "
     SELECT p1.order_id, p1.payment_method
     FROM payments p1
@@ -51,12 +53,12 @@ $totalsStmt = $conn->prepare("
     SELECT
         COUNT(o.id) AS total_orders,
         COALESCE(SUM(o.total), 0) AS total_sales
-    FROM orders o
-    INNER JOIN ($latestPayment) p ON p.order_id = o.id
-    WHERE o.paid_at IS NOT NULL
-      AND o.paid_at >= :totals_from
-      AND o.paid_at < :totals_to
-      AND o.status <> 'Cancelled'
+    FROM ($settledOrders) o
+    LEFT JOIN ($latestPayment) p ON p.order_id = o.id
+    WHERE o.report_paid_at IS NOT NULL
+      AND o.report_paid_at >= :totals_from
+      AND o.report_paid_at < :totals_to
+      AND o.status NOT IN ('Cancelled','Voided','Refunded')
 ");
 $totalsStmt->bindValue(':totals_from', $reportFrom, PDO::PARAM_STR);
 $totalsStmt->bindValue(':totals_to', $reportTo, PDO::PARAM_STR);
@@ -65,18 +67,18 @@ $totals = $totalsStmt->fetch();
 
 $dailyStmt = $conn->prepare("
     SELECT
-        DATE(o.paid_at) AS sales_date,
+        DATE(o.report_paid_at) AS sales_date,
         COUNT(o.id) AS total_orders,
         COALESCE(SUM(o.total), 0) AS total_sales,
-        COALESCE(SUM(CASE WHEN LOWER(TRIM(p.payment_method)) IN ('cash', 'pay on pickup', 'cash on delivery') THEN o.total ELSE 0 END), 0) AS cash_sales,
-        COALESCE(SUM(CASE WHEN LOWER(TRIM(p.payment_method)) = 'gcash' THEN o.total ELSE 0 END), 0) AS gcash_sales
-    FROM orders o
-    INNER JOIN ($latestPayment) p ON p.order_id = o.id
-    WHERE o.paid_at IS NOT NULL
-      AND o.paid_at >= :daily_from
-      AND o.paid_at < :daily_to
-      AND o.status <> 'Cancelled'
-    GROUP BY DATE(o.paid_at)
+        COALESCE(SUM(CASE WHEN LOWER(TRIM(COALESCE(p.payment_method, 'cash'))) IN ('cash', 'pay on pickup', 'cash on delivery') THEN o.total ELSE 0 END), 0) AS cash_sales,
+        COALESCE(SUM(CASE WHEN LOWER(TRIM(COALESCE(p.payment_method, ''))) LIKE '%gcash%' THEN o.total ELSE 0 END), 0) AS gcash_sales
+    FROM ($settledOrders) o
+    LEFT JOIN ($latestPayment) p ON p.order_id = o.id
+    WHERE o.report_paid_at IS NOT NULL
+      AND o.report_paid_at >= :daily_from
+      AND o.report_paid_at < :daily_to
+      AND o.status NOT IN ('Cancelled','Voided','Refunded')
+    GROUP BY DATE(o.report_paid_at)
     ORDER BY sales_date DESC
 ");
 $dailyStmt->bindValue(':daily_from', $reportFrom, PDO::PARAM_STR);
@@ -135,8 +137,27 @@ include ROOT_PATH . '/includes/header.php';
     </div>
 </section>
 
+<style>
+.sales-filter-form {
+    display: grid;
+    grid-template-columns: minmax(180px, 260px) minmax(180px, 260px) auto;
+    align-items: end;
+    gap: 14px;
+}
+.sales-filter-form > div { min-width: 0; }
+@media (max-width: 680px) {
+    .sales-filter-form {
+        grid-template-columns: 1fr;
+        align-items: stretch;
+    }
+    .sales-filter-form .btn {
+        width: 100%;
+    }
+}
+</style>
+
 <section class="card" style="margin-bottom:24px;">
-    <form method="get" class="form" style="grid-template-columns:minmax(180px,260px) minmax(180px,260px) auto; align-items:end;">
+    <form method="get" class="form sales-filter-form">
         <div class="field">
             <label for="fromDate">From Date</label>
             <input type="date" id="fromDate" name="from_date" value="<?= e($fromDate) ?>" max="<?= e($today) ?>">
@@ -176,14 +197,7 @@ include ROOT_PATH . '/includes/header.php';
             <h2 style="font-size:24px; margin-bottom:4px;">Sales Performance by Date</h2>
             <p class="muted">Sales and order count grouped by paid transaction date.</p>
         </div>
-
-        <?php if ($totalDays > 0): ?>
-            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:flex-end;">
-                <a class="btn btn-secondary" href="?from_date=<?= e($fromDate) ?>&to_date=<?= e($toDate) ?>&page=<?= $currentPage - 1 ?>" <?= $currentPage <= 1 ? 'style="pointer-events:none;opacity:0.5;"' : '' ?>><i class="bi bi-chevron-left"></i>Previous</a>
-                <strong style="white-space:nowrap;">Page <?= $currentPage ?> of <?= $totalPages ?></strong>
-                <a class="btn btn-secondary" href="?from_date=<?= e($fromDate) ?>&to_date=<?= e($toDate) ?>&page=<?= $currentPage + 1 ?>" <?= $currentPage >= $totalPages ? 'style="pointer-events:none;opacity:0.5;"' : '' ?>>Next<i class="bi bi-chevron-right"></i></a>
-            </div>
-        <?php endif; ?>
+        <?= render_pagination_controls($currentPage, $totalPages, static fn(int $p) => '?from_date=' . rawurlencode($fromDate) . '&to_date=' . rawurlencode($toDate) . '&page=' . $p) ?>
     </div>
 
     <div class="table-wrap">

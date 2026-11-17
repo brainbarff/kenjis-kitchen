@@ -2,6 +2,11 @@
 // database/seed_users.php
 // Re-seeds all staff accounts with the default password: password123
 // Run via browser: http://localhost/kenjis-kitchen/database/seed_users.php
+if (PHP_SAPI !== 'cli') {
+    http_response_code(403);
+    exit('Forbidden: CLI execution only.');
+}
+
 require_once __DIR__ . '/../config/db.php';
 
 // Define each user — default password is 'password123' for all accounts
