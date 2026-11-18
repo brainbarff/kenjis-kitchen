@@ -808,6 +808,13 @@ async function loadCategories() {
         { id: 'all', name: 'All' },
         ...activeCats
       ];
+      if (!appState.hasInitializedDefaultCategory) {
+        appState.hasInitializedDefaultCategory = true;
+        const studentMealsCat = activeCats.find(c => String(c.name || '').trim().toLowerCase() === 'student meals');
+        if (studentMealsCat && appState.activeCategory === 'all') {
+          appState.activeCategory = String(studentMealsCat.id);
+        }
+      }
       // Reset activeCategory if it was a specific category that is no longer present
       if (appState.activeCategory !== 'all' && !appState.categories.some(c => String(c.id) === String(appState.activeCategory))) {
         appState.activeCategory = 'all';
