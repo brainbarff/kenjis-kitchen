@@ -77,15 +77,19 @@
    }
   }
   nav.replaceChildren();
-  const prevBtn=text('button','‹','review-page-btn');
+  const prevBtn=document.createElement('button');
   prevBtn.type='button';
+  prevBtn.className='review-page-btn';
   prevBtn.setAttribute('aria-label','Previous reviews');
+  prevBtn.innerHTML='<i class="bi bi-chevron-left" aria-hidden="true"></i>';
   prevBtn.disabled=currentPage<=1;
   prevBtn.addEventListener('click',()=>{if(currentPage>1){currentPage--;renderReviewPage();}});
 
-  const nextBtn=text('button','›','review-page-btn');
+  const nextBtn=document.createElement('button');
   nextBtn.type='button';
+  nextBtn.className='review-page-btn';
   nextBtn.setAttribute('aria-label','Next reviews');
+  nextBtn.innerHTML='<i class="bi bi-chevron-right" aria-hidden="true"></i>';
   nextBtn.disabled=currentPage>=totalPages;
   nextBtn.addEventListener('click',()=>{if(currentPage<totalPages){currentPage++;renderReviewPage();}});
 
