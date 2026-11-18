@@ -57,7 +57,7 @@ if ($action === 'me') {
     }
 
     $stmt = $conn->prepare("
-        SELECT u.id, u.full_name, u.email, u.phone, u.customer_address,
+        SELECT u.id, u.full_name, u.email, u.phone, u.customer_address, u.profile_photo,
                u.status, u.is_archived, u.customer_status, u.email_verified_at, u.deleted_at, r.role_name
         FROM users u
         JOIN roles r ON r.id = u.role_id
@@ -72,7 +72,8 @@ if ($action === 'me') {
         online_json(['status' => 'success', 'authenticated' => false]);
     }
 
-    unset($user['status'], $user['is_archived'], $user['customer_status'], $user['email_verified_at'], $user['deleted_at'], $user['role_name']);
+    $user['profile_photo_url'] = kk_customer_avatar_url($user['profile_photo'] ?? null);
+    unset($user['profile_photo'], $user['status'], $user['is_archived'], $user['customer_status'], $user['email_verified_at'], $user['deleted_at'], $user['role_name']);
     $_SESSION['customer_user'] = $user;
     online_json(['status' => 'success', 'authenticated' => true, 'user' => $user, 'csrf_token' => csrf_token()]);
 }
@@ -81,9 +82,250 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     online_json(['status' => 'error', 'message' => 'Invalid request.'], 405);
 }
 
+function kk_require_active_customer_record(PDO $conn): array
+{
+    $customerId = (int)($_SESSION['customer_user_id'] ?? 0);
+    if ($customerId <= 0) {
+        unset($_SESSION['customer_user_id'], $_SESSION['customer_user']);
+        online_json(['status' => 'error', 'ok' => false, 'message' => 'Please sign in to manage your account.'], 401);
+    }
+
+    $stmt = $conn->prepare("
+        SELECT u.id, u.full_name, u.email, u.phone, u.customer_address, u.profile_photo,
+               u.status, u.is_archived, u.customer_status, u.email_verified_at, u.deleted_at, r.role_name
+        FROM users u
+        JOIN roles r ON r.id = u.role_id
+        WHERE u.id = ?
+        LIMIT 1
+    ");
+    $stmt->execute([$customerId]);
+    $user = $stmt->fetch();
+
+    if (!is_active_online_customer($user)) {
+        unset($_SESSION['customer_user_id'], $_SESSION['customer_user']);
+        online_json(['status' => 'error', 'ok' => false, 'message' => 'Your customer account is no longer active.'], 403);
+    }
+
+    return $user;
+}
+
+function kk_ensure_avatar_storage_dir(): string
+{
+    $avatarDir = ROOT_PATH . '/uploads/avatars';
+    if (!is_dir($avatarDir) && !@mkdir($avatarDir, 0755, true) && !is_dir($avatarDir)) {
+        throw new RuntimeException('Unable to create avatar storage directory.');
+    }
+
+    $htaccessPath = $avatarDir . '/.htaccess';
+    if (!is_file($htaccessPath)) {
+        $htaccessRules = implode("\n", [
+            'Options -Indexes -ExecCGI',
+            '',
+            '<IfModule php_module>',
+            '    php_flag engine off',
+            '</IfModule>',
+            '<IfModule php8_module>',
+            '    php_flag engine off',
+            '</IfModule>',
+            '',
+            '<FilesMatch "(?i)\\.(php[0-9]?|phtml|phps|phar|pl|py|cgi|asp|aspx|sh|bat|cmd|exe|dll|jsp|htaccess|htpasswd|ini|html?|xhtml|shtml|js|mjs|svg|xml|txt|json|css)$">',
+            '    SetHandler none',
+            '    <IfModule mod_authz_core.c>',
+            '        Require all denied',
+            '    </IfModule>',
+            '    <IfModule !mod_authz_core.c>',
+            '        Order allow,deny',
+            '        Deny from all',
+            '    </IfModule>',
+            '</FilesMatch>',
+            '',
+        ]);
+        @file_put_contents($htaccessPath, $htaccessRules);
+    }
+
+    return $avatarDir;
+}
+
+function kk_save_customer_avatar_upload(array $file): string
+{
+    $uploadError = (int)($file['error'] ?? UPLOAD_ERR_NO_FILE);
+    if ($uploadError === UPLOAD_ERR_INI_SIZE || $uploadError === UPLOAD_ERR_FORM_SIZE) {
+        online_json(['status' => 'error', 'ok' => false, 'message' => 'Profile picture must be 5 MB or smaller.'], 400);
+    }
+    if ($uploadError !== UPLOAD_ERR_OK || empty($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) {
+        online_json(['status' => 'error', 'ok' => false, 'message' => 'Please choose a valid image file.'], 400);
+    }
+
+    $size = (int)($file['size'] ?? 0);
+    if ($size <= 0 || $size > 5 * 1024 * 1024) {
+        online_json(['status' => 'error', 'ok' => false, 'message' => 'Profile picture must be 5 MB or smaller.'], 400);
+    }
+
+    $finfo = new finfo(FILEINFO_MIME_TYPE);
+    $realMime = (string)$finfo->file($file['tmp_name']);
+    $mimeToExt = [
+        'image/jpeg' => 'jpg',
+        'image/png'  => 'png',
+        'image/webp' => 'webp',
+    ];
+    if (!isset($mimeToExt[$realMime])) {
+        online_json(['status' => 'error', 'ok' => false, 'message' => 'Only JPG, PNG, and WebP images are allowed.'], 400);
+    }
+
+    $imgInfo = @getimagesize($file['tmp_name']);
+    if (
+        !$imgInfo
+        || empty($imgInfo[0])
+        || empty($imgInfo[1])
+        || (int)$imgInfo[0] > 8000
+        || (int)$imgInfo[1] > 8000
+        || image_type_to_mime_type((int)$imgInfo[2]) !== $realMime
+    ) {
+        online_json(['status' => 'error', 'ok' => false, 'message' => 'Please upload a valid JPG, PNG, or WebP image.'], 400);
+    }
+
+    $avatarDir = kk_ensure_avatar_storage_dir();
+    $ext = $mimeToExt[$realMime];
+    $newFilename = 'avatar_' . bin2hex(random_bytes(16)) . '.' . $ext;
+    $destination = $avatarDir . '/' . $newFilename;
+
+    if (extension_loaded('gd')) {
+        $srcWidth = (int)$imgInfo[0];
+        $srcHeight = (int)$imgInfo[1];
+        $sourceImage = null;
+        if ($realMime === 'image/jpeg') {
+            $sourceImage = @imagecreatefromjpeg($file['tmp_name']);
+        } elseif ($realMime === 'image/png') {
+            $sourceImage = @imagecreatefrompng($file['tmp_name']);
+        } elseif ($realMime === 'image/webp' && function_exists('imagecreatefromwebp')) {
+            $sourceImage = @imagecreatefromwebp($file['tmp_name']);
+        }
+
+        if ($sourceImage) {
+            $maxDim = 512;
+            $targetImage = $sourceImage;
+            if ($srcWidth > $maxDim || $srcHeight > $maxDim) {
+                $scale = min($maxDim / $srcWidth, $maxDim / $srcHeight);
+                $dstWidth = max(1, (int)round($srcWidth * $scale));
+                $dstHeight = max(1, (int)round($srcHeight * $scale));
+                $resized = imagecreatetruecolor($dstWidth, $dstHeight);
+                if ($realMime === 'image/png' || $realMime === 'image/webp') {
+                    imagealphablending($resized, false);
+                    imagesavealpha($resized, true);
+                    $transparent = imagecolorallocatealpha($resized, 0, 0, 0, 127);
+                    imagefilledrectangle($resized, 0, 0, $dstWidth, $dstHeight, $transparent);
+                }
+                imagecopyresampled($resized, $sourceImage, 0, 0, 0, 0, $dstWidth, $dstHeight, $srcWidth, $srcHeight);
+                imagedestroy($sourceImage);
+                $targetImage = $resized;
+            }
+
+            $saved = false;
+            if ($realMime === 'image/jpeg') {
+                $saved = @imagejpeg($targetImage, $destination, 86);
+            } elseif ($realMime === 'image/png') {
+                $saved = @imagepng($targetImage, $destination, 6);
+            } elseif ($realMime === 'image/webp' && function_exists('imagewebp')) {
+                $saved = @imagewebp($targetImage, $destination, 86);
+            }
+            imagedestroy($targetImage);
+
+            if ($saved && is_file($destination)) {
+                return $newFilename;
+            }
+        }
+    }
+
+    if (!@move_uploaded_file($file['tmp_name'], $destination)) {
+        online_json(['status' => 'error', 'ok' => false, 'message' => 'Could not save your profile picture. Please try again.'], 500);
+    }
+
+    return $newFilename;
+}
+
+if ($action === 'upload_avatar') {
+    if (!verify_csrf_token()) {
+        online_json(['status' => 'error', 'ok' => false, 'message' => 'Invalid security token. Please reload the page and try again.'], 403);
+    }
+
+    $user = kk_require_active_customer_record($conn);
+    $customerId = (int)$user['id'];
+    $oldPhoto = $user['profile_photo'] ?? null;
+
+    if (empty($_FILES['avatar'])) {
+        online_json(['status' => 'error', 'ok' => false, 'message' => 'Please choose an image file to upload.'], 400);
+    }
+
+    try {
+        $newFilename = kk_save_customer_avatar_upload($_FILES['avatar']);
+        $upd = $conn->prepare('UPDATE users SET profile_photo = ? WHERE id = ?');
+        $upd->execute([$newFilename, $customerId]);
+    } catch (Throwable $e) {
+        if (!empty($newFilename)) {
+            kk_delete_customer_avatar_file($newFilename);
+        }
+        error_log('Avatar upload failed: ' . $e->getMessage());
+        online_json(['status' => 'error', 'ok' => false, 'message' => 'Unable to save profile picture right now.'], 500);
+    }
+
+    if ($oldPhoto && $oldPhoto !== $newFilename) {
+        kk_delete_customer_avatar_file($oldPhoto);
+    }
+
+    $avatarUrl = kk_customer_avatar_url($newFilename);
+    $sessionUser = [
+        'id' => $customerId,
+        'full_name' => $user['full_name'],
+        'email' => $user['email'],
+        'phone' => $user['phone'],
+        'customer_address' => $user['customer_address'],
+        'profile_photo_url' => $avatarUrl,
+    ];
+    $_SESSION['customer_user'] = $sessionUser;
+
+    online_json([
+        'status' => 'success',
+        'ok' => true,
+        'message' => 'Profile picture updated.',
+        'profile_photo_url' => $avatarUrl,
+        'user' => $sessionUser,
+    ]);
+}
+
 $data = json_decode(file_get_contents('php://input'), true);
 if (!is_array($data)) {
     online_json(['status' => 'error', 'message' => 'Invalid request data.'], 400);
+}
+
+if ($action === 'remove_avatar') {
+    if (!verify_csrf_token($data['csrf_token'] ?? null)) {
+        online_json(['status' => 'error', 'ok' => false, 'message' => 'Invalid security token. Please reload the page and try again.'], 403);
+    }
+
+    $user = kk_require_active_customer_record($conn);
+    $customerId = (int)$user['id'];
+    $oldPhoto = $user['profile_photo'] ?? null;
+
+    $conn->prepare('UPDATE users SET profile_photo = NULL WHERE id = ?')->execute([$customerId]);
+    kk_delete_customer_avatar_file($oldPhoto);
+
+    $sessionUser = [
+        'id' => $customerId,
+        'full_name' => $user['full_name'],
+        'email' => $user['email'],
+        'phone' => $user['phone'],
+        'customer_address' => $user['customer_address'],
+        'profile_photo_url' => null,
+    ];
+    $_SESSION['customer_user'] = $sessionUser;
+
+    online_json([
+        'status' => 'success',
+        'ok' => true,
+        'message' => 'Profile picture removed.',
+        'profile_photo_url' => null,
+        'user' => $sessionUser,
+    ]);
 }
 
 if ($action === 'deactivate_account') {
@@ -170,7 +412,7 @@ if ($action === 'login') {
 
     if ($isPhone) {
         $stmt = $conn->prepare("
-            SELECT u.id, u.full_name, u.email, u.phone, u.customer_address, u.password,
+            SELECT u.id, u.full_name, u.email, u.phone, u.customer_address, u.profile_photo, u.password,
                    u.status, u.is_archived, u.customer_status, u.email_verified_at, u.deleted_at, r.role_name
             FROM users u
             JOIN roles r ON r.id = u.role_id
@@ -181,7 +423,7 @@ if ($action === 'login') {
         $stmt->execute([$cleanPhone, $cleanPhone]);
     } else {
         $stmt = $conn->prepare("
-            SELECT u.id, u.full_name, u.email, u.phone, u.customer_address, u.password,
+            SELECT u.id, u.full_name, u.email, u.phone, u.customer_address, u.profile_photo, u.password,
                    u.status, u.is_archived, u.customer_status, u.email_verified_at, u.deleted_at, r.role_name
             FROM users u
             JOIN roles r ON r.id = u.role_id
@@ -226,7 +468,8 @@ if ($action === 'login') {
         'full_name' => $user['full_name'],
         'email' => $user['email'],
         'phone' => $user['phone'],
-        'customer_address' => $user['customer_address']
+        'customer_address' => $user['customer_address'],
+        'profile_photo_url' => kk_customer_avatar_url($user['profile_photo'] ?? null),
     ];
     try {
         $ip = substr((string)($_SERVER['REMOTE_ADDR'] ?? '127.0.0.1'), 0, 45);
@@ -568,16 +811,17 @@ if ($action === 'otp_verify') {
             $conn->commit();
 
             $sessionUser = [
-                'id'               => $userId,
-                'full_name'        => $regFullName,
-                'email'            => $email !== '' ? $email : '',
-                'phone'            => $regPhone ?? '',
-                'customer_address' => $regAddress ?? ''
+                'id'                => $userId,
+                'full_name'         => $regFullName,
+                'email'             => $email !== '' ? $email : '',
+                'phone'             => $regPhone ?? '',
+                'customer_address'  => $regAddress ?? '',
+                'profile_photo_url' => null,
             ];
         } else {
             // mode === 'signin': require an existing active Customer (Online) account; never create or overwrite
             $userStmt = $conn->prepare("
-                SELECT u.id, u.full_name, u.email, u.phone, u.customer_address,
+                SELECT u.id, u.full_name, u.email, u.phone, u.customer_address, u.profile_photo,
                        u.status, u.is_archived, u.customer_status, u.email_verified_at, u.deleted_at, r.role_name
                 FROM users u
                 JOIN roles r ON r.id = u.role_id
@@ -605,11 +849,12 @@ if ($action === 'otp_verify') {
 
             $userId = (int)$user['id'];
             $sessionUser = [
-                'id'               => $userId,
-                'full_name'        => (string)$user['full_name'],
-                'email'            => (string)($user['email'] ?? ''),
-                'phone'            => (string)($user['phone'] ?? ''),
-                'customer_address' => (string)($user['customer_address'] ?? '')
+                'id'                => $userId,
+                'full_name'         => (string)$user['full_name'],
+                'email'             => (string)($user['email'] ?? ''),
+                'phone'             => (string)($user['phone'] ?? ''),
+                'customer_address'  => (string)($user['customer_address'] ?? ''),
+                'profile_photo_url' => kk_customer_avatar_url($user['profile_photo'] ?? null),
             ];
         }
 

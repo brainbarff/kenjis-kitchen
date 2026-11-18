@@ -417,4 +417,61 @@ if (!function_exists('kk_stock_movement_display')) {
         ];
     }
 }
+
+if (!function_exists('kk_customer_first_name')) {
+    function kk_customer_first_name(?string $fullName): string
+    {
+        $trimmed = trim((string)$fullName);
+        if ($trimmed === '') {
+            return 'Customer';
+        }
+        $parts = preg_split('/\s+/u', $trimmed);
+        return (!empty($parts[0])) ? (string)$parts[0] : 'Customer';
+    }
+}
+
+if (!function_exists('kk_customer_avatar_filename')) {
+    function kk_customer_avatar_filename(?string $profilePhoto): ?string
+    {
+        $raw = str_replace('\\', '/', trim((string)$profilePhoto));
+        if ($raw === '' || strpos($raw, '..') !== false) {
+            return null;
+        }
+        $base = basename($raw);
+        if (!preg_match('/^[a-zA-Z0-9_-]+\.(jpg|jpeg|png|webp)$/i', $base)) {
+            return null;
+        }
+        return $base;
+    }
+}
+
+if (!function_exists('kk_customer_avatar_url')) {
+    function kk_customer_avatar_url(?string $profilePhoto): ?string
+    {
+        $filename = kk_customer_avatar_filename($profilePhoto);
+        if ($filename === null) {
+            return null;
+        }
+        $fullPath = ROOT_PATH . '/uploads/avatars/' . $filename;
+        if (!@is_file($fullPath)) {
+            return null;
+        }
+        $base = defined('BASE_URL') ? rtrim((string)BASE_URL, '/') : '';
+        return $base . '/uploads/avatars/' . rawurlencode($filename) . '?v=' . (int)@filemtime($fullPath);
+    }
+}
+
+if (!function_exists('kk_delete_customer_avatar_file')) {
+    function kk_delete_customer_avatar_file(?string $profilePhoto): void
+    {
+        $filename = kk_customer_avatar_filename($profilePhoto);
+        if ($filename === null) {
+            return;
+        }
+        $fullPath = ROOT_PATH . '/uploads/avatars/' . $filename;
+        if (@is_file($fullPath)) {
+            @unlink($fullPath);
+        }
+    }
+}
 ?>

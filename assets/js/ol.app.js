@@ -55,6 +55,9 @@ const appState = {
   currentTrackedOrderId: null,
   isTrackingPollInFlight: false,
   lastTrackedData: null,
+  myReview: null,
+  reviewCsrf: '',
+  reviewOrderId: null,
   gcashSettingsPromise: null,
   deliveryRules: {
     within_lagro_min_items: 2,
@@ -866,6 +869,14 @@ function setupUIEventListeners() {
       searchDebounceTimer = setTimeout(() => {
         filterAndRenderMenu();
       }, 120);
+    });
+  }
+
+  const avatarInput = document.getElementById('customerAvatarInput');
+  if (avatarInput) {
+    avatarInput.addEventListener('change', (e) => {
+      const file = e.target.files?.[0];
+      if (file) handleCustomerAvatarUpload(file);
     });
   }
 
@@ -3866,21 +3877,66 @@ function updateDeliveryModeDetails() {
   toggleOnlinePaymentMethod();
 }
 
+function getCustomerInitial(nameOrEmail) {
+  const raw = String(nameOrEmail || '').trim();
+  const match = raw.match(/[\p{L}\p{N}]/u);
+  return match ? match[0].toUpperCase() : 'C';
+}
+
+function getSafeAvatarUrl(url) {
+  if (typeof url !== 'string') return '';
+  const trimmed = url.trim();
+  if (trimmed === '') return '';
+  if (trimmed.startsWith('/') || /^https?:\/\//i.test(trimmed)) return trimmed;
+  return '';
+}
+
+function createAvatarVisual(photoUrl, displayName, imgClass, fallbackClass) {
+  const fallback = document.createElement('span');
+  fallback.className = fallbackClass;
+  fallback.setAttribute('aria-hidden', 'true');
+  fallback.textContent = getCustomerInitial(displayName);
+
+  const safeUrl = getSafeAvatarUrl(photoUrl);
+  if (!safeUrl) return fallback;
+
+  const img = document.createElement('img');
+  img.className = imgClass;
+  img.src = safeUrl;
+  img.alt = '';
+  img.addEventListener('error', () => img.replaceWith(fallback), { once: true });
+  return img;
+}
+
 function updateUserUI() {
   const container = document.getElementById('navUserContainer');
   if (!container) return;
+  container.replaceChildren();
+
   if (appState.currentUser) {
-    container.innerHTML = `
-      <button class="nav-btn" onclick="openCustomerAccountModal()" title="My account" aria-label="My account">
-        <i class="bi bi-person-check"></i>
-      </button>
-    `;
+    const btn = document.createElement('button');
+    btn.className = 'nav-btn nav-user-btn';
+    btn.type = 'button';
+    btn.title = 'My account';
+    btn.setAttribute('aria-label', 'My account');
+    btn.addEventListener('click', openCustomerAccountModal);
+    btn.appendChild(createAvatarVisual(
+      appState.currentUser.profile_photo_url,
+      appState.currentUser.full_name || appState.currentUser.email,
+      'nav-user-avatar',
+      'nav-user-initial'
+    ));
+    container.appendChild(btn);
   } else {
-    container.innerHTML = `
-      <button class="nav-btn" style="width: auto; padding: 0 14px; font-size: 0.85rem; font-weight: 700; display: inline-flex; align-items: center; gap: 6px;" onclick="openOtpModal()">
-        <i class="bi bi-person"></i> Sign In
-      </button>
-    `;
+    const btn = document.createElement('button');
+    btn.className = 'nav-btn';
+    btn.type = 'button';
+    btn.style.cssText = 'width: auto; padding: 0 14px; font-size: 0.85rem; font-weight: 700; display: inline-flex; align-items: center; gap: 6px;';
+    btn.addEventListener('click', openOtpModal);
+    const icon = document.createElement('i');
+    icon.className = 'bi bi-person';
+    btn.append(icon, document.createTextNode(' Sign In'));
+    container.appendChild(btn);
   }
 }
 
@@ -3954,8 +4010,149 @@ async function toggleFavorite(itemId) {
   }
 }
 
+function renderCustomerAccountAvatar() {
+  const preview = document.getElementById('customerAccountAvatarPreview');
+  const uploadBtn = document.getElementById('btnUploadAvatar');
+  const removeBtn = document.getElementById('btnRemoveAvatar');
+  const user = appState.currentUser || {};
+  const displayName = user.full_name || user.email || 'Customer';
+  const hasPhoto = Boolean(getSafeAvatarUrl(user.profile_photo_url));
+
+  if (preview) {
+    preview.replaceChildren(createAvatarVisual(
+      user.profile_photo_url,
+      displayName,
+      'account-avatar-img',
+      'account-avatar-initial'
+    ));
+  }
+  if (uploadBtn) uploadBtn.textContent = hasPhoto ? 'Change photo' : 'Add photo';
+  if (removeBtn) removeBtn.style.display = hasPhoto ? 'inline-flex' : 'none';
+}
+
+function setCustomerAvatarStatus(message, isError = false) {
+  const statusEl = document.getElementById('customerAvatarStatus');
+  if (!statusEl) return;
+  statusEl.textContent = message;
+  statusEl.classList.toggle('is-error', Boolean(isError));
+}
+
+function triggerCustomerAvatarPicker() {
+  const input = document.getElementById('customerAvatarInput');
+  if (input) input.click();
+}
+
+async function handleCustomerAvatarUpload(file) {
+  const input = document.getElementById('customerAvatarInput');
+  const uploadBtn = document.getElementById('btnUploadAvatar');
+  const removeBtn = document.getElementById('btnRemoveAvatar');
+  const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+
+  if (!allowedTypes.includes(file.type)) {
+    setCustomerAvatarStatus('Please select a JPG, PNG, or WebP image.', true);
+    if (input) input.value = '';
+    return;
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    setCustomerAvatarStatus('Profile picture must be 5 MB or smaller.', true);
+    if (input) input.value = '';
+    return;
+  }
+
+  if (uploadBtn) uploadBtn.disabled = true;
+  if (removeBtn) removeBtn.disabled = true;
+  setCustomerAvatarStatus('Uploading photo…');
+
+  try {
+    const meRes = await fetch('./api/auth.php?action=me', { credentials: 'same-origin', cache: 'no-store' });
+    const meData = await meRes.json();
+    if (!meRes.ok || !meData.authenticated || !meData.csrf_token) {
+      throw new Error('Your session has expired. Please sign in again.');
+    }
+
+    const formData = new FormData();
+    formData.append('avatar', file);
+    formData.append('csrf_token', meData.csrf_token);
+
+    const res = await fetch('./api/auth.php?action=upload_avatar', {
+      method: 'POST',
+      credentials: 'same-origin',
+      body: formData
+    });
+    const result = await res.json();
+    if (!res.ok || (result.status !== 'success' && !result.ok)) {
+      throw new Error(result.message || 'Could not update profile picture.');
+    }
+
+    appState.currentUser = result.user || {
+      ...(appState.currentUser || {}),
+      profile_photo_url: result.profile_photo_url || null
+    };
+    localStorage.setItem('kk_customer_session', JSON.stringify(appState.currentUser));
+    renderCustomerAccountAvatar();
+    updateUserUI();
+    setCustomerAvatarStatus('Profile picture updated.');
+    showToast('Profile picture updated.');
+    window.dispatchEvent(new CustomEvent('kk:profile-updated'));
+  } catch (err) {
+    setCustomerAvatarStatus(err.message || 'Could not upload photo. Please try again.', true);
+    window.kkNotify(err.message || 'Could not upload photo. Please try again.', 'error');
+  } finally {
+    if (uploadBtn) uploadBtn.disabled = false;
+    if (removeBtn) removeBtn.disabled = false;
+    if (input) input.value = '';
+  }
+}
+
+async function handleRemoveCustomerAvatar() {
+  if (!appState.currentUser?.profile_photo_url) return;
+  const uploadBtn = document.getElementById('btnUploadAvatar');
+  const removeBtn = document.getElementById('btnRemoveAvatar');
+  if (uploadBtn) uploadBtn.disabled = true;
+  if (removeBtn) removeBtn.disabled = true;
+  setCustomerAvatarStatus('Removing photo…');
+
+  try {
+    const meRes = await fetch('./api/auth.php?action=me', { credentials: 'same-origin', cache: 'no-store' });
+    const meData = await meRes.json();
+    if (!meRes.ok || !meData.authenticated || !meData.csrf_token) {
+      throw new Error('Your session has expired. Please sign in again.');
+    }
+
+    const res = await fetch('./api/auth.php?action=remove_avatar', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ csrf_token: meData.csrf_token })
+    });
+    const result = await res.json();
+    if (!res.ok || (result.status !== 'success' && !result.ok)) {
+      throw new Error(result.message || 'Could not remove profile picture.');
+    }
+
+    appState.currentUser = result.user || {
+      ...(appState.currentUser || {}),
+      profile_photo_url: null
+    };
+    localStorage.setItem('kk_customer_session', JSON.stringify(appState.currentUser));
+    renderCustomerAccountAvatar();
+    updateUserUI();
+    setCustomerAvatarStatus('JPG, PNG, or WebP, up to 5 MB.');
+    showToast('Profile picture removed.');
+    window.dispatchEvent(new CustomEvent('kk:profile-updated'));
+  } catch (err) {
+    setCustomerAvatarStatus(err.message || 'Could not remove photo. Please try again.', true);
+    window.kkNotify(err.message || 'Could not remove photo. Please try again.', 'error');
+  } finally {
+    if (uploadBtn) uploadBtn.disabled = false;
+    if (removeBtn) removeBtn.disabled = false;
+  }
+}
+
 function openCustomerAccountModal() {
   document.getElementById('customerAccountName').textContent = appState.currentUser?.full_name || appState.currentUser?.email || 'Customer';
+  renderCustomerAccountAvatar();
+  setCustomerAvatarStatus('JPG, PNG, or WebP, up to 5 MB.');
   toggleDeactivateAccountPanel(false);
   document.getElementById('customerAccountModal').classList.add('active');
 }
@@ -4069,8 +4266,193 @@ function formatTimeShort(dateStr) {
   }
 }
 
+function getDismissedReviewOrderIds() {
+  try {
+    const raw = JSON.parse(sessionStorage.getItem('kk_dismissed_review_orders') || '[]');
+    return new Set(Array.isArray(raw) ? raw.map(Number) : []);
+  } catch (_) {
+    return new Set();
+  }
+}
+
+function isOrderReviewDismissed(orderId) {
+  return getDismissedReviewOrderIds().has(Number(orderId));
+}
+
+function dismissOrderReviewInvite(orderId) {
+  const dismissed = getDismissedReviewOrderIds();
+  dismissed.add(Number(orderId));
+  try {
+    sessionStorage.setItem('kk_dismissed_review_orders', JSON.stringify([...dismissed]));
+  } catch (_) {}
+  const invite = document.querySelector(`.order-review-invite[data-order-id="${Number(orderId)}"]`);
+  if (invite) invite.remove();
+}
+
+async function syncMyReviewState() {
+  try {
+    const res = await fetch('./api/reviews.php', { credentials: 'same-origin', cache: 'no-store' });
+    const data = await res.json();
+    if (!res.ok) return;
+    appState.reviewCsrf = data.csrf || '';
+    appState.myReview = data.my_review || null;
+    document.querySelectorAll('.btn-review-order').forEach(btn => {
+      const icon = '<i class="bi bi-star"></i> ';
+      btn.innerHTML = icon + (appState.myReview ? 'Edit review' : 'Write a review');
+    });
+  } catch (_) {}
+}
+
+function closeOrderReviewComposer() {
+  appState.reviewOrderId = null;
+  const box = document.getElementById('orderReviewComposer');
+  if (box) {
+    box.style.display = 'none';
+    box.replaceChildren();
+  }
+}
+
+function openOrderReviewComposer(orderId) {
+  const box = document.getElementById('orderReviewComposer');
+  if (!box) return;
+  const order = appState.ordersById?.[Number(orderId)] || null;
+  const orderLabel = order?.order_no ? `Order ${order.order_no}` : 'Completed order';
+  const existing = appState.myReview;
+  appState.reviewOrderId = Number(orderId);
+
+  const starSvg = '<svg class="star-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.4l2.92 5.92 6.53.95-4.72 4.6 1.11 6.5L12 17.3l-5.84 3.07 1.11-6.5-4.72-4.6 6.53-.95L12 2.4z"/></svg>';
+  box.innerHTML = `
+    <div class="order-review-composer-head">
+      <div>
+        <h3>${existing ? 'Update your review' : 'Write a review'}</h3>
+        <span class="order-review-order-tag">${escapeHtml(orderLabel)}</span>
+      </div>
+      <button type="button" class="order-review-skip-btn" onclick="closeOrderReviewComposer()">Close</button>
+    </div>
+    <form id="orderReviewForm" class="order-review-form">
+      <fieldset class="star-rating">
+        <legend>Your rating</legend>
+        <div class="star-rating-row" id="orderReviewStarRow">
+          ${[1, 2, 3, 4, 5].map(v => `
+            <label>
+              <input type="radio" name="rating" value="${v}" required aria-label="${v} ${v === 1 ? 'star' : 'stars'}">
+              ${starSvg}
+            </label>
+          `).join('')}
+          <span class="star-rating-value" id="orderReviewRatingLabel" aria-live="polite">Tap a star to rate</span>
+        </div>
+      </fieldset>
+      <label for="orderReviewComment">Your review (optional to share)</label>
+      <textarea id="orderReviewComment" name="comment" minlength="10" maxlength="1000" rows="3" required placeholder="How was your food and service?"></textarea>
+      <p class="order-review-form-note">Your first name and profile picture (if set) appear publicly on Customer reviews.</p>
+      <div class="order-review-invite-actions" style="margin-top:2px;">
+        <button type="submit" class="order-review-primary-btn" id="btnSubmitOrderReview">${existing ? 'Update review' : 'Post review'}</button>
+        <button type="button" class="order-review-skip-btn" onclick="closeOrderReviewComposer()">Cancel</button>
+      </div>
+      <p id="orderReviewStatus" class="order-review-status" role="status"></p>
+    </form>
+  `;
+  box.style.display = 'block';
+
+  const form = document.getElementById('orderReviewForm');
+  const commentEl = document.getElementById('orderReviewComment');
+  const statusEl = document.getElementById('orderReviewStatus');
+  const starRow = document.getElementById('orderReviewStarRow');
+  const ratingLabel = document.getElementById('orderReviewRatingLabel');
+  const inputs = [...form.querySelectorAll('input[name="rating"]')];
+  const labels = ['Tap a star to rate', '1 out of 5', '2 out of 5', '3 out of 5', '4 out of 5', '5 out of 5'];
+
+  const paint = (hoverVal = 0) => {
+    const selected = inputs.find(i => i.checked);
+    const selectedVal = selected ? Number(selected.value) : 0;
+    const activeVal = hoverVal || selectedVal;
+    inputs.forEach(i => {
+      const val = Number(i.value);
+      i.parentElement.classList.toggle('selected', selectedVal > 0 && val <= selectedVal);
+      i.parentElement.classList.toggle('hovered', hoverVal > 0 && val <= hoverVal);
+    });
+    if (ratingLabel) ratingLabel.textContent = labels[activeVal] || labels[0];
+  };
+
+  inputs.forEach(i => {
+    i.addEventListener('change', () => paint(0));
+    i.parentElement.addEventListener('mouseenter', () => paint(Number(i.value)));
+    i.addEventListener('focus', () => paint(Number(i.value)));
+    i.addEventListener('blur', () => paint(0));
+  });
+  if (starRow) starRow.addEventListener('mouseleave', () => paint(0));
+
+  if (existing) {
+    const match = inputs.find(i => Number(i.value) === Number(existing.rating));
+    if (match) match.checked = true;
+    if (commentEl) commentEl.value = existing.comment || '';
+  }
+  paint(0);
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById('btnSubmitOrderReview');
+    if (!btn || btn.disabled) return;
+    const chosen = inputs.find(i => i.checked);
+    const ratingVal = chosen ? Number(chosen.value) : 0;
+    const commentVal = (commentEl?.value || '').trim();
+    if (!ratingVal || commentVal.length < 10) {
+      if (statusEl) {
+        statusEl.textContent = 'Choose a star rating and write at least 10 characters.';
+        statusEl.className = 'order-review-status is-error';
+      }
+      return;
+    }
+
+    btn.disabled = true;
+    if (statusEl) {
+      statusEl.textContent = 'Saving review…';
+      statusEl.className = 'order-review-status';
+    }
+
+    try {
+      if (!appState.reviewCsrf) await syncMyReviewState();
+      const res = await fetch('./api/reviews.php', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          csrf: appState.reviewCsrf,
+          rating: ratingVal,
+          comment: commentVal
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Could not post review.');
+
+      appState.myReview = { rating: ratingVal, comment: commentVal };
+      window.dispatchEvent(new CustomEvent('kk:reviews-updated'));
+      showToast('Thank you! Your review is published on Customer reviews.');
+      document.querySelectorAll('.btn-review-order').forEach(b => {
+        b.innerHTML = '<i class="bi bi-star"></i> Edit review';
+      });
+      if (appState.currentTrackedOrderId) {
+        fetchOrderTracking(appState.currentTrackedOrderId, true);
+      }
+      closeOrderReviewComposer();
+    } catch (err) {
+      if (statusEl) {
+        statusEl.textContent = err.message || 'Could not post review. Please try again.';
+        statusEl.className = 'order-review-status is-error';
+      }
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  const modalBody = document.querySelector('#customerOrdersModal > .modal-body');
+  if (modalBody) modalBody.scrollTo({ top: 0, behavior: 'smooth' });
+  setTimeout(() => commentEl?.focus(), 120);
+}
+
 function openOrdersModal(initialOrderId = null) {
   closeModal('customerAccountModal');
+  closeOrderReviewComposer();
   const modal = document.getElementById('customerOrdersModal');
   if (modal) modal.classList.add('active');
   const list = document.getElementById('customerOrdersList');
@@ -4079,6 +4461,7 @@ function openOrdersModal(initialOrderId = null) {
   if (panel && !initialOrderId && !appState.currentTrackedOrderId) {
     panel.innerHTML = '';
   }
+  syncMyReviewState();
   loadOrderHistory(initialOrderId);
 }
 
@@ -4315,6 +4698,24 @@ async function fetchOrderTracking(orderId, isBackgroundPoll = false) {
              <div style="font-size:0.75rem;color:var(--muted);margin-top:2px;">${isDelivery ? 'This covers food preparation only. Delivery time depends on courier availability, travel distance, and traffic.' : 'Check your order status before collecting. Preparation may vary with kitchen volume.'}</div>
            </div>`
         : '';
+      const orderReviewInviteHtml = (completed && !isOrderReviewDismissed(order.id))
+        ? `<div class="order-review-invite" data-order-id="${Number(order.id)}">
+             <div class="order-review-invite-head">
+               <div>
+                 <p class="order-review-invite-title">${appState.myReview ? 'Want to update your review?' : 'Enjoyed your order?'}</p>
+                 <p class="order-review-invite-sub">${appState.myReview ? 'You can edit your public review anytime.' : 'Share a review on our storefront if you’d like — completely optional.'}</p>
+               </div>
+             </div>
+             <div class="order-review-invite-actions">
+               <button type="button" class="order-review-primary-btn" onclick="openOrderReviewComposer(${Number(order.id)})">
+                 <i class="bi bi-star"></i> ${appState.myReview ? 'Edit review' : 'Write a review'}
+               </button>
+               <button type="button" class="order-review-skip-btn" onclick="dismissOrderReviewInvite(${Number(order.id)})">
+                 ${appState.myReview ? 'Hide' : 'Not now'}
+               </button>
+             </div>
+           </div>`
+        : '';
       panel.innerHTML = `
         <div class="tracking-card">
           <div class="tracking-card-header">
@@ -4335,6 +4736,7 @@ async function fetchOrderTracking(orderId, isBackgroundPoll = false) {
           ${pickupSummary ? `<p class="pickup-order-time"><strong>Pickup:</strong> ${escapeHtml(pickupSummary)}</p>` : ''}${progress}
           ${externalTrackingHtml}
           <ul class="tracking-items">${itemsHtml}</ul>
+          ${orderReviewInviteHtml}
         </div>
       `;
     }
@@ -4737,6 +5139,7 @@ async function loadOrderHistory(targetOrderId = null, showLoading = true) {
       const rowClosed = !['Pending', 'Preparing', 'Ready'].includes(order.status);
       const rowFeeInfo = isStoreBookedRow ? buildCourierFeeInfo(order, rowClosed) : null;
 
+      const isCompletedOrder = ['Served', 'Picked Up'].includes(order.status);
       return `
         <article class="customer-order-row ${isSelected ? 'is-selected-tracking' : ''}" id="customer-order-${Number(order.id)}" data-order-id="${Number(order.id)}">
           <div class="customer-order-top">
@@ -4757,6 +5160,7 @@ async function loadOrderHistory(targetOrderId = null, showLoading = true) {
             <button type="button" class="btn-track-order" onclick="openCustomerReceiptModal(${Number(order.id)})">
               <i class="bi bi-receipt"></i> ${isOrderPaid ? 'View Receipt' : 'View Order Summary'}
             </button>
+            ${isCompletedOrder ? `<button type="button" class="btn-track-order btn-review-order" onclick="openOrderReviewComposer(${Number(order.id)})"><i class="bi bi-star"></i> ${appState.myReview ? 'Edit review' : 'Write a review'}</button>` : ''}
           </div>
           ${order.cancellation ? `<p class="muted">${escapeHtml(order.cancellation.pending ? 'Cancellation / staff review pending.' : (order.cancellation.decision ? 'Cancellation ' + order.cancellation.decision.status.toLowerCase() + '. ' + (order.cancellation.decision.review_notes || '') : order.cancellation.explanation || ''))}${order.cancellation.reason ? '<br>' + escapeHtml(order.cancellation.reason) : ''}</p>` : ''}
         </article>
@@ -5058,6 +5462,9 @@ async function handleSignOut() {
   stopTrackingPolling();
   appState.currentTrackedOrderId = null;
   appState.lastTrackedData = null;
+  appState.myReview = null;
+  appState.reviewCsrf = '';
+  appState.reviewOrderId = null;
   appState.currentUser = null;
   appState.favoriteIds.clear();
   appState.favoriteItems = [];
@@ -5077,6 +5484,7 @@ function closeModal(modalId) {
   if (modal) modal.classList.remove('active');
   if (modalId === 'customerOrdersModal') {
     stopTrackingPolling();
+    closeOrderReviewComposer();
     appState.currentTrackedOrderId = null;
     appState.lastTrackedData = null;
   }

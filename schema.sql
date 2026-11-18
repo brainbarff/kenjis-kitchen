@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS `users` (
     `email` VARCHAR(150) NULL UNIQUE,
     `phone` VARCHAR(20) NULL,
     `customer_address` VARCHAR(500) NULL,
+    `profile_photo` VARCHAR(255) NULL DEFAULT NULL,
     `status` ENUM('Active','Inactive') NOT NULL DEFAULT 'Active',
     `customer_status` ENUM('Active','Inactive','Suspended','Pending Approval') NULL DEFAULT 'Active',
     `email_verified_at` DATETIME NULL DEFAULT NULL,

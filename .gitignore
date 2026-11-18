@@ -17,7 +17,8 @@ service-account*.json
 Launch_Kenjis_Kitchen.bat
 *.bat
 
-# Customer payment proof uploads (runtime user uploads)
+# Customer runtime uploads
+/uploads/avatars/
 /uploads/payment_proofs/
 /uploads/private_proofs/
 

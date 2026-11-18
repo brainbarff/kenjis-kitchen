@@ -110,7 +110,39 @@ require_once dirname(__DIR__) . '/includes/storefront_bestsellers.php';
 <header class="about-heading"><p class="store-eyebrow">ABOUT KENJI'S KITCHEN</p><h2>Your neighborhood kitchen.<br><span>Since May 2022.</span></h2><p>Everyday meals. Familiar faces. A place to share good food in Greater Lagro.</p></header>
 <div class="about-story"><div class="about-gallery" role="region" aria-label="Photos of Kenji’s Kitchen"><button class="about-photo-stack" type="button" aria-label="Show next photo of Kenji’s Kitchen"><img src="../assets/img/about/kenjis-entrance.jpg" alt="The entrance to Kenji’s Kitchen" class="about-gallery-photo is-current"  width="1200" height="900" loading="lazy"><img src="../assets/img/about/kenjis-dining-area.jpg" alt="Tables in the covered dining area" class="about-gallery-photo" aria-hidden="true" width="1200" height="900" loading="lazy"><img src="../assets/img/about/kenjis-interview-04.jpg" alt="The dining area and menu displays" class="about-gallery-photo" aria-hidden="true" width="1200" height="900" loading="lazy"><img src="../assets/img/about/kenjis-interview-01.jpg" alt="Plants and a painted welcome at Kenji’s Kitchen" class="about-gallery-photo" aria-hidden="true" width="1200" height="900" loading="lazy"><img src="../assets/img/about/kenjis-interview-02.jpg" alt="A detail of the painted wall at Kenji’s Kitchen" class="about-gallery-photo" aria-hidden="true" width="1200" height="900" loading="lazy"></button></div><div><p class="store-eyebrow">OUR STORY</p><h3>Familiar favorites, made for everyday life.</h3><p>Since opening in May 2022, Kenji’s Kitchen has served students and neighbors in Greater Lagro, Quezon City with affordable meals and snacks. It’s a local stop for a filling meal, whether you’re sitting down with us or taking food home.</p><p>Silog favorites and combo meals sit alongside family-size platters, palabok, and spaghetti. From a meal for one to something to share, our menu keeps familiar Filipino favorites within reach.</p><p>Behind the counter, our small team shares the cooking, order taking, and service that keep the kitchen going. That hands-on approach is part of everyday life at Kenji’s.</p></div></div>
 </section>
-<section class="store-section" id="customerReviews"><div class="store-section-heading"><div><p class="store-eyebrow">FROM OUR CUSTOMERS</p><h2>Customer reviews</h2></div><p id="reviewSummary"></p></div><div id="reviewList" class="store-reviews" aria-live="polite"><p>Loading reviews…</p></div><details class="review-compose"><summary>Write a review</summary><p>Sign in with your customer account to share your experience. Your first name and last initial will be public.</p><form id="reviewForm"><fieldset class="star-rating"><legend>Your rating</legend><label><input type="radio" name="rating" value="1" required aria-label="1 star"><span aria-hidden="true">★</span></label><label><input type="radio" name="rating" value="2" required aria-label="2 stars"><span aria-hidden="true">★</span></label><label><input type="radio" name="rating" value="3" required aria-label="3 stars"><span aria-hidden="true">★</span></label><label><input type="radio" name="rating" value="4" required aria-label="4 stars"><span aria-hidden="true">★</span></label><label><input type="radio" name="rating" value="5" required aria-label="5 stars"><span aria-hidden="true">★</span></label></fieldset><label for="reviewComment">Your review</label><textarea id="reviewComment" name="comment" minlength="10" maxlength="1000" rows="3" required placeholder="How was your experience?"></textarea><button class="store-button" type="submit">Post review</button><p id="reviewMessage" role="status"></p></form></details></section>
+<section class="store-section" id="customerReviews">
+  <div class="store-section-heading">
+    <div>
+      <p class="store-eyebrow">FROM OUR CUSTOMERS</p>
+      <h2>Customer reviews</h2>
+    </div>
+    <div id="reviewSummary" class="review-summary" aria-live="polite"></div>
+  </div>
+  <div id="reviewList" class="store-reviews" aria-live="polite">
+    <p>Loading reviews…</p>
+  </div>
+  <details class="review-compose">
+    <summary>Write a review</summary>
+    <p class="review-compose-note">Sign in with your customer account to share your experience. Your first name and profile picture (if set) will be shown publicly on your review.</p>
+    <form id="reviewForm">
+      <fieldset class="star-rating">
+        <legend>Your rating</legend>
+        <div class="star-rating-row">
+          <label><input type="radio" name="rating" value="1" required aria-label="1 star"><svg class="star-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.4l2.92 5.92 6.53.95-4.72 4.6 1.11 6.5L12 17.3l-5.84 3.07 1.11-6.5-4.72-4.6 6.53-.95L12 2.4z"/></svg></label>
+          <label><input type="radio" name="rating" value="2" required aria-label="2 stars"><svg class="star-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.4l2.92 5.92 6.53.95-4.72 4.6 1.11 6.5L12 17.3l-5.84 3.07 1.11-6.5-4.72-4.6 6.53-.95L12 2.4z"/></svg></label>
+          <label><input type="radio" name="rating" value="3" required aria-label="3 stars"><svg class="star-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.4l2.92 5.92 6.53.95-4.72 4.6 1.11 6.5L12 17.3l-5.84 3.07 1.11-6.5-4.72-4.6 6.53-.95L12 2.4z"/></svg></label>
+          <label><input type="radio" name="rating" value="4" required aria-label="4 stars"><svg class="star-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.4l2.92 5.92 6.53.95-4.72 4.6 1.11 6.5L12 17.3l-5.84 3.07 1.11-6.5-4.72-4.6 6.53-.95L12 2.4z"/></svg></label>
+          <label><input type="radio" name="rating" value="5" required aria-label="5 stars"><svg class="star-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.4l2.92 5.92 6.53.95-4.72 4.6 1.11 6.5L12 17.3l-5.84 3.07 1.11-6.5-4.72-4.6 6.53-.95L12 2.4z"/></svg></label>
+          <span class="star-rating-value" id="starRatingLabel" aria-live="polite">Tap a star to rate</span>
+        </div>
+      </fieldset>
+      <label for="reviewComment">Your review</label>
+      <textarea id="reviewComment" name="comment" minlength="10" maxlength="1000" rows="3" required placeholder="How was your experience?"></textarea>
+      <button class="store-button" type="submit">Post review</button>
+      <p id="reviewMessage" role="status"></p>
+    </form>
+  </details>
+</section>
 <section class="store-section store-visit" id="visit-us"><div><p class="store-eyebrow">COME BY OR GET IN TOUCH</p><h2>Visit Us</h2><address>Blk 79 Lot 34 Florante at Laura St.<br>Brgy. Greater Lagro, Quezon City, Philippines</address><a href="tel:+639687430373">0968 743 0373</a><a href="mailto:kenjiskitchen.online@gmail.com">kenjiskitchen.online@gmail.com</a><p id="storeOpenStatus" class="store-status" role="status"></p><h3>Store Hours</h3><p>Monday – Saturday<br><strong>9:00 AM to 3:00 AM</strong><br>Sunday: Closed</p><a href="https://www.google.com/maps/search/?api=1&amp;query=Blk+79+Lot+34+Florante+at+Laura+Greater+Lagro+Quezon+City" target="_blank" rel="noopener">Get directions</a></div><div class="store-map"><iframe title="Map showing Kenji's Kitchen in Greater Lagro" src="https://maps.google.com/maps?q=Blk%2079%20Lot%2034%20Florante%20at%20Laura%20Greater%20Lagro%20Quezon%20City&amp;output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe></div></section>
 <footer class="store-footer"><div class="footer-columns"><div><h3>Quick links</h3><nav aria-label="Footer"><a href="#menu">Our Menu</a><a href="#about-us">About Us</a><a href="terms.php">Terms of Use</a><a href="privacy.php">Privacy Policy</a></nav></div><div class="footer-contact"><h3>Contact Us</h3><a href="tel:+639687430373"><i class="bi bi-telephone" aria-hidden="true"></i>0968 743 0373</a><a href="mailto:kenjiskitchen.online@gmail.com"><i class="bi bi-envelope" aria-hidden="true"></i>kenjiskitchen.online@gmail.com</a><a href="https://www.google.com/maps/search/?api=1&amp;query=Blk+79+Lot+34+Florante+at+Laura+Greater+Lagro+Quezon+City" target="_blank" rel="noopener"><i class="bi bi-geo-alt" aria-hidden="true"></i><span>Blk 79 Lot 34 Florante at Laura St.<br>Brgy. Greater Lagro, Quezon City, Philippines</span></a><a class="footer-facebook" href="https://www.facebook.com/profile.php?id=61578450361358" target="_blank" rel="noopener" aria-label="Kenji’s Kitchen on Facebook"><i class="bi bi-facebook" aria-hidden="true"></i><span>Facebook</span></a></div></div><small>&copy; <?= date('Y') ?> Kenji's Kitchen. All Rights Reserved.</small></footer>
   </main>
@@ -662,8 +694,19 @@ require_once dirname(__DIR__) . '/includes/storefront_bestsellers.php';
     <div class="modal-card customer-tools-modal">
       <button class="btn-close-modal" aria-label="Close My Account" onclick="closeModal('customerAccountModal')">✕</button>
       <div class="modal-body">
-        <div class="account-heading-icon" aria-hidden="true"><i class="bi bi-person"></i></div><h2>My Account</h2>
-        <p class="customer-account-name" id="customerAccountName"></p>
+        <div class="account-profile-header">
+          <div class="account-avatar-frame" id="customerAccountAvatarPreview" aria-hidden="true"></div>
+          <div class="account-profile-meta">
+            <h2>My Account</h2>
+            <p class="customer-account-name" id="customerAccountName"></p>
+            <div class="account-avatar-controls">
+              <input type="file" id="customerAvatarInput" accept="image/jpeg,image/png,image/webp" hidden>
+              <button type="button" class="account-avatar-btn" id="btnUploadAvatar" onclick="triggerCustomerAvatarPicker()">Add photo</button>
+              <button type="button" class="account-avatar-btn account-avatar-remove" id="btnRemoveAvatar" onclick="handleRemoveCustomerAvatar()" style="display: none;">Remove</button>
+            </div>
+            <p class="account-avatar-hint" id="customerAvatarStatus">JPG, PNG, or WebP, up to 5 MB.</p>
+          </div>
+        </div>
         <div class="customer-tools-actions">
           <button class="btn-primary" onclick="openOrdersModal()"><i class="bi bi-receipt"></i> My Orders</button>
           <button class="btn-primary customer-secondary-action" onclick="openFavoritesModal()"><i class="bi bi-heart"></i> My Favorites</button>
@@ -699,8 +742,15 @@ require_once dirname(__DIR__) . '/includes/storefront_bestsellers.php';
     <div class="modal-card customer-tools-modal customer-orders-modal">
       <button type="button" class="btn-close-modal customer-orders-close" aria-label="Close My Orders" title="Close My Orders" onclick="closeModal('customerOrdersModal')">×</button>
       <div class="modal-body">
-        <h2><i class="bi bi-receipt"></i> My Orders</h2>
-        <p class="muted">Track active orders live and review your past order receipts.</p>
+        <div class="customer-orders-head">
+          <div>
+            <h2><i class="bi bi-receipt"></i> My Orders</h2>
+            <p class="muted">Track active orders live and review your past order receipts.</p>
+          </div>
+        </div>
+
+        <!-- Optional customer review composer (only shown when customer chooses to review a completed order) -->
+        <section id="orderReviewComposer" class="order-review-composer" style="display:none;" aria-live="polite"></section>
         
         <!-- Top: Active Order Live Tracking Panel -->
         <section id="orderTrackingPanel" class="order-tracking-panel" aria-live="polite"></section>

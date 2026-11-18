@@ -427,7 +427,7 @@ $lastUpdated = 'November 18, 2026';
         <h2>2. Account and Contact Details</h2>
         <p>When you sign up or manage an online customer account with Kenji's Kitchen, we collect only the details needed to verify your identity and reach you about active orders:</p>
         <ul>
-          <li>Account Profile Details: Full name, email address, username, email verification timestamp, 6 digit email verification records, and cryptographically hashed passwords.</li>
+          <li>Account Profile Details: Full name, email address, username, optional profile picture, email verification timestamp, 6 digit email verification records, and cryptographically hashed passwords.</li>
           <li>Contact Details: Your 11 digit Philippine mobile number starting with 09 and email address used for verification codes, digital receipts, and delivery coordination.</li>
         </ul>
       </section>
@@ -442,7 +442,7 @@ $lastUpdated = 'November 18, 2026';
       <section id="section-4" class="legal-section">
         <h2>4. Orders, GCash Proof, and Reviews</h2>
         <p>When you submit an order or review, we store ordered items, unit prices at checkout, cooking or packaging notes, chosen pickup time, receipt number, selected payment method (Cash or GCash only), 13 digit GCash reference number, uploaded screenshot proof, and any void or refund audit entries.</p>
-        <p>If you submit a customer review on a completed order, it is shown publicly alongside your first name and last initial only.</p>
+        <p>If you submit a customer review, it is shown publicly alongside your first name and your profile picture if you choose to upload one.</p>
       </section>
 
       <section id="section-5" class="legal-section">
