@@ -1,7 +1,7 @@
 (() => {
- const list=document.getElementById('reviewList'), form=document.getElementById('reviewForm');
- if(!list || !form) return;
- let csrf='', loading=false;
+ const list=document.getElementById('reviewList');
+ if(!list) return;
+ let loading=false;
  const SVG_NS='http://www.w3.org/2000/svg';
  const STAR_PATH='M12 2.4l2.92 5.92 6.53.95-4.72 4.6 1.11 6.5L12 17.3l-5.84 3.07 1.11-6.5-4.72-4.6 6.53-.95L12 2.4z';
  const text=(tag,value,className='')=>{const el=document.createElement(tag);el.textContent=value;if(className)el.className=className;return el;};
@@ -52,12 +52,9 @@
    const response=await fetch('./api/reviews.php',{cache:'no-store'});
    const data=await response.json();
    if(!response.ok)throw new Error(data.message);
-   csrf=data.csrf;
    list.replaceChildren();
    renderSummary(data.summary);
-   const submitBtn=form.querySelector('button[type="submit"]');
-   if(submitBtn)submitBtn.textContent=data.my_review?'Update review':'Post review';
-   if(!data.reviews.length)list.append(text('p','No reviews yet. Share your experience with Kenji’s Kitchen.','review-empty'));
+   if(!data.reviews.length)list.append(text('p','No reviews yet. Complete an order to share your experience with Kenji’s Kitchen.','review-empty'));
    data.reviews.forEach(review=>{
     const card=document.createElement('article');
     card.className='store-review';
@@ -85,24 +82,6 @@
    if(!list.querySelector('.store-review'))list.replaceChildren(text('p',error.message||'Reviews are temporarily unavailable.'));
   }finally{loading=false;}
  }
- form.addEventListener('submit',async event=>{
-  event.preventDefault();
-  const button=form.querySelector('button'),message=document.getElementById('reviewMessage');
-  button.disabled=true;
-  message.className='';
-  try{
-   if(!csrf)await refresh();
-   const response=await fetch('./api/reviews.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({csrf,rating:form.rating.value,comment:form.comment.value})});
-   const data=await response.json();
-   message.textContent=data.message;
-   message.classList.toggle('is-success',response.ok);
-   message.classList.toggle('is-error',!response.ok);
-   if(response.ok){form.reset();await refresh();}
-  }catch{
-   message.textContent='Could not post your review. Please try again.';
-   message.classList.add('is-error');
-  }finally{button.disabled=false;}
- });
  window.addEventListener('kk:profile-updated',refresh);
  window.addEventListener('kk:reviews-updated',refresh);
  refresh();setInterval(()=>{if(!document.hidden)refresh();},30000);
@@ -142,30 +121,6 @@
   status.textContent=open?'Open now':'Closed now';status.classList.toggle('is-open',open);
  }
  update();setInterval(update,30000);
- const stars=[...document.querySelectorAll('.star-rating input')];
- const starRow=document.querySelector('.star-rating-row');
- const ratingLabel=document.getElementById('starRatingLabel');
- const RATING_LABELS=['Tap a star to rate','1 out of 5','2 out of 5','3 out of 5','4 out of 5','5 out of 5'];
- function paint(hoverVal=0){
-  const selected=stars.find(input=>input.checked);
-  const selectedVal=selected?Number(selected.value):0;
-  const activeVal=hoverVal||selectedVal;
-  stars.forEach(input=>{
-   const val=Number(input.value);
-   input.parentElement.classList.toggle('selected',selectedVal>0&&val<=selectedVal);
-   input.parentElement.classList.toggle('hovered',hoverVal>0&&val<=hoverVal);
-  });
-  if(ratingLabel)ratingLabel.textContent=RATING_LABELS[activeVal]||RATING_LABELS[0];
- }
- stars.forEach(input=>{
-  input.addEventListener('change',()=>paint(0));
-  input.parentElement.addEventListener('mouseenter',()=>paint(Number(input.value)));
-  input.addEventListener('focus',()=>paint(Number(input.value)));
-  input.addEventListener('blur',()=>paint(0));
- });
- if(starRow)starRow.addEventListener('mouseleave',()=>paint(0));
- document.getElementById('reviewForm').addEventListener('reset',()=>setTimeout(()=>paint(0),0));
- paint(0);
 })();
 
 (() => {

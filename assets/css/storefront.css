@@ -556,16 +556,6 @@ body.dark-mode .account-avatar-remove {background:transparent;color:#ffadb5;}
 .review-star-svg.is-empty {fill:#ddd7c8;}
 .store-review .review-comment {margin:0;font-size:14.5px;line-height:1.6;color:var(--text);white-space:pre-wrap;overflow-wrap:anywhere;}
 .review-empty {grid-column:1/-1;margin:0;font-size:14.5px;color:var(--muted);}
-.review-compose {margin-top:22px;max-width:560px;border:1px solid #e7e1d2;border-radius:16px;padding:14px 18px;background:#fffdf8;}
-.review-compose summary {cursor:pointer;font-weight:700;font-size:14.5px;color:var(--text);list-style:none;display:inline-flex;align-items:center;gap:8px;min-height:32px;}
-.review-compose summary::-webkit-details-marker {display:none;}
-.review-compose summary::before {content:'▸';font-size:13px;color:#9b6b0a;transition:transform .16s ease;}
-.review-compose[open] summary::before {transform:rotate(90deg);}
-.review-compose-note {margin:10px 0 14px;font-size:13.5px;line-height:1.55;color:var(--muted);}
-.review-compose form {display:grid;gap:10px;}
-.review-compose label[for="reviewComment"] {font-size:13.5px;font-weight:650;color:var(--text);}
-.review-compose textarea {width:100%;padding:10px 12px;min-height:82px;border:1px solid var(--border);border-radius:10px;background:#ffffff;color:var(--text);font:inherit;font-size:14px;line-height:1.5;resize:vertical;box-sizing:border-box;}
-.review-compose .store-button {justify-self:start;padding:11px 20px;font-size:14px;}
 .star-rating {border:0;padding:0;margin:0 0 2px;}
 .star-rating legend {font-size:13.5px;font-weight:650;color:var(--text);margin-bottom:6px;}
 .star-rating-row {display:flex;align-items:center;flex-wrap:wrap;gap:4px;}
@@ -577,10 +567,6 @@ body.dark-mode .account-avatar-remove {background:transparent;color:#ffadb5;}
 .star-rating label.hovered .star-icon {transform:scale(1.08);}
 .star-rating label:focus-within {outline:2.5px solid #e09f09;outline-offset:2px;}
 .star-rating .star-rating-value {margin-left:8px;font-size:13.5px;font-weight:600;line-height:1.4;color:var(--muted);}
-#reviewMessage {margin:2px 0 0;font-size:13.5px;font-weight:600;}
-#reviewMessage:empty {display:none;}
-#reviewMessage.is-success {color:#166534;}
-#reviewMessage.is-error {color:#b42332;}
 
 /* My Orders modal polish & optional post-order review composer */
 #customerOrdersModal .modal-card {background:var(--card,#fff);color:var(--text);}
@@ -620,15 +606,12 @@ body.dark-mode .review-avatar-img {border-color:#5b6572;}
 body.dark-mode .review-avatar-fallback {background:#3f3822;color:#f2c12e;border-color:#6b5a28;}
 body.dark-mode .review-star-svg.is-filled {fill:#f2c12e;}
 body.dark-mode .review-star-svg.is-empty {fill:#4b5563;}
-body.dark-mode .review-compose {background:#303943;border-color:#454F5B;}
-body.dark-mode .review-compose summary::before {color:#f2c12e;}
-body.dark-mode .review-compose textarea {background:#252B33;border-color:#454F5B;color:#f2f0e8;}
 body.dark-mode .star-rating label:hover {background:#3c4652;}
 body.dark-mode .star-rating .star-icon {fill:#535e6c;}
 body.dark-mode .star-rating label.selected .star-icon,body.dark-mode .star-rating label.hovered .star-icon {fill:#f2c12e;}
 body.dark-mode .star-rating label:focus-within {outline-color:#f2c12e;}
-body.dark-mode #reviewMessage.is-success,body.dark-mode .order-review-status.is-success {color:#6ee7b7;}
-body.dark-mode #reviewMessage.is-error,body.dark-mode .order-review-status.is-error {color:#fca5a5;}
+body.dark-mode .order-review-status.is-success {color:#6ee7b7;}
+body.dark-mode .order-review-status.is-error {color:#fca5a5;}
 body.dark-mode #customerOrdersModal .customer-order-row {background:#252B33;border-color:#454F5B;}
 body.dark-mode #customerOrdersModal .btn-review-order {background:#38321e;border-color:#7d6219;color:#fde68a;}
 body.dark-mode #customerOrdersModal .btn-review-order:hover {background:#f2c12e;border-color:#f2c12e;color:#24231e;}
@@ -647,11 +630,10 @@ body.dark-mode .order-review-form textarea {background:#303943;border-color:#454
 @media(max-width:640px){
   .store-reviews{grid-template-columns:1fr;gap:14px;}
   .store-review{padding:18px;}
-  .review-compose{max-width:none;padding:14px 16px;}
   .star-rating label{width:40px;height:40px;}
   .star-rating .star-icon{width:28px;height:28px;}
 }
 @media(prefers-reduced-motion:reduce){
-  .star-rating .star-icon,.review-compose summary::before{transition:none;}
+  .star-rating .star-icon{transition:none;}
   .star-rating label.hovered .star-icon{transform:none;}
 }
