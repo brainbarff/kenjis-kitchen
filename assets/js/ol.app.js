@@ -87,9 +87,13 @@ const appState = {
     eligibleOutside: false,
     deliveryMode: '',
     verificationToken: null,
+    verifiedUserId: 0,
     verifiedAddressSnapshot: '',
     verifiedLatSnapshot: '',
     verifiedLngSnapshot: '',
+    pinAutoPlacedForStore: false,
+    addressOrigin: 'empty',
+    pendingPinAddress: '',
     boundaryVersion: '',
     matchedStreet: null,
     pinInsideBoundary: null,
@@ -100,6 +104,8 @@ const appState = {
     suggestedCenter: null,
     seq: 0,
     inFlightController: null,
+    reverseGeocodeController: null,
+    geocodeController: null,
     debounceTimer: null
   }
 };
@@ -2563,25 +2569,25 @@ function checkClientLagroAddress(rawAddress, rawBarangay = '', rawLat = null, ra
   const hasPin = rawLat !== null && rawLat !== '' && rawLng !== null && rawLng !== '' &&
     Number.isFinite(Number(rawLat)) && Number.isFinite(Number(rawLng));
 
+  const genericFairviewClean = clean.replace(/\b(sm\s+(?:city\s+)?fairview|ayala\s+malls?\s+fairview\s+terraces|fairview\s+terraces|national\s+university\s+fairview|nu\s+fairview|neu\s+fairview|toyota\s+fairview)\b/gi, 'LagroLandmark');
   const outsidePatterns = [
     /\bsti\s*fairview\b/i,
+    /\bfeu[\s\-]*(nrmf|fairview|diliman)\b/i,
     /\b(north|west|east|south)\s+fairview\b/i,
     /\b(barangay|brgy\.?|bgy\.?)\s+fairview\b|\bfairview\s+(subd\.?|subdivision|park|proper)\b/i,
-    /(?<!sm\s)(?<!sm\scity\s)(?<!toyota\s)\bfairview(?!\s+terraces)\b/i,
     /\bfcm\b|\bfairview\s+center\s+mall\b/i,
-    /\bregalado\s+(ave|avenue)\b/i,
-    /\bdahlia\s+(ave|avenue|st|street|fairview)\b|\bfev\b/i,
+    /\bdahlia\s+(ave|avenue|st|street|fairview)\b|\bfev\b|\bfairview\s+general\b/i,
     /\b(barangay|brgy\.?|bgy\.?)\s+commonwealth\b|\bcommonwealth\s+(heights|market)\b/i,
     /\bbatasan\b|\bpayatas\b|\bbagong\s+silang\b|\bholy\s+spirit\b/i,
-    /\bcamarin\b|\bdeparo\b|\bllano\b|\btala\b|\bmalaria\b|\bamparo\b|\bcaloocan\b/i,
+    /\bcamarin\b|\bdeparo\b|\bllano\b|\btala\b|\bmalaria\b|\bamparo\b|\bzabarte\b|\bcaloocan\b/i,
     /\bsan\s+jose\s+del\s+monte\b|\bsjdm\b|\btungko\b|\bmuzon\b|\bbulacan\b|\bsapang\s+palay\b/i,
-    /\bnovaliches\s+proper\b|\bbayan\s+novaliches\b|\bsanta\s+monica\b|\bsta\.?\s*monica\b|\bsanta\s+lucia\b|\bsta\.?\s*lucia\b/i,
+    /\bnovaliches\s+proper\b|\bbayan\s+novaliches\b|\b(robinsons|sm(\s+city)?)\s+novaliches\b|\bsusano\s+(rd|road)\b|\bsanta\s+monica\b|\bsta\.?\s*monica\b|\bsanta\s+lucia\b|\bsta\.?\s*lucia\b/i,
     /\bkaligayahan\b|\bpasong\s+putik\b|\bsan\s+bartolome\b|\bgulod\b|\bsauyo\b|\bbagbag\b|\btalipapa\b/i,
     /\btandang\s+sora\b|\bculiat\b|\bdiliman\b|\bcubao\b|\bmanila\b|\bmakati\b|\bpasig\b|\btaguig\b|\bmarikina\b|\bvalenzuela\b/i,
     /\boutside\s+(greater\s+)?lagro\b/i
   ];
 
-  const hasOutsideText = outsidePatterns.some(p => p.test(clean));
+  const hasOutsideText = outsidePatterns.some(p => p.test(clean)) || /\bfairview\b/i.test(genericFairviewClean);
   const hasExplicitLagroText = /\b(barangay\s+greater\s+lagro|brgy\.?\s+greater\s+lagro|greater\s+lagro|lagro\s+subdivision|lagro\s+subd\.?|brgy\.?\s+lagro|barangay\s+lagro)\b/i.test(clean);
   const landmarkSpoof = /\btapat\s+(ni|ng)\b/i.test(clean) ||
     /\b(near|malapit\s+sa|across|before|after|past|lampas\s+ng|boundary\s+of|going\s+to|papuntang|from|galing|beside|katabi\s+ng)\s+(brgy\.?\s*|barangay\s*)?(greater\s+)?lagro\b/i.test(clean);
@@ -2850,15 +2856,28 @@ function jumpMapToSuggestedStreet() {
   if (!cov.suggestedCenter || !cov.map) return;
   const { lat, lng } = cov.suggestedCenter;
   cov.map.setView([Number(lat), Number(lng)], 17);
-  setDeliveryDestinationPin(Number(lat), Number(lng), false);
+  const hasManualText = Boolean(document.getElementById('custAddressInput')?.value.trim());
+  setDeliveryDestinationPin(Number(lat), Number(lng), false, { skipReverseGeocode: hasManualText });
+}
+
+function showMapActionNotice(message) {
+  const noticeEl = document.getElementById('deliveryMapTileNotice');
+  if (noticeEl) {
+    noticeEl.style.display = message ? 'block' : 'none';
+    noticeEl.textContent = message || '';
+  }
 }
 
 function useOneTimeDeviceLocation() {
   const btn = document.getElementById('btnUseMyLocation');
+  const restoreLabel = '<i class="bi bi-crosshair" aria-hidden="true"></i> Use My Location';
   if (!navigator.geolocation) {
-    window.kkNotify('Device location is not supported by your browser. Please tap or click your location on the map.', 'warning');
+    const msg = 'Device GPS is unavailable in this browser. Click directly on the map or use "Find address on map".';
+    showMapActionNotice(msg);
+    window.kkNotify(msg, 'warning');
     return;
   }
+  showMapActionNotice('');
   if (btn) {
     btn.disabled = true;
     btn.innerHTML = '<i class="bi bi-hourglass-split" aria-hidden="true"></i> Locating…';
@@ -2867,7 +2886,7 @@ function useOneTimeDeviceLocation() {
     (pos) => {
       if (btn) {
         btn.disabled = false;
-        btn.innerHTML = '<i class="bi bi-crosshair" aria-hidden="true"></i> Locate me';
+        btn.innerHTML = restoreLabel;
       }
       const lat = Number(pos.coords.latitude);
       const lng = Number(pos.coords.longitude);
@@ -2875,12 +2894,17 @@ function useOneTimeDeviceLocation() {
         setDeliveryDestinationPin(lat, lng, true);
       }
     },
-    () => {
+    (err) => {
       if (btn) {
         btn.disabled = false;
-        btn.innerHTML = '<i class="bi bi-crosshair" aria-hidden="true"></i> Locate me';
+        btn.innerHTML = restoreLabel;
       }
-      window.kkNotify('Could not read device location. You can click or tap your delivery destination directly on the map.', 'info');
+      const denied = err && err.code === 1;
+      const msg = denied
+        ? 'Location permission was denied. Click directly on the map at your delivery spot or type your address and click "Find address on map".'
+        : 'Could not determine your device GPS location. Tap your delivery spot on the map or use "Find address on map".';
+      showMapActionNotice(msg);
+      window.kkNotify(msg, 'info');
     },
     { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
   );
@@ -2893,14 +2917,20 @@ function invalidateDeliveryVerification(nextStatus = 'CHECKING') {
     try { cov.inFlightController.abort(); } catch (_) {}
     cov.inFlightController = null;
   }
+  if (cov.reverseGeocodeController) {
+    try { cov.reverseGeocodeController.abort(); } catch (_) {}
+    cov.reverseGeocodeController = null;
+  }
   if (cov.debounceTimer) {
     clearTimeout(cov.debounceTimer);
     cov.debounceTimer = null;
   }
   cov.verificationToken = null;
+  cov.verifiedUserId = 0;
   cov.verifiedAddressSnapshot = '';
   cov.verifiedLatSnapshot = '';
   cov.verifiedLngSnapshot = '';
+  cov.pendingPinAddress = '';
   cov.eligibleFree = false;
   cov.eligibleOutside = false;
   cov.deliveryMode = '';
@@ -2915,6 +2945,8 @@ function invalidateDeliveryVerification(nextStatus = 'CHECKING') {
   if (modeSelect) modeSelect.value = '';
   const brgySelect = document.getElementById('deliveryBarangaySelect');
   if (brgySelect) brgySelect.value = '';
+  const usePinBtn = document.getElementById('btnUsePinnedAddress');
+  if (usePinBtn) usePinBtn.style.display = 'none';
 
   if (nextStatus === 'CHECKING') {
     cov.status = 'CHECKING';
@@ -2923,7 +2955,7 @@ function invalidateDeliveryVerification(nextStatus = 'CHECKING') {
   } else if (nextStatus === 'SELECT_LOCATION') {
     cov.status = 'SELECT_LOCATION';
     cov.headline = 'Select your delivery location.';
-    cov.message = 'Select your delivery location on the map and enter your complete House/Block/Lot and Street address.';
+    cov.message = 'Select your delivery location on the map and enter your complete delivery address.';
   }
 
   updateDestinationMarkerStyle();
@@ -2931,14 +2963,141 @@ function invalidateDeliveryVerification(nextStatus = 'CHECKING') {
   updateDeliveryModeDetails();
 }
 
-function setDeliveryDestinationPin(lat, lng, panMap = false) {
+async function resolveAndSyncPinAddress(latNum, lngNum, expectedSeq, shouldAutoFill) {
   const cov = appState.deliveryCoverage;
+  if (expectedSeq !== cov.seq) return null;
+
+  const controller = new AbortController();
+  cov.reverseGeocodeController = controller;
+  const timeout = setTimeout(() => controller.abort(), 5000);
+
+  try {
+    const res = await fetch(`${API_ROOT}/orders.php?action=reverse_geocode`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      body: JSON.stringify({ lat: latNum, lng: lngNum, seq: expectedSeq })
+    });
+    const result = await res.json();
+    if (expectedSeq !== cov.seq) return null;
+    if (result?.data?.seq !== undefined && result?.data?.seq !== null && Number(result.data.seq) !== cov.seq) {
+      return null;
+    }
+    const resolvedAddr = String(result?.data?.address || '').trim();
+    if (!resolvedAddr) return null;
+
+    if (shouldAutoFill) {
+      const addrInput = document.getElementById('custAddressInput');
+      if (addrInput) {
+        addrInput.value = resolvedAddr;
+        cov.addressOrigin = 'pin';
+      }
+      cov.pendingPinAddress = '';
+      const usePinBtn = document.getElementById('btnUsePinnedAddress');
+      if (usePinBtn) usePinBtn.style.display = 'none';
+    } else {
+      const currentVal = document.getElementById('custAddressInput')?.value.trim() || '';
+      if (currentVal.toLowerCase() !== resolvedAddr.toLowerCase()) {
+        cov.pendingPinAddress = resolvedAddr;
+        const usePinBtn = document.getElementById('btnUsePinnedAddress');
+        if (usePinBtn) {
+          usePinBtn.style.display = 'inline-flex';
+          usePinBtn.innerHTML = `<i class="bi bi-geo-alt" aria-hidden="true"></i> Use pinned address`;
+          usePinBtn.title = resolvedAddr;
+        }
+      }
+    }
+    return result.data;
+  } catch (_) {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+    if (cov.reverseGeocodeController === controller) {
+      cov.reverseGeocodeController = null;
+    }
+  }
+}
+
+function applyPinnedAddressToInput() {
+  const cov = appState.deliveryCoverage;
+  const addrInput = document.getElementById('custAddressInput');
+  if (!cov.pendingPinAddress || !addrInput) return;
+  addrInput.value = cov.pendingPinAddress;
+  cov.addressOrigin = 'pin';
+  cov.pendingPinAddress = '';
+  const usePinBtn = document.getElementById('btnUsePinnedAddress');
+  if (usePinBtn) usePinBtn.style.display = 'none';
+  handleDeliveryAddressInput(false);
+}
+
+async function findTypedAddressOnMap() {
+  const cov = appState.deliveryCoverage;
+  const addrInput = document.getElementById('custAddressInput');
+  const btn = document.getElementById('btnFindAddressOnMap');
+  const address = addrInput ? addrInput.value.trim() : '';
+
+  if (!address) {
+    window.kkNotify('Enter a street, subdivision, or landmark first, or click directly on the map.', 'warning');
+    addrInput?.focus();
+    return;
+  }
+
+  if (cov.geocodeController) {
+    try { cov.geocodeController.abort(); } catch (_) {}
+  }
+  const controller = new AbortController();
+  cov.geocodeController = controller;
+  const restoreLabel = '<i class="bi bi-search" aria-hidden="true"></i> Find address on map';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bi bi-hourglass-split" aria-hidden="true"></i> Finding…';
+  }
+
+  try {
+    const res = await fetch(`${API_ROOT}/orders.php?action=geocode_address`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      body: JSON.stringify({ address })
+    });
+    const result = await res.json();
+    const geo = result?.data;
+    if (!res.ok || !geo || !geo.found || !Number.isFinite(Number(geo.lat)) || !Number.isFinite(Number(geo.lng))) {
+      window.kkNotify(geo?.message || result?.message || 'Could not locate that address on the map. Please tap or drag the pin manually.', 'info');
+      return;
+    }
+    cov.addressOrigin = 'manual';
+    setDeliveryDestinationPin(Number(geo.lat), Number(geo.lng), true, { skipReverseGeocode: true });
+    showMapActionNotice('');
+  } catch (err) {
+    if (err?.name !== 'AbortError') {
+      window.kkNotify('Could not search the address right now. Please tap your destination directly on the map.', 'warning');
+    }
+  } finally {
+    if (cov.geocodeController === controller) {
+      cov.geocodeController = null;
+    }
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = restoreLabel;
+    }
+  }
+}
+
+function setDeliveryDestinationPin(lat, lng, panMap = false, options = false) {
+  const cov = appState.deliveryCoverage;
+  const opts = (typeof options === 'boolean')
+    ? { autoPlacedForStore: options, skipReverseGeocode: options }
+    : (options || {});
   const latNum = Number(Number(lat).toFixed(6));
   const lngNum = Number(Number(lng).toFixed(6));
   if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) return;
 
   cov.lat = latNum;
   cov.lng = lngNum;
+  cov.pinAutoPlacedForStore = Boolean(opts.autoPlacedForStore);
   const latInput = document.getElementById('deliveryLatInput');
   const lngInput = document.getElementById('deliveryLngInput');
   if (latInput) latInput.value = latNum.toFixed(6);
@@ -2955,7 +3114,7 @@ function setDeliveryDestinationPin(lat, lng, panMap = false) {
       });
       cov.destMarker.on('dragend', () => {
         const pos = cov.destMarker.getLatLng();
-        setDeliveryDestinationPin(pos.lat, pos.lng, false);
+        setDeliveryDestinationPin(pos.lat, pos.lng, false, { autoPlacedForStore: false, skipReverseGeocode: false });
       });
     } else {
       cov.destMarker.setLatLng([latNum, lngNum]);
@@ -2967,7 +3126,25 @@ function setDeliveryDestinationPin(lat, lng, panMap = false) {
 
   setCheckoutValidationError('');
   invalidateDeliveryVerification('CHECKING');
-  requestServerCoverageVerification(cov.seq);
+  const expectedSeq = cov.seq;
+  const currentAddress = document.getElementById('custAddressInput')?.value.trim() || '';
+  const shouldAutoFill = !opts.skipReverseGeocode && (!currentAddress || cov.addressOrigin === 'pin');
+
+  if (opts.skipReverseGeocode) {
+    requestServerCoverageVerification(expectedSeq);
+    return;
+  }
+
+  if (shouldAutoFill) {
+    resolveAndSyncPinAddress(latNum, lngNum, expectedSeq, true).then(() => {
+      if (expectedSeq === cov.seq) {
+        requestServerCoverageVerification(expectedSeq);
+      }
+    });
+  } else {
+    requestServerCoverageVerification(expectedSeq);
+    resolveAndSyncPinAddress(latNum, lngNum, expectedSeq, false);
+  }
 }
 
 function handleDeliveryAddressInput(addressEdited = false) {
@@ -2976,10 +3153,16 @@ function handleDeliveryAddressInput(addressEdited = false) {
   const clean = addrInput ? addrInput.value.trim() : '';
   const cov = appState.deliveryCoverage;
 
-  // A destination selected for the previous address must not carry over.
   if (addressEdited) {
+    cov.addressOrigin = clean ? 'manual' : 'empty';
+  }
+
+  // Clear an auto-placed store pin if the customer edits away from the store address,
+  // while preserving manually placed pins and re-verifying against the updated text.
+  if (addressEdited && cov.pinAutoPlacedForStore) {
     cov.lat = null;
     cov.lng = null;
+    cov.pinAutoPlacedForStore = false;
     cov.suggestedCenter = null;
     if (cov.destMarker && cov.map) cov.map.removeLayer(cov.destMarker);
     cov.destMarker = null;
@@ -2997,12 +3180,14 @@ function handleDeliveryAddressInput(addressEdited = false) {
   invalidateDeliveryVerification(cov.lat === null ? 'SELECT_LOCATION' : 'CHECKING');
   const requestSeq = cov.seq;
   cov.debounceTimer = setTimeout(async () => {
+    cov.debounceTimer = null;
+    if (requestSeq !== cov.seq) return;
     if (addressEdited && clean) {
       try {
         const data = await ensureDeliveryBoundaryLoaded();
         if (requestSeq !== cov.seq) return;
         if (isStoreDeliveryAddress(clean, data.store_location)) {
-          setDeliveryDestinationPin(data.store_location.lat, data.store_location.lng, true);
+          setDeliveryDestinationPin(data.store_location.lat, data.store_location.lng, true, { autoPlacedForStore: true, skipReverseGeocode: true });
           return;
         }
       } catch (_) { /* Coverage request reports unavailable data. */ }
@@ -3091,6 +3276,10 @@ async function requestServerCoverageVerification(expectedSeq) {
 
 function applyServerVerificationResult(v, currentAddress) {
   const cov = appState.deliveryCoverage;
+  const liveAddress = document.getElementById('custAddressInput')?.value.trim() || '';
+  if (liveAddress !== currentAddress) {
+    return;
+  }
   cov.status = v.status || 'NEEDS_CONFIRMATION';
   cov.headline = v.headline || 'Address and location need confirmation.';
   cov.reasonCode = v.reason_code || '';
@@ -3112,6 +3301,7 @@ function applyServerVerificationResult(v, currentAddress) {
   if (cov.status === 'WITHIN_LAGRO' && cov.eligibleFree && v.verification_token) {
     cov.deliveryMode = 'LAGRO_FREE';
     cov.verificationToken = v.verification_token;
+    cov.verifiedUserId = Number(appState.currentUser?.id || 0);
     cov.verifiedAddressSnapshot = currentAddress;
     cov.verifiedLatSnapshot = cov.lat !== null ? Number(cov.lat).toFixed(6) : '';
     cov.verifiedLngSnapshot = cov.lng !== null ? Number(cov.lng).toFixed(6) : '';
@@ -3120,6 +3310,7 @@ function applyServerVerificationResult(v, currentAddress) {
   } else if (cov.status === 'OUTSIDE_LAGRO' && cov.eligibleOutside && v.verification_token) {
     cov.deliveryMode = 'CUSTOMER_BOOKED';
     cov.verificationToken = v.verification_token;
+    cov.verifiedUserId = Number(appState.currentUser?.id || 0);
     cov.verifiedAddressSnapshot = currentAddress;
     cov.verifiedLatSnapshot = cov.lat !== null ? Number(cov.lat).toFixed(6) : '';
     cov.verifiedLngSnapshot = cov.lng !== null ? Number(cov.lng).toFixed(6) : '';
@@ -3128,6 +3319,7 @@ function applyServerVerificationResult(v, currentAddress) {
   } else {
     cov.deliveryMode = '';
     cov.verificationToken = null;
+    cov.verifiedUserId = 0;
     cov.verifiedAddressSnapshot = '';
     cov.verifiedLatSnapshot = '';
     cov.verifiedLngSnapshot = '';
@@ -3184,23 +3376,24 @@ function renderDeliveryCoverageStatus() {
   const iconCls = iconMap[cov.status] || 'bi-geo-alt';
 
   const copy = {
-    SELECT_LOCATION: ['Choose your delivery location', 'Enter your address and place a pin at your destination.'],
+    SELECT_LOCATION: ['Choose your delivery location', 'Click on the map to pin your spot, or enter your address and click Find address on map.'],
     CHECKING: ['Checking your delivery area…', 'Updates automatically when you change your address or pin.'],
     WITHIN_LAGRO: ['Free delivery · ₱0', 'Within Greater Lagro. Kenji’s Kitchen staff will deliver your order.'],
-    OUTSIDE_LAGRO: ['Third-party delivery', 'Outside Greater Lagro. The courier’s booking fee is separate from your food total.'],
+    OUTSIDE_LAGRO: ['Outside Greater Lagro', 'Third-party courier only (delivery fee is separate from your food order).'],
     OUTAGE: ['Unable to check delivery area', 'Please try again shortly. Delivery coverage must be confirmed before continuing.']
   };
   const reasons = {
-    INSIDE_PIN_OUTSIDE_ADDRESS: 'Your address is outside Greater Lagro. Move the pin to that address, outside the yellow area, to continue with courier delivery.',
-    OUTSIDE_PIN_LAGRO_ADDRESS: 'Your address says Greater Lagro, but your pin is outside. Move the pin or correct your address.',
+    INSIDE_PIN_OUTSIDE_ADDRESS: 'Your address is outside Greater Lagro. Move the pin to that address, outside the gold zone, to continue with courier delivery.',
+    OUTSIDE_PIN_LAGRO_ADDRESS: 'Your address says Greater Lagro, but your pin is outside the gold zone. Move the pin inside Greater Lagro or correct your address.',
     CONFLICTING_BARANGAY: 'Your address names different barangays. Enter the correct barangay for your destination.',
+    LANDMARK_SPOOF: 'Enter your exact Street, Subdivision, or House/Block/Lot instead of directional or landmark phrases.',
     STREET_PIN_MISMATCH: 'Your pin is too far from the street in your address. Move it to your destination.',
-    BOUNDARY_EDGE: 'Your pin is near the delivery boundary. Place it at your exact destination so we can check coverage.',
+    BOUNDARY_EDGE: 'Your pin is directly on the boundary line. Nudge it slightly inside or outside the gold zone so we can confirm coverage.',
     MISSING_ADDRESS: 'Enter your complete delivery address above.',
-    INCOMPLETE_ADDRESS: 'Add your house or lot number, street, barangay and city.',
-    INCOMPLETE_OUTSIDE_ADDRESS: 'Add your house or lot number, street, barangay and city.',
-    UNVERIFIED_STREET: 'We couldn’t match your street. Check the spelling and your map pin.',
-    UNVERIFIED_DELIVERY_AREA: 'Include your barangay and city so we can check your delivery area.'
+    INCOMPLETE_ADDRESS: 'Include your Street, Subdivision, or Landmark (and House/Block/Lot if applicable).',
+    INCOMPLETE_OUTSIDE_ADDRESS: 'Include your Street, Subdivision, or Landmark and Barangay/City.',
+    UNVERIFIED_STREET: 'We couldn’t match your street. Include Barangay Greater Lagro or check your spelling and map pin.',
+    UNVERIFIED_DELIVERY_AREA: cov.message || 'This delivery area requires confirmation. Check your street or contact the store.'
   };
   if (cov.status === 'WITHIN_LAGRO' && deliveryPinIsStore()) {
     copy.WITHIN_LAGRO = ['This is Kenji’s Kitchen', 'You’ve entered our store address. Choose Pickup to collect your order here.'];
@@ -3242,23 +3435,46 @@ function evaluateLagroDeliveryArea() {
   return appState.deliveryCoverage;
 }
 
+function selectCourierBookingChoice(choice) {
+  const normalized = choice === 'store' ? 'store' : 'customer';
+  const hiddenInput = document.getElementById('courierBookingBy');
+  if (hiddenInput) hiddenInput.value = normalized;
+  updateCourierBookingChoiceUI();
+}
+
 function updateCourierBookingChoiceUI() {
-  const booker = document.getElementById('courierBookingBy')?.value || 'customer';
+  const hiddenInput = document.getElementById('courierBookingBy');
+  const booker = (hiddenInput?.value || 'customer') === 'store' ? 'store' : 'customer';
   const noteEl = document.getElementById('courierBookingNote');
+  const trackingWrap = document.getElementById('thirdPartyTrackingWrap');
+  const trackingInput = document.getElementById('custTrackingUrl');
   const trackingHelp = document.getElementById('thirdPartyTrackingHelp');
+
+  document.querySelectorAll('#courierBookingGroup .courier-choice-card').forEach(card => {
+    const isSelected = card.dataset.choice === booker;
+    card.classList.toggle('active', isSelected);
+    const radio = card.querySelector('input[type="radio"]');
+    if (radio) radio.checked = isSelected;
+  });
+
+  if (trackingWrap) {
+    trackingWrap.style.display = booker === 'customer' ? 'block' : 'none';
+  }
+  if (booker === 'store' && trackingInput) {
+    trackingInput.value = '';
+  }
+
   if (noteEl) {
     if (booker === 'store') {
-      noteEl.textContent = 'Kenji’s Kitchen staff will arrange the third-party courier manually, quote the booking charge for GCash payment in My Orders, and record handoff status.';
+      noteEl.style.display = 'block';
+      noteEl.textContent = 'Pay for your food via GCash now. Once confirmed, settle the courier fee separately in My Orders.';
     } else {
-      noteEl.textContent = 'You book and pay your third-party courier (e.g. GrabExpress, Lalamove) independently and separately from the food amount. Supply the courier share link before handoff.';
+      noteEl.style.display = 'none';
+      noteEl.textContent = '';
     }
   }
   if (trackingHelp) {
-    if (booker === 'store') {
-      trackingHelp.textContent = 'Leave this blank. Our staff will add the tracking link once your courier is booked.';
-    } else {
-      trackingHelp.textContent = 'Paste the tracking link from your courier booking. You can also add it in My Orders before the courier collects your food.';
-    }
+    trackingHelp.textContent = 'Paste your third-party carrier (Lalamove, GrabExpress) tracking link now, or add it later in My Orders.';
   }
 }
 
@@ -3267,12 +3483,12 @@ function computeEstimatedPrepTime(cartItems = appState.cart) {
   const totalQty = items.reduce((sum, i) => sum + Number(i.qty || i.quantity || 1), 0);
   const hasBilao = items.some(i => Boolean(i.packaging) || /bilao|tray/i.test(String(i.name || i.item_name || '')));
   if (hasBilao || totalQty >= 8) {
-    return '~25–35 minutes';
+    return '~25 to 35 minutes';
   }
   if (totalQty >= 4) {
-    return '~20–30 minutes';
+    return '~20 to 30 minutes';
   }
-  return '~15–25 minutes';
+  return '~15 to 25 minutes';
 }
 
 function toggleOnlinePaymentMethod() {
@@ -3364,6 +3580,16 @@ function openCheckoutModal() {
     const phoneInput = document.getElementById('custPhoneInput');
     if (phoneInput && !phoneInput.value.trim() && appState.currentUser.phone) {
       phoneInput.value = appState.currentUser.phone;
+    }
+    const addrInput = document.getElementById('custAddressInput');
+    if (addrInput && !addrInput.value.trim() && appState.currentUser.customer_address) {
+      addrInput.value = appState.currentUser.customer_address;
+      appState.deliveryCoverage.addressOrigin = 'manual';
+    }
+    const cov = appState.deliveryCoverage;
+    const activeUid = Number(appState.currentUser.id || 0);
+    if (cov.verificationToken && cov.verifiedUserId !== activeUid) {
+      invalidateDeliveryVerification(cov.lat === null ? 'SELECT_LOCATION' : 'CHECKING');
     }
   }
   // Ensure neither Cash nor GCash is pre-selected by default when opening checkout
@@ -3521,7 +3747,7 @@ async function submitOrder() {
     }
   }
 
-  const deliveryTrackingUrl = (appState.fulfillmentMode === 'delivery' && deliveryMode === 'CUSTOMER_BOOKED')
+  const deliveryTrackingUrl = (appState.fulfillmentMode === 'delivery' && deliveryMode === 'CUSTOMER_BOOKED' && courierBookingBy === 'customer')
     ? (document.getElementById('custTrackingUrl')?.value.trim() || '')
     : '';
   const paymentMethodEl = document.querySelector('input[name="paymentMethod"]:checked');
@@ -3620,6 +3846,23 @@ async function submitOrder() {
       openOtpModal();
       return;
     }
+
+    // Ensure verification_token is bound to the active authenticated customer/session
+    if (appState.fulfillmentMode === 'delivery' && cov.verifiedUserId !== Number(authData.user.id || 0)) {
+      appState.currentUser = authData.user;
+      invalidateDeliveryVerification('CHECKING');
+      const refreshed = await requestServerCoverageVerification(cov.seq);
+      const expectedMode = refreshed?.delivery_mode || '';
+      if (!refreshed || !cov.verificationToken || expectedMode !== deliveryMode) {
+        const msg = cov.message || 'Delivery coverage was refreshed for your signed-in account. Please review and try again.';
+        setCheckoutValidationError(msg);
+        window.kkNotify(msg, 'warning');
+        return;
+      }
+      payload.verification_token = cov.verificationToken;
+      payload.delivery_mode = expectedMode;
+    }
+
     const retryScope = 'online:' + authData.user.id;
     payload.request_key = KKCheckoutRetry.key(retryScope, payload, gcashProofFile);
     payload.csrf_token = authData.csrf_token;
@@ -3640,12 +3883,21 @@ async function submitOrder() {
       appState.cart = [];
       saveCart();
       KKCheckoutRetry.complete(retryScope);
+      if (appState.fulfillmentMode === 'delivery') {
+        cov.verificationToken = null;
+        cov.verifiedUserId = 0;
+        cov.verifiedAddressSnapshot = '';
+      }
       if (gcashRefInput) gcashRefInput.value = '';
       clearGcashProofSelection();
       closeModal('checkoutModal');
       if (result.data) result.data.prep_estimate = prepEstimateSnapshot;
       showConfirmationModal(result.data);
     } else {
+      if (appState.fulfillmentMode === 'delivery' && ['STALE_VERIFICATION', 'TAMPERED_CLAIM', 'NEEDS_CONFIRMATION', 'SELECT_LOCATION'].includes(result.verification_status)) {
+        invalidateDeliveryVerification(cov.lat === null ? 'SELECT_LOCATION' : 'CHECKING');
+        requestServerCoverageVerification(cov.seq);
+      }
       const check = await refreshMenuAndValidateCart(false);
       if (!appState.cart.length) {
         closeModal('checkoutModal');
@@ -3684,23 +3936,73 @@ function showConfirmationModal(data) {
       ? 'Your GCash payment is awaiting staff verification. The order will reach the kitchen after verification.'
       : 'Your order has been sent to the kitchen and POS.';
   document.getElementById('confOrderNo').textContent = data.order_number || data.order_no;
-  document.getElementById('confReceiptNo').textContent = data.receipt_no || '—';
+  document.getElementById('confReceiptNo').textContent = data.receipt_no || 'N/A';
   const prepEl = document.getElementById('confPrepEstimate');
   if (prepEl) {
     prepEl.textContent = data.prep_estimate || computeEstimatedPrepTime(data.items || []);
   }
   document.getElementById('confTotal').textContent = formatPeso(data.total_amount || 0);
-  document.getElementById('confReceiptStatus').textContent = data.receipt_email_sent
-    ? 'Your receipt was sent to your email inbox.'
-    : data.receipt_email_status === 'Pending'
-      ? 'Your order is saved. Check receipt delivery status in My Orders.'
-      : 'The order is saved, but the receipt email could not be delivered.';
+  document.getElementById('confReceiptStatus').textContent = 'View, print, or save your receipt anytime in My Orders.';
   document.getElementById('orderConfirmationModal').classList.add('active');
 }
 
 function openOrderTrackingFromConfirmation() {
   closeModal('orderConfirmationModal');
   openOrdersModal(appState.lastOrderId);
+}
+
+async function postCustomerTrackingLink(orderId, rawUrl) {
+  const url = String(rawUrl || '').trim();
+  if (!/^https:\/\/\S+/i.test(url)) {
+    window.kkNotify('Enter a valid HTTPS tracking link from your courier (e.g. https://...).', 'warning');
+    return false;
+  }
+  try {
+    const tokenResponse = await fetch('./api/orders.php?action=tracking_token', { credentials: 'same-origin', cache: 'no-store' });
+    const tokenData = await tokenResponse.json();
+    if (!tokenResponse.ok || tokenData.status !== 'success') throw new Error(tokenData.message || 'Please sign in again.');
+    const response = await fetch('./api/orders.php?action=tracking_link', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ order_id: Number(orderId), tracking_url: url, csrf_token: tokenData.csrf_token })
+    });
+    const result = await response.json();
+    if (!response.ok || result.status !== 'success') throw new Error(result.message || 'Unable to save the link.');
+    if (appState.trackingUrlDrafts) delete appState.trackingUrlDrafts[Number(orderId)];
+    window.kkNotify(result.message || 'Tracking link submitted for staff verification.', 'success');
+    await fetchOrderTracking(orderId, false);
+    await loadOrderHistory(orderId, false);
+    return true;
+  } catch (error) {
+    window.kkNotify(error.message || 'Unable to save the tracking link.', 'error');
+    return false;
+  }
+}
+
+function updateInlineTrackingDraft(orderId, val) {
+  appState.trackingUrlDrafts = appState.trackingUrlDrafts || {};
+  appState.trackingUrlDrafts[Number(orderId)] = String(val || '');
+}
+
+async function submitInlineTrackingLink(orderId, context = 'panel') {
+  const id = Number(orderId);
+  const input = document.getElementById(`kkTrackingInput-${context}-${id}`);
+  const btn = document.getElementById(`kkTrackingBtn-${context}-${id}`);
+  const val = input ? input.value : (appState.trackingUrlDrafts?.[id] || '');
+  if (btn) {
+    btn.disabled = true;
+    btn.dataset.origLabel = btn.textContent;
+    btn.textContent = 'Submitting…';
+  }
+  try {
+    await postCustomerTrackingLink(id, val);
+  } finally {
+    if (btn && btn.isConnected) {
+      btn.disabled = false;
+      btn.textContent = btn.dataset.origLabel || 'Submit Tracking Link';
+    }
+  }
 }
 
 async function saveThirdPartyTrackingLink(orderId) {
@@ -3713,24 +4015,58 @@ async function saveThirdPartyTrackingLink(orderId) {
     confirmText: 'Save Link'
   });
   if (link === null) return;
-  try {
-    const tokenResponse = await fetch('./api/orders.php?action=tracking_token', { credentials: 'same-origin', cache: 'no-store' });
-    const tokenData = await tokenResponse.json();
-    if (!tokenResponse.ok || tokenData.status !== 'success') throw new Error(tokenData.message || 'Please sign in again.');
-    const response = await fetch('./api/orders.php?action=tracking_link', {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ order_id: Number(orderId), tracking_url: link.trim(), csrf_token: tokenData.csrf_token })
-    });
-    const result = await response.json();
-    if (!response.ok || result.status !== 'success') throw new Error(result.message || 'Unable to save the link.');
-    window.kkNotify('Tracking link saved.', 'success');
-    await fetchOrderTracking(orderId, false);
-    await loadOrderHistory(orderId, false);
-  } catch (error) {
-    window.kkNotify(error.message || 'Unable to save the tracking link.', 'error');
+  await postCustomerTrackingLink(orderId, link);
+}
+
+function buildOption1TrackingWidget(order, isClosed, context = 'panel') {
+  const id = Number(order.id);
+  const safeTrackingUrl = typeof order.delivery_tracking_url === 'string' && /^https:\/\//i.test(order.delivery_tracking_url)
+    ? order.delivery_tracking_url : '';
+  const trackStatus = String(order.courier_tracking_status || (safeTrackingUrl ? 'Pending' : 'None'));
+  const rejectionReason = String(order.courier_tracking_rejection_reason || '').trim();
+  const isOutForDelivery = String(order.delivery_status || '') === 'Out for Delivery';
+
+  let badgeClass = 'is-missing';
+  let statusText = 'Send your courier tracking link so we can start preparing your order.';
+  if (trackStatus === 'Verified' && safeTrackingUrl) {
+    badgeClass = 'is-verified';
+    statusText = 'Tracking link approved. Your order is queued for the kitchen.';
+  } else if (trackStatus === 'Rejected') {
+    badgeClass = 'is-rejected';
+    statusText = `Please update your tracking link${rejectionReason ? ' (' + rejectionReason + ')' : ''}.`;
+  } else if (safeTrackingUrl && trackStatus === 'Pending') {
+    badgeClass = 'is-pending';
+    statusText = 'Tracking link submitted. Waiting for staff approval.';
   }
+
+  const draftVal = (appState.trackingUrlDrafts && Object.prototype.hasOwnProperty.call(appState.trackingUrlDrafts, id))
+    ? appState.trackingUrlDrafts[id]
+    : safeTrackingUrl;
+  const inputId = `kkTrackingInput-${context}-${id}`;
+  const btnId = `kkTrackingBtn-${context}-${id}`;
+  const helpId = `kkTrackingHelp-${context}-${id}`;
+  const canEditLink = !isClosed && !isOutForDelivery;
+
+  return `
+    <div class="kk-opt1-tracking-box">
+      <div class="kk-opt1-tracking-status ${badgeClass}">
+        <i class="bi ${trackStatus === 'Verified' ? 'bi-check-circle-fill' : (trackStatus === 'Rejected' ? 'bi-exclamation-triangle-fill' : 'bi-hourglass-split')}" aria-hidden="true"></i>
+        <span>${escapeHtml(statusText)}</span>
+      </div>
+      ${(!isClosed && trackStatus !== 'Verified') ? '<p class="kk-opt1-gate-note">Food preparation begins once Kenji’s Kitchen verifies both GCash payment and your courier tracking link.</p>' : ''}
+      ${safeTrackingUrl ? `<div style="margin:6px 0;"><a href="${escapeHtml(safeTrackingUrl)}" target="_blank" rel="noopener noreferrer" style="font-weight:700;">Open third-party tracking ↗</a></div>` : ''}
+      ${canEditLink ? `
+        <form class="kk-inline-tracking-form" onsubmit="event.preventDefault(); submitInlineTrackingLink(${id}, '${context}');">
+          <label for="${inputId}" class="kk-inline-tracking-label">Courier tracking link (HTTPS)</label>
+          <div class="kk-inline-tracking-row">
+            <input type="url" id="${inputId}" class="checkout-input kk-inline-tracking-input" value="${escapeHtml(draftVal)}" placeholder="https://..." inputmode="url" autocomplete="url" autocorrect="off" autocapitalize="none" spellcheck="false" aria-describedby="${helpId}" required oninput="updateInlineTrackingDraft(${id}, this.value)">
+            <button type="submit" id="${btnId}" class="kk-inline-tracking-btn">${safeTrackingUrl ? 'Update Tracking Link' : 'Submit Tracking Link'}</button>
+          </div>
+          <small id="${helpId}" class="kk-inline-tracking-hint">Paste your Lalamove or GrabExpress share link so staff can approve it and start kitchen prep.</small>
+        </form>
+      ` : ''}
+    </div>
+  `;
 }
 
 let pickupDays = [];
@@ -3824,9 +4160,10 @@ function updateDeliveryModeDetails() {
   const confirmBtn = document.getElementById('btnConfirmOrder');
 
   if (bookingWrap) bookingWrap.style.display = external ? 'block' : 'none';
-  if (trackingWrap) trackingWrap.style.display = external ? 'block' : 'none';
   if (external) {
     updateCourierBookingChoiceUI();
+  } else if (trackingWrap) {
+    trackingWrap.style.display = 'none';
   }
 
   if (confirmBtn && confirmBtn.dataset.submitting !== '1') {
@@ -3944,6 +4281,9 @@ function clearStaleCustomerSession() {
   appState.currentUser = null;
   appState.favoriteIds.clear();
   localStorage.removeItem('kk_customer_session');
+  if (appState.deliveryCoverage?.verificationToken) {
+    invalidateDeliveryVerification(appState.deliveryCoverage.lat === null ? 'SELECT_LOCATION' : 'CHECKING');
+  }
   updateUserUI();
 }
 
@@ -4558,7 +4898,7 @@ async function trackOrder(orderId, startPolling = true, scrollIntoView = false) 
 function customerOrderDisplayStatus(order) {
   const status = String(order?.status || 'Pending');
   if (order?.order_type !== 'ONLINE') return status;
-  if (status === 'Served' && order.delivery_status === 'Delivered') return 'Delivered';
+  if (status === 'Served') return 'Delivered';
   if (status !== 'Ready') return status;
   if (Number(order.cancellation_requested) === 1) return 'Cancellation Requested';
   if (order.delivery_status === 'Out for Delivery') return 'Out for Delivery';
@@ -4604,7 +4944,15 @@ async function fetchOrderTracking(orderId, isBackgroundPoll = false) {
     appState.trackedOrderStatuses[order.id] = order.status;
 
     appState.trackedFeeStates = appState.trackedFeeStates || {};
-    const feeSig = [order.tp_fee || 0, order.tp_fee_paid || 0, order.tp_fee_proof_status || ''].join('|');
+    const feeSig = [
+      order.tp_fee || 0,
+      order.tp_fee_paid || 0,
+      order.tp_fee_proof_status || '',
+      order.courier_tracking_status || '',
+      order.delivery_tracking_url || '',
+      order.delivery_status || '',
+      order.status || ''
+    ].join('|');
     const prevFeeSig = appState.trackedFeeStates[order.id];
     appState.trackedFeeStates[order.id] = feeSig;
     if (prevFeeSig !== undefined && prevFeeSig !== feeSig) {
@@ -4641,7 +4989,7 @@ async function fetchOrderTracking(orderId, isBackgroundPoll = false) {
       order.created_at ? formatTimeShort(order.created_at) : '',
       order.preparing_at ? formatTimeShort(order.preparing_at) : '',
       order.ready_at ? formatTimeShort(order.ready_at) : '',
-      ...(isDelivery ? [order.out_at ? formatTimeShort(order.out_at) : '', order.delivered_at ? formatTimeShort(order.delivered_at) : ''] : [order.served_at ? formatTimeShort(order.served_at) : ''])
+      ...(isDelivery ? [order.out_at ? formatTimeShort(order.out_at) : '', (order.delivered_at || (order.status === 'Served' ? order.served_at : '')) ? formatTimeShort(order.delivered_at || order.served_at) : ''] : [order.served_at ? formatTimeShort(order.served_at) : ''])
     ];
 
     const pickupSummary = !isDelivery ? String(order.notes || '').match(/^\[Pickup: ([^\]]+)\]/)?.[1] : '';
@@ -4656,19 +5004,24 @@ async function fetchOrderTracking(orderId, isBackgroundPoll = false) {
           `).join('')}
          </div>`;
 
-    const itemsHtml = (items || []).map(item => `
+    const itemsHtml = (items || []).map(item => {
+      const qty = Number(item.quantity || 1);
+      const unitPrice = Number(item.price || 0);
+      const lineTotal = unitPrice * qty;
+      return `
       <li>
         <div class="tracking-item-row">
-          <span>${Number(item.quantity)} × ${escapeHtml(item.item_name)}</span>
-          <span>${formatPeso(item.price)}</span>
+          <span>${qty} × ${escapeHtml(item.item_name)}${qty > 1 ? ` <small class="muted">(${formatPeso(unitPrice)} each)</small>` : ''}</span>
+          <span>${formatPeso(lineTotal)}</span>
         </div>
         ${item.notes ? `<div class="tracking-item-notes">${escapeHtml(item.notes)}</div>` : ''}
       </li>
-    `).join('');
+    `;
+    }).join('');
 
     const statusNote = completed
       ? (isDelivery ? 'Delivered' : 'Order complete')
-      : (cancelled ? 'Order closed' : Number(order.cancellation_requested) === 1 ? 'Cancellation awaits Admin review' : order.delivery_status === 'Failed' ? 'Delivery attempt failed; staff can retry delivery handoff' : order.delivery_status === 'Assigned' ? 'Ready for manual handoff' : '<span class="live-pulse">●</span> Status updates live (every 3–5s)');
+      : (cancelled ? 'Order closed' : Number(order.cancellation_requested) === 1 ? 'Cancellation awaits Admin review' : order.delivery_status === 'Failed' ? 'Delivery attempt failed; staff can retry delivery handoff' : order.delivery_status === 'Assigned' ? 'Ready for manual handoff' : '<span class="live-pulse">●</span> Status updates live (every 3 to 5s)');
     const isCustomerBooked = isDelivery && order.delivery_mode === 'CUSTOMER_BOOKED';
     const resolvedBooker = String(order.resolved_courier_booking_by || order.courier_booking_by || 'CUSTOMER').toUpperCase();
     const isStoreBookedCourier = isCustomerBooked && resolvedBooker === 'STORE';
@@ -4677,20 +5030,21 @@ async function fetchOrderTracking(orderId, isBackgroundPoll = false) {
     const courierFeeInfo = isStoreBookedCourier ? buildCourierFeeInfo(order, completed || cancelled) : null;
     const externalTrackingHtml = isCustomerBooked ? `
       <div style="border:1px solid var(--border);border-radius:10px;padding:12px;margin:12px 0;">
-        <strong>${isStoreBookedCourier ? 'Outside Greater Lagro · Store-arranged third-party courier' : 'Outside Greater Lagro · Customer-booked third-party courier'}</strong>
-        <p class="muted" style="margin:5px 0 9px">${isStoreBookedCourier
-          ? 'You asked Kenji’s Kitchen staff to manually arrange the third-party courier. Physical delivery is arranged outside the system; the courier charge is separate from the food total and settled via static GCash QR once quoted.'
-          : 'You book and pay your third-party courier independently and separately from the food total. Supply the HTTPS courier link below before handoff.'}</p>
-        ${safeTrackingUrl ? `<a href="${escapeHtml(safeTrackingUrl)}" target="_blank" rel="noopener noreferrer">Open third-party tracking ↗</a>` : '<span class="muted">No courier tracking link saved yet.</span>'}
-        ${(!isStoreBookedCourier && !completed && !cancelled) ? `<button type="button" class="btn-track-order" style="display:block;margin-top:10px" onclick="saveThirdPartyTrackingLink(${Number(order.id)})">${safeTrackingUrl ? 'Update' : 'Add'} tracking link</button>` : ''}
-        ${courierFeeInfo ? courierFeeInfo.trackingHtml : ''}
+        <strong>${isStoreBookedCourier ? 'Outside Greater Lagro · Staff Books Rider' : 'Outside Greater Lagro · Customer Books Rider'}</strong>
+        ${isStoreBookedCourier ? `
+          <p class="muted" style="margin:5px 0 9px">Our staff is booking your rider. Pay the quoted delivery fee here via GCash once posted.</p>
+          ${safeTrackingUrl ? `<a href="${escapeHtml(safeTrackingUrl)}" target="_blank" rel="noopener noreferrer" style="font-weight:700;">Open third-party tracking ↗</a>` : '<span class="muted">No courier tracking link saved yet.</span>'}
+          ${courierFeeInfo ? courierFeeInfo.trackingHtml : ''}
+        ` : buildOption1TrackingWidget(order, completed || cancelled, 'panel')}
       </div>` : (isDelivery ? `
       <div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin:12px 0;font-size:0.83rem;">
-        <strong><i class="bi bi-check-circle-fill" style="color:var(--success,#16a34a);"></i> Within Greater Lagro — Free Store Delivery (₱0.00)</strong>
+        <strong><i class="bi bi-check-circle-fill" style="color:var(--success,#16a34a);"></i> Within Greater Lagro (Free Store Delivery)</strong>
         <span class="muted" style="display:block;margin-top:3px;">Kenji’s Kitchen staff will deliver your order directly.</span>
       </div>` : '');
 
-    if (panel) {
+    const activeEl = document.activeElement;
+    const editingInlineInPanel = panel && activeEl && panel.contains(activeEl) && activeEl.classList?.contains('kk-inline-tracking-input');
+    if (panel && !editingInlineInPanel) {
       const isOrderPaid = String(order.payment_status || '').toLowerCase() === 'paid';
       const prepEstimateBanner = (order.status === 'Pending' || order.status === 'Preparing')
         ? `<div style="margin: 10px 0; padding: 8px 12px; border-radius: 8px; background: rgba(242, 193, 46, 0.12); border: 1px solid rgba(242, 193, 46, 0.35); font-size: 0.8rem;">
@@ -4703,7 +5057,7 @@ async function fetchOrderTracking(orderId, isBackgroundPoll = false) {
              <div class="order-review-invite-head">
                <div>
                  <p class="order-review-invite-title">${appState.myReview ? 'Want to update your review?' : 'Enjoyed your order?'}</p>
-                 <p class="order-review-invite-sub">${appState.myReview ? 'You can edit your public review anytime.' : 'Share a review on our storefront if you’d like — completely optional.'}</p>
+                 <p class="order-review-invite-sub">${appState.myReview ? 'You can edit your public review anytime.' : 'Share a review on our storefront if you’d like. Completely optional.'}</p>
                </div>
              </div>
              <div class="order-review-invite-actions">
@@ -4721,7 +5075,7 @@ async function fetchOrderTracking(orderId, isBackgroundPoll = false) {
           <div class="tracking-card-header">
             <div>
               <h3>Tracking ${escapeHtml(order.order_no)} <span class="order-status-chip ${displayStatusClass}">${escapeHtml(displayStatus)}</span></h3>
-              <p class="muted">Receipt ${escapeHtml(order.receipt_no || '—')} · ${formatPeso(order.total)} · ${statusNote}</p>
+              <p class="muted">Receipt ${escapeHtml(order.receipt_no || 'N/A')} · ${formatPeso(order.total)} · ${statusNote}</p>
             </div>
             <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
               <button type="button" class="btn-track-order" onclick="openCustomerReceiptModal(${Number(order.id)})">
@@ -4809,7 +5163,7 @@ function buildCourierFeeInfo(order, isClosed = false) {
             <strong>Courier Fare Quote</strong>
             <span class="courier-fee-pill waiting"><i class="bi bi-clock"></i> Checking Rates</span>
           </div>
-          <p class="muted" style="margin:6px 0 0;font-size:0.8rem;">Staff is manually checking third-party courier rates for your address. Once quoted, you can submit your static GCash payment proof here.</p>
+          <p class="muted" style="margin:6px 0 0;font-size:0.8rem;">Our staff is checking courier rates for your address. You can pay the quoted fee here via GCash once posted.</p>
         </div>`
     };
   }
@@ -4825,7 +5179,7 @@ function buildCourierFeeInfo(order, isClosed = false) {
             <strong>${escapeHtml(service)} · Quoted Fee: ${formatPeso(fee)}</strong>
             <span class="courier-fee-pill pending"><i class="bi bi-hourglass-split"></i> Verifying Proof</span>
           </div>
-          <p class="muted" style="margin:6px 0 0;font-size:0.8rem;">Receipt uploaded (Ref #${escapeHtml(proofRef)}). Staff is manually verifying your courier fee screenshot before handoff.</p>
+          <p class="muted" style="margin:6px 0 0;font-size:0.8rem;">Receipt uploaded (Ref #${escapeHtml(proofRef)}). Waiting for staff verification.</p>
         </div>`
     };
   }
@@ -4840,7 +5194,7 @@ function buildCourierFeeInfo(order, isClosed = false) {
           <strong>${escapeHtml(service)} · Quoted Fee: ${formatPeso(fee)}</strong>
           <span class="courier-fee-pill quoted"><i class="bi bi-wallet2"></i> Action Needed</span>
         </div>
-        ${proofStatus === 'rejected' ? `<p style="margin:6px 0 0;font-size:0.8rem;color:var(--danger);">Previous receipt rejected${rejectionReason ? ': ' + escapeHtml(rejectionReason) : ''}. Please submit a clearer screenshot.</p>` : '<p class="muted" style="margin:6px 0 0;font-size:0.8rem;">Pay the quoted courier fare via static GCash QR so staff can finalize manual arrangement and log handoff.</p>'}
+        ${proofStatus === 'rejected' ? `<p style="margin:6px 0 0;font-size:0.8rem;color:var(--danger);">Previous receipt rejected${rejectionReason ? ': ' + escapeHtml(rejectionReason) : ''}. Please submit a clearer screenshot.</p>` : '<p class="muted" style="margin:6px 0 0;font-size:0.8rem;">Pay the quoted courier fee via GCash QR so staff can dispatch your rider.</p>'}
         ${!isClosed ? `<button type="button" class="courier-fee-pay-btn" onclick="openCourierFeeModal(${Number(order.id)})"><i class="bi bi-qr-code-scan"></i> Pay Courier Fee (${formatPeso(fee)})</button>` : ''}
       </div>`
   };
@@ -4868,7 +5222,7 @@ function openCourierFeeModal(orderId) {
     return;
   }
   courierFeeState = { orderId: id, busy: false };
-  document.getElementById('courierFeeOrderNo').textContent = order.order_no || '—';
+  document.getElementById('courierFeeOrderNo').textContent = order.order_no || 'N/A';
   document.getElementById('courierFeeService').textContent = order.tp_service || 'Third-Party Courier';
   document.getElementById('courierFeeAmount').textContent = formatPeso(order.tp_fee || 0);
   const refInput = document.getElementById('courierFeeGcashRef');
@@ -5130,14 +5484,17 @@ async function loadOrderHistory(targetOrderId = null, showLoading = true) {
       const paymentStatusLabel = isOrderPaid
         ? 'Paid'
         : (paymentStatusNorm === 'refunded' ? 'Refunded' : (paymentStatusNorm === 'voided' ? 'Voided' : (paymentStatusNorm === 'failed' ? 'Payment Cancelled' : 'Payment Pending')));
-      const emailStatusText = order.receipt_email_status === 'Sent'
-        ? 'Emailed'
-        : (order.receipt_email_status === 'Failed' ? 'Receipt email failed' : 'Receipt email pending');
-      const isStoreBookedRow = order.order_type === 'ONLINE'
-        && order.delivery_mode === 'CUSTOMER_BOOKED'
-        && String(order.resolved_courier_booking_by || order.courier_booking_by || '').toUpperCase() === 'STORE';
+      const isOutsideCourierRow = order.order_type === 'ONLINE' && order.delivery_mode === 'CUSTOMER_BOOKED';
+      const resolvedRowBooker = String(order.resolved_courier_booking_by || order.courier_booking_by || 'CUSTOMER').toUpperCase();
+      const isStoreBookedRow = isOutsideCourierRow && resolvedRowBooker === 'STORE';
+      const isOption1Row = isOutsideCourierRow && resolvedRowBooker === 'CUSTOMER';
+      const rowSafeUrl = isOutsideCourierRow && typeof order.delivery_tracking_url === 'string' && /^https:\/\//i.test(order.delivery_tracking_url)
+        ? order.delivery_tracking_url : '';
       const rowClosed = !['Pending', 'Preparing', 'Ready'].includes(order.status);
       const rowFeeInfo = isStoreBookedRow ? buildCourierFeeInfo(order, rowClosed) : null;
+      const deliveredStamp = (order.status === 'Served' && order.order_type === 'ONLINE' && (order.delivered_at || order.served_at))
+        ? ` · Delivered ${formatTimeShort(order.delivered_at || order.served_at)}`
+        : '';
 
       const isCompletedOrder = ['Served', 'Picked Up'].includes(order.status);
       return `
@@ -5147,10 +5504,12 @@ async function loadOrderHistory(targetOrderId = null, showLoading = true) {
             <span class="order-status-chip ${customerOrderDisplayStatusClass(order)}" id="order-status-${Number(order.id)}">${escapeHtml(displayedStatus)}</span>
           </div>
           <p>
-            ${formattedDate} · ${fulfillment} · ${formatPeso(order.total)}<br>
-            Receipt ${escapeHtml(order.receipt_no || '—')} · ${paymentStatusLabel} · ${emailStatusText}
+            ${formattedDate} · ${fulfillment} · ${formatPeso(order.total)}${escapeHtml(deliveredStamp)}<br>
+            Receipt ${escapeHtml(order.receipt_no || 'N/A')} · ${paymentStatusLabel}
           </p>
           ${rowFeeInfo ? `<div style="margin:6px 0 8px;">${rowFeeInfo.pillHtml}</div>` : ''}
+          ${(isStoreBookedRow && rowSafeUrl) ? `<div style="margin:4px 0 8px;font-size:0.84rem;"><a href="${escapeHtml(rowSafeUrl)}" target="_blank" rel="noopener noreferrer" style="font-weight:700;">Open third-party tracking ↗</a></div>` : ''}
+          ${(isOption1Row && !rowClosed) ? buildOption1TrackingWidget(order, false, 'card') : ''}
           <div class="customer-order-actions" style="display:flex;gap:8px;flex-wrap:wrap;">
             ${rowFeeInfo?.needsPayment && !rowClosed ? `<button type="button" style="background:var(--primary);color:#1f2328;border-color:var(--primary);font-weight:800;" onclick="openCourierFeeModal(${Number(order.id)})"><i class="bi bi-wallet2"></i> Pay Courier Fee (${formatPeso(rowFeeInfo.fee)})</button>` : ''}
             ${order.cancellation?.mode ? `<button type="button" style="color:#b42318;border-color:#b42318;" onclick="openCustomerCancellation(${Number(order.id)})">${order.cancellation.mode === 'request' ? 'Request Cancellation' : 'Cancel Order'}</button>` : ''}
@@ -5167,10 +5526,11 @@ async function loadOrderHistory(targetOrderId = null, showLoading = true) {
       `;
     };
 
+    const editingInlineInList = activeList && document.activeElement && activeList.contains(document.activeElement) && document.activeElement.classList?.contains('kk-inline-tracking-input');
     // Render Active Orders Section (at top, above history)
     if (activeOrders.length > 0) {
       if (activeSection) activeSection.style.display = 'block';
-      if (activeList) activeList.innerHTML = activeOrders.map(renderCard).join('');
+      if (activeList && !editingInlineInList) activeList.innerHTML = activeOrders.map(renderCard).join('');
     } else {
       if (activeSection) activeSection.style.display = 'none';
       if (activeList) activeList.innerHTML = '';
@@ -5242,20 +5602,21 @@ async function openCustomerReceiptModal(orderId) {
 
     const placedDate = order.created_at
       ? new Date(String(order.created_at).replace(' ', 'T')).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })
-      : '—';
+      : 'N/A';
     const receiptBooker = String(order.resolved_courier_booking_by || order.courier_booking_by || 'CUSTOMER').toUpperCase();
     const orderTypeLabel = order.order_type === 'ONLINE'
       ? (order.delivery_mode === 'CUSTOMER_BOOKED'
-        ? (receiptBooker === 'STORE' ? 'Delivery (Outside Lagro — Store-Booked Courier)' : 'Delivery (Outside Lagro — Customer-Booked Courier)')
-        : 'Delivery (Within Greater Lagro — Free Store Delivery)')
+        ? (receiptBooker === 'STORE' ? 'Delivery (Outside Lagro, Staff Courier)' : 'Delivery (Outside Lagro, Customer Courier)')
+        : 'Delivery (Within Greater Lagro, Free Store Delivery)')
       : 'Pickup at Store';
     const deliveryFeeReceiptLabel = order.order_type === 'ONLINE'
       ? (order.delivery_mode === 'CUSTOMER_BOOKED'
         ? (receiptBooker === 'STORE' ? 'Actual courier fee (Store-booked, paid separately)' : 'Actual courier fee (Customer-booked, paid separately)')
         : '₱0.00 (Free Within Greater Lagro)')
       : '₱0.00 (Pickup)';
-    const badgeBg = is_paid ? 'rgba(34, 197, 94, 0.14)' : 'rgba(245, 158, 11, 0.16)';
-    const badgeColor = is_paid ? '#16a34a' : '#d97706';
+    const badgeBg = is_paid ? '#fff5d6' : 'rgba(245, 158, 11, 0.16)';
+    const badgeColor = is_paid ? '#594113' : '#92400e';
+    const badgeBorder = is_paid ? '1px solid #d9c582' : '1px solid rgba(245, 158, 11, 0.35)';
     const badgeText = is_paid ? 'PAID RECEIPT' : 'ORDER SUMMARY · PAYMENT PENDING';
 
     const itemsRowsHtml = (items || []).map(item => {
@@ -5281,12 +5642,13 @@ async function openCustomerReceiptModal(orderId) {
     const total = Number(order.total || 0);
 
     container.innerHTML = `
-      <div class="kk-receipt-doc" style="font-size:0.86rem;line-height:1.5;color:var(--dark);">
+      <div class="kk-receipt-doc" style="font-size:0.84rem;line-height:1.5;color:var(--dark);">
         <div style="text-align:center;border-bottom:1.5px dashed var(--border);padding-bottom:12px;margin-bottom:12px;">
-          <h3 style="margin:0;font-size:1.2rem;font-weight:900;">Kenji's Kitchen</h3>
-          <div style="font-size:0.78rem;color:var(--muted);">Barangay Greater Lagro, Fairview, Quezon City</div>
+          <img src="../assets/img/logo.png" alt="Kenji's Kitchen" style="width:42px;height:42px;border-radius:10px;object-fit:cover;margin:0 auto 6px;display:block;border:1px solid #e6dbb8;">
+          <h3 style="margin:0;font-size:1.12rem;font-weight:900;letter-spacing:-0.01em;">Kenji's Kitchen</h3>
+          <div style="font-size:0.75rem;color:var(--muted);">Blk 79 Lot 34 Florante at Laura St., Brgy. Greater Lagro, Quezon City</div>
           <div style="margin-top:8px;">
-            <span style="display:inline-block;padding:4px 10px;border-radius:999px;font-size:0.72rem;font-weight:800;letter-spacing:0.04em;background:${badgeBg};color:${badgeColor};">
+            <span style="display:inline-block;padding:4px 12px;border-radius:999px;font-size:0.7rem;font-weight:800;letter-spacing:0.04em;background:${badgeBg};color:${badgeColor};border:${badgeBorder};">
               ${escapeHtml(badgeText)}
             </span>
           </div>
@@ -5294,12 +5656,12 @@ async function openCustomerReceiptModal(orderId) {
 
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;font-size:0.81rem;margin-bottom:12px;border-bottom:1px dashed var(--border);padding-bottom:12px;">
           <div><span style="color:var(--muted);">Document:</span><br><strong>${escapeHtml(document_title)}</strong></div>
-          <div><span style="color:var(--muted);">Receipt No.:</span><br><strong>${escapeHtml(order.receipt_no || '—')}</strong></div>
+          <div><span style="color:var(--muted);">Receipt No.:</span><br><strong>${escapeHtml(order.receipt_no || 'N/A')}</strong></div>
           <div><span style="color:var(--muted);">Order No.:</span><br><strong>${escapeHtml(order.order_no)}</strong></div>
           <div><span style="color:var(--muted);">Date &amp; Time:</span><br><strong>${escapeHtml(placedDate)}</strong></div>
           <div><span style="color:var(--muted);">Customer Name:</span><br><strong>${escapeHtml(order.customer_name || 'Online Customer')}</strong></div>
           <div><span style="color:var(--muted);">Order Type:</span><br><strong>${escapeHtml(orderTypeLabel)}</strong></div>
-          <div><span style="color:var(--muted);">Payment Method:</span><br><strong>${escapeHtml(order.payment_method || '—')}</strong></div>
+          <div><span style="color:var(--muted);">Payment Method:</span><br><strong>${escapeHtml(order.payment_method || 'N/A')}</strong></div>
           <div><span style="color:var(--muted);">Payment Status:</span><br><strong>${escapeHtml(order.payment_status || 'Pending')}</strong></div>
           ${order.payment_reference ? `<div style="grid-column:1/-1;"><span style="color:var(--muted);">GCash Ref No.:</span> <strong>${escapeHtml(order.payment_reference)}</strong> ${Number(order.has_payment_proof) === 1 ? `· <a href="./api/payment_proof.php?order_id=${Number(order.id)}" target="_blank" rel="noopener noreferrer" style="color:var(--primary);font-weight:700;text-decoration:underline;">View Uploaded Screenshot</a>` : ''}</div>` : ''}
           ${order.delivery_address ? `<div style="grid-column:1/-1;"><span style="color:var(--muted);">Delivery Address:</span> <strong>${escapeHtml(order.delivery_address)}</strong></div>` : ''}
@@ -5579,7 +5941,7 @@ function updateRecoveryControls() {
   const remaining = Math.max(0, Math.ceil((_recovery.expiresAt - Date.now()) / 1000));
   const cooldown = Math.max(0, Math.ceil((_recovery.resendAt - Date.now()) / 1000));
   document.getElementById('recoveryExpiry').textContent = remaining
-    ? `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, '0')}` : 'Expired — request a new code';
+    ? `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, '0')}` : 'Expired. Request a new code';
   const resend = document.getElementById('recoveryResend');
   resend.disabled = _recovery.busy || cooldown > 0;
   resend.textContent = cooldown ? `Resend Code (${cooldown}s)` : 'Resend Code';

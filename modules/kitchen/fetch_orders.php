@@ -1,10 +1,12 @@
 <?php
 require_once dirname(__DIR__, 2) . '/includes/auth.php';
 require_once ROOT_PATH . '/config/db.php';
+require_once ROOT_PATH . '/includes/delivery_tracking.php';
 require_role(['admin', 'kitchen']);
 
 header('Content-Type: application/json');
 
+$option1Gate = kk_kitchen_option1_gate_sql('o');
 $orders = $conn->query("
     SELECT *
     FROM orders o
@@ -15,6 +17,7 @@ $orders = $conn->query("
           WHERE p.order_id = o.id
             AND (p.payment_method <> 'GCash' OR p.payment_status = 'Paid')
       ))
+      AND {$option1Gate}
     ORDER BY kitchen_queued_at ASC, created_at ASC
 ")->fetchAll();
 

@@ -10,6 +10,7 @@ require_once dirname(__DIR__, 2) . '/includes/auth.php';
 require_once ROOT_PATH . '/config/db.php';
 require_once ROOT_PATH . '/includes/functions.php';
 require_once ROOT_PATH . '/includes/gcash_verification.php';
+require_once ROOT_PATH . '/includes/delivery_tracking.php';
 
 require_role(['admin', 'cashier']);
 
@@ -76,7 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $verified = verify_online_gcash_payment($conn, $orderId, $proofId, $userId, $cashierShiftId ? (int)$cashierShiftId : null, $userRole === 'cashier' ? 'POS_CASHIER' : 'ADMIN_ONLINE');
             $conn->commit();
 
-            if (!$verified['was_queued'] && file_exists(ROOT_PATH . '/includes/realtime.php')) {
+            if (!empty($verified['released_to_kitchen']) && file_exists(ROOT_PATH . '/includes/realtime.php')) {
                 require_once ROOT_PATH . '/includes/realtime.php';
                 if (function_exists('realtime_publish')) {
                     realtime_publish('order:submitted', [
@@ -87,7 +88,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ]);
                 }
             }
-            $_SESSION['flash_msg'] = "Order #{$verified['order_no']} payment verified! Order released to Kitchen.";
+            if (!empty($verified['held_for_tracking'])) {
+                $_SESSION['flash_msg'] = "Order #{$verified['order_no']} food payment verified! Order is held from Kitchen until the customer’s third-party courier tracking link is approved in Delivery Status (Outside Lagro).";
+            } else {
+                $_SESSION['flash_msg'] = "Order #{$verified['order_no']} payment verified! Order released to Kitchen.";
+            }
             $_SESSION['flash_msg_type'] = 'success';
         } catch (Throwable $e) {
             if ($conn->inTransaction()) $conn->rollBack();
@@ -166,17 +171,33 @@ expire_overdue_gcash_orders($conn, $userId);
 // Fetch Pending Queue (Oldest First)
 $queueSql = "
     SELECT o.id, o.order_no, o.queue_no, o.customer_name, o.customer_phone, o.total, o.created_at,
-           o.fulfillment_mode, o.delivery_address, o.qr_submission_count, o.locked_by_user_id, o.locked_at,
+           o.fulfillment_mode, o.delivery_mode, o.courier_booking_by, o.delivery_tracking_url,
+           o.courier_tracking_status, o.delivery_address, o.notes, o.qr_submission_count,
+           o.locked_by_user_id, o.locked_at,
            pp.id AS proof_id, pp.method_code, pp.reference_number, pp.image_hash, pp.amount_declared, pp.submitted_at,
            u_lock.username AS locked_by_name
     FROM orders o
-    JOIN payment_proofs pp ON pp.order_id = o.id AND pp.verification_status = 'pending'
+    JOIN payment_proofs pp ON pp.order_id = o.id AND pp.verification_status = 'pending' AND pp.payment_type = 'food'
     LEFT JOIN users u_lock ON u_lock.id = o.locked_by_user_id
     WHERE o.payment_verification_status = 'Awaiting Verification'
       AND o.status = 'Pending'
     ORDER BY o.created_at ASC
 ";
 $pendingList = $conn->query($queueSql)->fetchAll();
+
+$outsideHeldRow = $conn->query("
+    SELECT
+        SUM(CASE WHEN o.courier_booking_by = 'CUSTOMER' AND o.courier_tracking_status = 'Pending' THEN 1 ELSE 0 END) AS opt1_pending_links,
+        SUM(CASE WHEN o.courier_booking_by = 'CUSTOMER' AND o.courier_tracking_status IN ('None','Rejected') AND o.payment_verification_status = 'Verified' THEN 1 ELSE 0 END) AS opt1_waiting_customer,
+        SUM(CASE WHEN o.courier_booking_by = 'STORE' AND o.payment_verification_status = 'Verified' THEN 1 ELSE 0 END) AS opt2_active
+    FROM orders o
+    WHERE o.order_channel = 'ONLINE'
+      AND o.fulfillment_mode = 'OUTSIDE'
+      AND o.status IN ('Pending', 'Preparing', 'Ready')
+")->fetch(PDO::FETCH_ASSOC);
+$opt1PendingLinks = (int)($outsideHeldRow['opt1_pending_links'] ?? 0);
+$opt1WaitingCust = (int)($outsideHeldRow['opt1_waiting_customer'] ?? 0);
+$opt2ActiveCount = (int)($outsideHeldRow['opt2_active'] ?? 0);
 
 // Check for duplicate reference numbers or duplicate image hashes
 $dupeRefStmt = $conn->prepare("SELECT COUNT(*) FROM payment_proofs WHERE reference_number = ? AND id <> ? AND verification_status IN ('pending', 'verified')");
@@ -209,6 +230,27 @@ include ROOT_PATH . '/includes/header.php';
     <i class="bi bi-shield-check" style="font-size:16px; margin-right:4px;"></i>
     <strong>Security Reminder:</strong> Always confirm the actual incoming money in your official GCash or Merchant Banking app before clicking Verify. A screenshot alone can be faked or reused.
 </div>
+
+<?php if ($opt1PendingLinks > 0 || $opt1WaitingCust > 0 || $opt2ActiveCount > 0): ?>
+<div style="background:#fff9e7; border:1px solid #eee3be; border-left:4px solid #f2c12e; padding:12px 16px; border-radius:10px; margin-bottom:20px; font-size:14px; line-height:1.5; color:#242424; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+    <div>
+        <i class="bi bi-box-seam" style="margin-right:5px; color:#775600;"></i>
+        <strong>Outside Lagro Courier Actions:</strong>
+        <?php if ($opt1PendingLinks > 0): ?>
+            <span><strong><?= $opt1PendingLinks ?></strong> customer tracking link<?= $opt1PendingLinks > 1 ? 's' : '' ?> awaiting approval before Kitchen prep.</span>
+        <?php endif; ?>
+        <?php if ($opt1WaitingCust > 0): ?>
+            <span><strong><?= $opt1WaitingCust ?></strong> paid customer-booked order<?= $opt1WaitingCust > 1 ? 's' : '' ?> waiting for customer tracking link.</span>
+        <?php endif; ?>
+        <?php if ($opt2ActiveCount > 0): ?>
+            <span><strong><?= $opt2ActiveCount ?></strong> staff-booked courier order<?= $opt2ActiveCount > 1 ? 's' : '' ?> in Outside Lagro.</span>
+        <?php endif; ?>
+    </div>
+    <a href="<?= e(BASE_URL . '/modules/delivery/index.php?filter=outside') ?>" class="btn btn-primary" style="min-height:36px; padding:6px 14px; font-size:13px; white-space:nowrap;">
+        Open Delivery Status (Outside Lagro) <i class="bi bi-arrow-right"></i>
+    </a>
+</div>
+<?php endif; ?>
 
 <?php if (empty($pendingList)): ?>
 <div class="card qr-empty" style="text-align:center; padding:48px 20px;">
@@ -250,7 +292,25 @@ include ROOT_PATH . '/includes/header.php';
                 <div>Customer: <strong><?= e($item['customer_name']) ?></strong> (<?= e($item['customer_phone']) ?>)</div>
                 <div>Amount to Verify: <strong style="font-size:15px; color:var(--text);">₱<?= number_format((float)$item['total'], 2) ?></strong></div>
                 <div>Method: <span class="badge" style="background:#fff3c4; color:#343434;"><?= e($item['method_code']) ?></span></div>
-                <div>Reference #: <code style="font-size:14px; font-weight:800; background:#f1f5f9; padding:2px 6px; border-radius:4px;"><?= e($item['reference_number']) ?></code></div>
+                <div>Reference #: <code style="font-size:14px; font-weight:800; background:#fcfbf7; border:1px solid #e6e3d8; padding:2px 6px; border-radius:4px;"><?= e($item['reference_number']) ?></code></div>
+                <?php if (($item['fulfillment_mode'] ?? '') === 'OUTSIDE'):
+                    $qrBooker = kk_resolve_courier_booking_by($item);
+                    $qrTrackStatus = (string)($item['courier_tracking_status'] ?? 'None');
+                ?>
+                <div style="margin-top:6px; padding-top:6px; border-top:1px dashed #e6e3d8; font-size:13px;">
+                    <?php if ($qrBooker === 'CUSTOMER'): ?>
+                        <strong>Outside Lagro · Customer Books Rider:</strong>
+                        <span>Tracking Link: <strong><?= e($qrTrackStatus === 'None' ? 'Not submitted yet' : $qrTrackStatus) ?></strong></span>
+                        <?php if (!empty($item['delivery_tracking_url']) && str_starts_with(strtolower((string)$item['delivery_tracking_url']), 'https://')): ?>
+                            · <a href="<?= e($item['delivery_tracking_url']) ?>" target="_blank" rel="noopener noreferrer">Open link ↗</a>
+                        <?php endif; ?>
+                        <div class="muted" style="font-size:12px;">After verifying payment, approve the tracking link in <a href="<?= e(BASE_URL . '/modules/delivery/index.php?filter=outside') ?>">Delivery Status (Outside Lagro)</a> before Kitchen prepares this order.</div>
+                    <?php else: ?>
+                        <strong>Outside Lagro · Staff Books Rider:</strong>
+                        <span class="muted">Enter fee quote and manage tracking in <a href="<?= e(BASE_URL . '/modules/delivery/index.php?filter=outside') ?>">Delivery Status (Outside Lagro)</a>.</span>
+                    <?php endif; ?>
+                </div>
+                <?php endif; ?>
             </div>
 
             <!-- Duplicate Warnings -->

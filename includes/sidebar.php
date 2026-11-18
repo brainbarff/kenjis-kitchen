@@ -34,7 +34,7 @@
                     $sidebarPendingQr = (int)$conn->query("
                         SELECT COUNT(*) 
                         FROM orders o 
-                        JOIN payment_proofs pp ON pp.order_id = o.id AND pp.verification_status = 'pending' 
+                        JOIN payment_proofs pp ON pp.order_id = o.id AND pp.verification_status = 'pending' AND pp.payment_type = 'food'
                         WHERE o.payment_verification_status = 'Awaiting Verification' AND o.status = 'Pending'
                     ")->fetchColumn();
                 } catch (Throwable $t) {}
@@ -60,7 +60,31 @@
                     <span class="badge badge-warning" style="margin-left:auto; font-size:0.72rem; padding:2px 7px; border-radius:10px; background:#f59e0b; color:#111; font-weight:700;"><?= $sidebarPendingCod ?></span>
                 <?php endif; ?>
             </a>
-            <a class="<?= active_link('delivery') ?>" href="<?= BASE_URL ?>/modules/delivery/index.php"><i class="bi bi-truck"></i>Delivery Status</a>
+            <?php
+            $sidebarDeliveryActionCount = 0;
+            if (isset($conn)) {
+                try {
+                    $sidebarDeliveryActionCount = (int)$conn->query("
+                        SELECT COUNT(*)
+                        FROM orders o
+                        LEFT JOIN delivery_dispatches d ON d.order_id = o.id
+                        WHERE o.order_channel = 'ONLINE'
+                          AND o.order_type = 'ONLINE'
+                          AND o.status IN ('Pending', 'Preparing', 'Ready')
+                          AND (
+                              o.status = 'Ready'
+                              OR (o.fulfillment_mode = 'OUTSIDE' AND (o.courier_tracking_status = 'Pending' OR o.courier_booking_by = 'STORE'))
+                          )
+                    ")->fetchColumn();
+                } catch (Throwable $t) {}
+            }
+            ?>
+            <a class="<?= active_link('delivery') ?>" href="<?= BASE_URL ?>/modules/delivery/index.php">
+                <i class="bi bi-truck"></i>Delivery Status
+                <?php if ($sidebarDeliveryActionCount > 0): ?>
+                    <span class="badge badge-warning" style="margin-left:auto; font-size:0.72rem; padding:2px 7px; border-radius:10px; background:#f59e0b; color:#111; font-weight:700;"><?= $sidebarDeliveryActionCount ?></span>
+                <?php endif; ?>
+            </a>
         <?php endif; ?>
 
         <?php if (can_access(['admin', 'kitchen'])): ?>

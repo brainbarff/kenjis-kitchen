@@ -4422,28 +4422,105 @@ body.dark-mode .cart-qty-input {
 
 /* Customer Receipt Preview Modal */
 .customer-receipt-sheet {
-  background: #FFFFFF;
-  color: #111827;
-  border: 1px solid #E5E7EB;
-  border-radius: 14px;
-  padding: 20px;
+  background: #FFFDF8;
+  color: #1F2328;
+  border: 1px solid #E8DFC8;
+  border-top: 4px solid #F2C12E;
+  border-radius: 12px;
+  padding: 18px;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  font-size: 0.85rem;
+  font-size: 0.84rem;
   line-height: 1.45;
-  max-width: 390px;
+  max-width: 400px;
   margin: 0 auto;
 }
 
 .customer-receipt-sheet h3,
 .customer-receipt-sheet h4 {
-  color: #111827 !important;
-  margin: 0 0 4px;
+  color: #1F2328 !important;
+  margin: 0 0 2px;
 }
 
 .customer-receipt-sheet hr {
   border: 0;
-  border-top: 1px dashed #9CA3AF;
+  border-top: 1px dashed #D8CEB4;
   margin: 10px 0;
+}
+
+.receipt-modal-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin: 14px auto 0;
+  max-width: 400px;
+}
+
+.btn-receipt-secondary,
+.btn-receipt-primary {
+  flex: 1;
+  max-width: 185px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 10px 18px;
+  min-height: 41px;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 0.86rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.btn-receipt-secondary {
+  background: #FFFFFF;
+  color: #2C2A24;
+  border: 1px solid #DDD6C5;
+}
+
+.btn-receipt-secondary:hover:not(:disabled) {
+  background: #FFF8E1;
+  border-color: #D6AB24;
+}
+
+.btn-receipt-primary {
+  background: #F2C12E;
+  color: #1F2328;
+  border: 1px solid #DFAF1E;
+}
+
+.btn-receipt-primary:hover:not(:disabled) {
+  background: #E5B420;
+}
+
+.btn-receipt-secondary:disabled,
+.btn-receipt-primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+body.dark-mode .customer-receipt-sheet {
+  background: #23262C;
+  color: #F3F0E6;
+  border-color: #3A3F47;
+  border-top-color: #F2C12E;
+}
+
+body.dark-mode .customer-receipt-sheet h3,
+body.dark-mode .customer-receipt-sheet h4 {
+  color: #F3F0E6 !important;
+}
+
+body.dark-mode .btn-receipt-secondary {
+  background: #262930;
+  color: #F3F0E6;
+  border-color: #444952;
+}
+
+body.dark-mode .btn-receipt-secondary:hover:not(:disabled) {
+  background: #353020;
+  border-color: #F2C12E;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -5054,9 +5131,9 @@ img {
   font-size: 0.74rem;
   font-weight: 800;
 }
-.courier-fee-pill.waiting { background: rgba(100, 116, 139, 0.14); color: var(--muted); }
+.courier-fee-pill.waiting { background: rgba(242, 193, 46, 0.16); color: #78350f; }
 .courier-fee-pill.quoted { background: rgba(242, 193, 46, 0.25); color: #78350f; }
-.courier-fee-pill.pending { background: rgba(59, 130, 246, 0.14); color: #1d4ed8; }
+.courier-fee-pill.pending { background: rgba(242, 193, 46, 0.22); color: #775600; }
 .courier-fee-pill.paid { background: rgba(22, 163, 74, 0.16); color: #15803d; }
 
 .courier-fee-pay-btn {
@@ -5102,8 +5179,9 @@ img {
 }
 .courier-fee-summary-row.total strong { color: #b45309; font-weight: 800; }
 
+body.dark-mode .courier-fee-pill.waiting { color: #fde68a; }
 body.dark-mode .courier-fee-pill.quoted { color: #fde68a; }
-body.dark-mode .courier-fee-pill.pending { color: #93c5fd; }
+body.dark-mode .courier-fee-pill.pending { color: #fde68a; }
 body.dark-mode .courier-fee-pill.paid { color: #86efac; }
 body.dark-mode .courier-fee-summary-row.total strong { color: #F2C12E; }
 

@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/functions.php';
+require_once __DIR__ . '/delivery_tracking.php';
 
 /** Confirm one pending online GCash payment and its latest proof in the caller's transaction. */
 function verify_online_gcash_payment(PDO $conn, int $orderId, ?int $proofId, int $staffId, ?int $shiftId, string $source): array
@@ -47,12 +48,15 @@ function verify_online_gcash_payment(PDO $conn, int $orderId, ?int $proofId, int
     $updatePayment->execute([(float)$order['total'], $shiftId, (int)$payment['id']]);
     if ($updatePayment->rowCount() !== 1) throw new RuntimeException('Payment changed during review.');
 
-    $updateOrder = $conn->prepare("UPDATE orders SET payment_verification_status = 'Verified', payment_verified_by = ?, payment_verified_at = NOW(), paid_at = NOW(), payment_auto_cancel_at = NULL, kitchen_queued_at = COALESCE(kitchen_queued_at, NOW()), locked_by_user_id = NULL, locked_at = NULL WHERE id = ? AND status = 'Pending' AND payment_verification_status = 'Awaiting Verification'");
+    $shouldQueueKitchen = kk_should_queue_online_gcash_order_to_kitchen($order);
+    $queueSqlExpr = $shouldQueueKitchen ? 'COALESCE(kitchen_queued_at, NOW())' : 'kitchen_queued_at';
+
+    $updateOrder = $conn->prepare("UPDATE orders SET payment_verification_status = 'Verified', payment_verified_by = ?, payment_verified_at = NOW(), paid_at = NOW(), payment_auto_cancel_at = NULL, kitchen_queued_at = {$queueSqlExpr}, locked_by_user_id = NULL, locked_at = NULL WHERE id = ? AND status = 'Pending' AND payment_verification_status = 'Awaiting Verification'");
     $updateOrder->execute([$staffId, $orderId]);
     if ($updateOrder->rowCount() !== 1) throw new RuntimeException('Order changed during review.');
 
     $audit = $conn->prepare("INSERT INTO payment_verification_audits (payment_id, order_id, verified_by, previous_status, new_status, verification_source, notes) VALUES (?, ?, ?, 'Pending', 'Paid', ?, ?)");
-    $audit->execute([(int)$payment['id'], $orderId, $staffId, $source, 'Verified against the latest uploaded GCash proof']);
+    $audit->execute([(int)$payment['id'], $orderId, $staffId, $source, $shouldQueueKitchen ? 'Verified against the latest uploaded GCash proof' : 'Verified GCash proof; held from Kitchen pending Option 1 courier tracking link approval']);
     if ((float)$order['free_delivery_discount'] > 0 && !empty($order['customer_phone'])) {
         $benefit = $conn->prepare('INSERT INTO first_order_benefit_hashes (phone_hash, address_hash, used_order_id) VALUES (?, ?, ?)');
         $benefit->execute([
@@ -61,9 +65,15 @@ function verify_online_gcash_payment(PDO $conn, int $orderId, ?int $proofId, int
             $orderId,
         ]);
     }
-    log_audit($conn, 'qr_payment_verified', 'order', (string)$orderId, 'GCash proof verified by staff #' . $staffId);
+    log_audit($conn, 'qr_payment_verified', 'order', (string)$orderId, 'GCash proof verified by staff #' . $staffId . ($shouldQueueKitchen ? '' : ' (Option 1 held pending courier tracking link verification)'));
 
-    return ['order_no' => $order['order_no'], 'queue_no' => (int)$order['queue_no'], 'was_queued' => $order['kitchen_queued_at'] !== null];
+    return [
+        'order_no' => $order['order_no'],
+        'queue_no' => (int)$order['queue_no'],
+        'was_queued' => $order['kitchen_queued_at'] !== null,
+        'released_to_kitchen' => $shouldQueueKitchen && $order['kitchen_queued_at'] === null,
+        'held_for_tracking' => !$shouldQueueKitchen,
+    ];
 }
 
 /** Cancel one unpaid GCash order and restore stock exactly once. Caller owns the transaction. */

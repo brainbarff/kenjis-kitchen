@@ -17,9 +17,9 @@ function online_json($data, $code = 200)
     exit;
 }
 
-function is_active_online_customer(?array $user): bool
+function is_active_online_customer($user): bool
 {
-    if (!$user) {
+    if (!is_array($user) || !$user) {
         return false;
     }
     if (($user['role_name'] ?? '') !== 'Customer (Online)') {

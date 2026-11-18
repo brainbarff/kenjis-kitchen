@@ -40,7 +40,7 @@ try {
             'crs' => $boundary['crs'] ?? 'EPSG:4326',
             'license' => $boundary['license'] ?? 'ODbL 1.0',
             'attribution' => $boundary['attribution'] ?? '© OpenStreetMap contributors (ODbL 1.0)',
-            'edge_buffer_meters' => (float)($boundary['edge_buffer_meters'] ?? 20.0),
+            'edge_buffer_meters' => (float)($boundary['edge_buffer_meters'] ?? 2.0),
             'bbox' => $boundary['bbox'] ?? null,
             'geometry' => $boundary['geometry'],
         ],
@@ -54,7 +54,7 @@ try {
             'tile_url' => defined('KK_MAP_TILE_URL') ? KK_MAP_TILE_URL : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
             'tile_attribution' => defined('KK_MAP_TILE_ATTRIBUTION') ? KK_MAP_TILE_ATTRIBUTION : '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors',
             'max_zoom' => defined('KK_MAP_TILE_MAX_ZOOM') ? KK_MAP_TILE_MAX_ZOOM : 19,
-            'edge_buffer_meters' => (float)($boundary['edge_buffer_meters'] ?? 20.0),
+            'edge_buffer_meters' => (float)($boundary['edge_buffer_meters'] ?? 2.0),
         ],
         'local_features' => $boundary['local_features'] ?? [],
     ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);

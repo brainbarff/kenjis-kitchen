@@ -104,30 +104,34 @@ function renderTicket(order) {
         `;
     }
 
+    const cleanNotes = String(order.notes || '')
+        .replace(/^\[Courier booking:[^\]]+\]\s*/i, '')
+        .trim();
+
     return `
         <article class="kds-ticket ticket-${escapeHtml(statusClass)}" data-order-id="${escapeHtml(order.id)}">
             <div class="kds-ticket-strip"><span>KENJI’S KITCHEN</span><span>${order.status === 'Pending' ? 'New order' : order.status === 'Preparing' ? 'Preparing' : 'Ready to serve'}</span></div>
-            <div class="kds-ticket-top">
-                <div>
+            <div>
+                <div class="kds-ticket-top">
                     ${getTableOrChannelBadge(order)}
-                    <div class="kds-ticket-id">${order.order_no ? escapeHtml(order.order_no) : ('ORD-' + escapeHtml(order.id))}</div>
-                    <div class="kds-ticket-meta">
-                        <span class="kds-customer-name"><i class="bi bi-person"></i> ${escapeHtml(order.customer_name || 'Walk-in Customer')}</span>
-                        <span>•</span>
-                        <span><i class="bi bi-clock"></i> ${formatOrderTime(order.created_at)}</span>
-                    </div>
+                    <span class="kds-timer-badge">
+                        <i class="bi bi-clock" aria-hidden="true"></i> ${formatElapsed(order.created_at)}
+                    </span>
                 </div>
-                <span class="kds-timer-badge">
-                    <i class="bi bi-clock" aria-hidden="true"></i> ${formatElapsed(order.created_at)}
-                </span>
+                <div class="kds-ticket-id kds-order-no">${order.order_no ? escapeHtml(order.order_no) : ('ORD-' + escapeHtml(order.id))}</div>
+                <div class="kds-ticket-meta">
+                    <span class="kds-customer-name"><i class="bi bi-person"></i> ${escapeHtml(order.customer_name || 'Walk-in Customer')}</span>
+                    <span>•</span>
+                    <span><i class="bi bi-clock"></i> ${formatOrderTime(order.created_at)}</span>
+                </div>
             </div>
 
-            ${order.notes ? `
+            ${cleanNotes ? `
                 <div class="kds-order-note">
                     <i class="bi bi-chat-left-dots-fill"></i>
                     <div>
                         <strong>Kitchen notes</strong>
-                        <div>${escapeHtml(order.notes)}</div>
+                        <div>${escapeHtml(cleanNotes)}</div>
                     </div>
                 </div>
             ` : ''}

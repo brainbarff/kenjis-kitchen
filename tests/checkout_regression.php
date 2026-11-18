@@ -175,4 +175,178 @@ foreach ($rowsSharingPool as $line) {
 $spagAvail = (int)$menuDb->query('SELECT stock FROM menu_items WHERE id = 51')->fetchColumn();
 check($poolTotals[51] === 7 && $poolTotals[51] > $spagAvail, 'Server-side row aggregation detects combined oversell across notes/packaging');
 
+require_once dirname(__DIR__) . '/includes/delivery_tracking.php';
+
+// Delivery workflow regression suite: Option 1 gate, Option 2 staff tracking sync, and Delivered completion
+$wfDb = new CheckoutTestDb();
+$wfDb->exec("
+    CREATE TABLE orders (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        order_no TEXT,
+        queue_no INTEGER,
+        order_type TEXT,
+        order_channel TEXT,
+        fulfillment_mode TEXT,
+        delivery_mode TEXT,
+        courier_booking_by TEXT,
+        delivery_tracking_url TEXT,
+        courier_tracking_status TEXT DEFAULT 'None',
+        courier_tracking_verified_by INTEGER,
+        courier_tracking_verified_at TEXT,
+        courier_tracking_rejection_reason TEXT,
+        payment_verification_status TEXT DEFAULT 'None',
+        cod_approval_status TEXT DEFAULT 'None',
+        cash_collected REAL,
+        collected_by_user_id INTEGER,
+        free_delivery_discount REAL DEFAULT 0,
+        customer_phone TEXT,
+        delivery_address TEXT,
+        total REAL DEFAULT 150,
+        status TEXT DEFAULT 'Pending',
+        kitchen_queued_at TEXT,
+        served_at TEXT,
+        served_by INTEGER,
+        paid_at TEXT,
+        notes TEXT,
+        inventory_deducted INTEGER DEFAULT 1
+    );
+    CREATE TABLE payments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        order_id INTEGER,
+        payment_method TEXT,
+        payment_status TEXT,
+        amount_paid REAL DEFAULT 0,
+        change_amount REAL DEFAULT 0,
+        paid_at TEXT,
+        shift_id INTEGER
+    );
+    CREATE TABLE delivery_dispatches (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        order_id INTEGER,
+        rider_name TEXT,
+        rider_phone TEXT,
+        status TEXT,
+        notes TEXT,
+        assigned_by INTEGER,
+        updated_by INTEGER,
+        assigned_at TEXT,
+        out_at TEXT,
+        delivered_at TEXT,
+        failed_at TEXT
+    );
+    CREATE TABLE thirdparty_deliveries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        order_id INTEGER,
+        booking_service TEXT,
+        delivery_fee REAL,
+        tracking_reference TEXT,
+        fee_paid INTEGER DEFAULT 0,
+        status TEXT
+    );
+    CREATE TABLE transaction_requests (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        order_id INTEGER,
+        request_type TEXT,
+        status TEXT
+    );
+    CREATE TABLE cashier_shifts (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, status TEXT);
+    CREATE TABLE cod_cash_handovers (id INTEGER PRIMARY KEY AUTOINCREMENT, order_id INTEGER, collected_by_user_id INTEGER, amount_collected REAL, collected_at TEXT, status TEXT);
+    CREATE TABLE first_order_benefit_hashes (phone_hash TEXT, address_hash TEXT, used_order_id INTEGER);
+    CREATE TABLE inventory_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, inventory_id INTEGER, menu_item_id INTEGER, user_id INTEGER, action TEXT, quantity INTEGER, remarks TEXT);
+");
+
+// 1. Option 1 gate check: unverified tracking stays held from Kitchen even when GCash is Paid
+$wfDb->exec("INSERT INTO orders (id, order_no, queue_no, order_type, order_channel, fulfillment_mode, delivery_mode, courier_booking_by, courier_tracking_status, payment_verification_status, total, status) VALUES (101, 'ONL-OPT1', 1, 'ONLINE', 'ONLINE', 'OUTSIDE', 'CUSTOMER_BOOKED', 'CUSTOMER', 'None', 'Verified', 200, 'Pending')");
+$wfDb->exec("INSERT INTO payments (order_id, payment_method, payment_status, amount_paid) VALUES (101, 'GCash', 'Paid', 200)");
+$opt1Row = $wfDb->query("SELECT * FROM orders WHERE id = 101")->fetch(PDO::FETCH_ASSOC);
+check(kk_is_option1_customer_courier($opt1Row) === true, 'Option 1 courier detected accurately');
+check(kk_should_queue_online_gcash_order_to_kitchen($opt1Row) === false, 'Option 1 without verified link must not queue to Kitchen on food payment');
+check((int)$wfDb->query("SELECT COUNT(*) FROM orders o WHERE o.id = 101 AND " . kk_kitchen_option1_gate_sql('o'))->fetchColumn() === 0, 'Kitchen SQL gate excludes Option 1 order without verified link');
+
+// Customer submits tracking link -> status becomes Pending, still held from Kitchen
+$wfDb->exec("UPDATE orders SET delivery_tracking_url = 'https://share.lalamove.com/opt1-101', courier_tracking_status = 'Pending' WHERE id = 101");
+check((int)$wfDb->query("SELECT COUNT(*) FROM orders o WHERE o.id = 101 AND " . kk_kitchen_option1_gate_sql('o'))->fetchColumn() === 0, 'Kitchen SQL gate still excludes Option 1 Pending tracking link until staff approves');
+
+// Staff rejects Option 1 link -> Rejected + reason saved, still held
+$wfDb->beginTransaction();
+$rej = kk_review_option1_tracking_link($wfDb, 101, 'reject', 9, 'Broken tracking URL');
+$wfDb->commit();
+$opt1AfterRej = $wfDb->query("SELECT courier_tracking_status, courier_tracking_rejection_reason, kitchen_queued_at FROM orders WHERE id = 101")->fetch(PDO::FETCH_ASSOC);
+check($rej['released_to_kitchen'] === false && $opt1AfterRej['courier_tracking_status'] === 'Rejected' && $opt1AfterRej['courier_tracking_rejection_reason'] === 'Broken tracking URL' && $opt1AfterRej['kitchen_queued_at'] === null, 'Option 1 rejection clears verification and stores reason');
+
+// Customer submits valid link and Staff approves -> Verified + released to Kitchen
+$wfDb->exec("UPDATE orders SET delivery_tracking_url = 'https://share.lalamove.com/opt1-valid', courier_tracking_status = 'Pending' WHERE id = 101");
+$wfDb->beginTransaction();
+$ver = kk_review_option1_tracking_link($wfDb, 101, 'verify', 9);
+$wfDb->commit();
+$opt1AfterVer = $wfDb->query("SELECT courier_tracking_status, kitchen_queued_at FROM orders WHERE id = 101")->fetch(PDO::FETCH_ASSOC);
+check($ver['released_to_kitchen'] === true && $opt1AfterVer['courier_tracking_status'] === 'Verified' && $opt1AfterVer['kitchen_queued_at'] !== null, 'Option 1 verification releases paid order to Kitchen');
+check((int)$wfDb->query("SELECT COUNT(*) FROM orders o WHERE o.id = 101 AND " . kk_kitchen_option1_gate_sql('o'))->fetchColumn() === 1, 'Kitchen SQL gate allows Option 1 order once verified');
+
+// Kitchen prepares -> Ready -> Handoff -> Failure -> Retry Handoff -> Delivered
+$wfDb->exec("UPDATE orders SET status = 'Ready' WHERE id = 101");
+$wfDb->beginTransaction();
+$disp1 = kk_dispatch_thirdparty_order($wfDb, 101, 9);
+$wfDb->commit();
+check($disp1['booking_by'] === 'CUSTOMER' && $wfDb->query("SELECT status FROM delivery_dispatches WHERE order_id = 101")->fetchColumn() === 'Out for Delivery', 'Option 1 dispatches Out for Delivery');
+
+$wfDb->beginTransaction();
+kk_fail_delivery_order($wfDb, 101, 9, 'Rider delayed at checkpoint');
+$wfDb->commit();
+check($wfDb->query("SELECT status FROM delivery_dispatches WHERE order_id = 101")->fetchColumn() === 'Failed', 'Delivery failure recorded');
+
+$wfDb->beginTransaction();
+kk_dispatch_thirdparty_order($wfDb, 101, 9);
+$comp1 = kk_complete_delivery_order($wfDb, 101, 9, 'admin', true);
+$wfDb->commit();
+check($comp1['order_no'] === 'ONL-OPT1'
+    && $wfDb->query("SELECT status FROM orders WHERE id = 101")->fetchColumn() === 'Served'
+    && $wfDb->query("SELECT status FROM delivery_dispatches WHERE order_id = 101")->fetchColumn() === 'Delivered', 'Option 1 retry dispatch and Delivered completion succeeds');
+
+// 2. Option 2: Store-booked courier tracking sync, fee guard, dispatch, and completion
+$wfDb->exec("INSERT INTO orders (id, order_no, queue_no, order_type, order_channel, fulfillment_mode, delivery_mode, courier_booking_by, payment_verification_status, total, status, kitchen_queued_at) VALUES (102, 'ONL-OPT2', 2, 'ONLINE', 'ONLINE', 'OUTSIDE', 'CUSTOMER_BOOKED', 'STORE', 'Verified', 320, 'Ready', '2026-11-18 12:00:00')");
+$wfDb->exec("INSERT INTO payments (order_id, payment_method, payment_status, amount_paid) VALUES (102, 'GCash', 'Paid', 320)");
+$wfDb->exec("INSERT INTO thirdparty_deliveries (order_id, booking_service, delivery_fee, fee_paid, status) VALUES (102, 'Lalamove', 95, 0, 'Quoted')");
+$opt2Row = $wfDb->query("SELECT * FROM orders WHERE id = 102")->fetch(PDO::FETCH_ASSOC);
+check(kk_should_queue_online_gcash_order_to_kitchen($opt2Row) === true, 'Option 2 queues to Kitchen on food GCash verification');
+check((int)$wfDb->query("SELECT COUNT(*) FROM orders o WHERE o.id = 102 AND " . kk_kitchen_option1_gate_sql('o'))->fetchColumn() === 1, 'Kitchen SQL gate allows Option 2 order');
+
+$wfDb->beginTransaction();
+kk_save_staff_tracking_link($wfDb, 102, 'https://share.grab.com/opt2-102', 9);
+$wfDb->commit();
+check($wfDb->query("SELECT delivery_tracking_url FROM orders WHERE id = 102")->fetchColumn() === 'https://share.grab.com/opt2-102'
+    && $wfDb->query("SELECT tracking_reference FROM thirdparty_deliveries WHERE order_id = 102")->fetchColumn() === 'https://share.grab.com/opt2-102', 'Option 2 staff tracking link syncs to both orders and thirdparty_deliveries');
+
+// Fee unpaid blocks Option 2 dispatch
+$wfDb->beginTransaction();
+rejects(fn() => kk_dispatch_thirdparty_order($wfDb, 102, 9), 'Option 2 unpaid fee rejects dispatch');
+$wfDb->rollBack();
+
+// Verify fee -> Dispatch -> Complete Delivered
+$wfDb->exec("UPDATE thirdparty_deliveries SET fee_paid = 1, status = 'Fee Paid' WHERE order_id = 102");
+$wfDb->beginTransaction();
+$disp2 = kk_dispatch_thirdparty_order($wfDb, 102, 9);
+$wfDb->commit();
+check($disp2['booking_by'] === 'STORE' && $wfDb->query("SELECT status FROM thirdparty_deliveries WHERE order_id = 102")->fetchColumn() === 'Dispatched', 'Option 2 dispatches once fee and tracking link exist');
+
+$wfDb->beginTransaction();
+$comp2 = kk_complete_delivery_order($wfDb, 102, 9, 'admin', true);
+$wfDb->commit();
+check($wfDb->query("SELECT status FROM orders WHERE id = 102")->fetchColumn() === 'Served'
+    && $wfDb->query("SELECT status FROM delivery_dispatches WHERE order_id = 102")->fetchColumn() === 'Delivered', 'Option 2 completes cleanly as Delivered');
+
+// 3. Within Lagro COD completion checks cash confirmation
+$wfDb->exec("INSERT INTO orders (id, order_no, queue_no, order_type, order_channel, fulfillment_mode, delivery_mode, courier_booking_by, cod_approval_status, total, status, kitchen_queued_at) VALUES (103, 'ONL-COD', 3, 'ONLINE', 'ONLINE', 'LAGRO', 'LAGRO_FREE', 'NONE', 'Approved', 140, 'Ready', '2026-11-18 12:00:00')");
+$wfDb->exec("INSERT INTO payments (order_id, payment_method, payment_status, amount_paid) VALUES (103, 'Cash on Delivery', 'Pending', 0)");
+$wfDb->exec("INSERT INTO delivery_dispatches (order_id, rider_name, status) VALUES (103, 'Store Delivery', 'Out for Delivery')");
+$wfDb->beginTransaction();
+rejects(fn() => kk_complete_delivery_order($wfDb, 103, 9, 'admin', false), 'Within-Lagro COD completion rejects missing cash confirmation');
+$wfDb->rollBack();
+$wfDb->beginTransaction();
+$comp3 = kk_complete_delivery_order($wfDb, 103, 9, 'admin', true);
+$wfDb->commit();
+check($wfDb->query("SELECT payment_status FROM payments WHERE order_id = 103")->fetchColumn() === 'Paid'
+    && (float)$wfDb->query("SELECT cash_collected FROM orders WHERE id = 103")->fetchColumn() === 140.0
+    && $wfDb->query("SELECT status FROM orders WHERE id = 103")->fetchColumn() === 'Served', 'Within-Lagro COD completes payment and Served status on cash confirmation');
+
 echo "PASS: $checks regression checks (SQLite persistence; MySQL concurrency not covered).\n";

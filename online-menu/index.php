@@ -122,7 +122,7 @@ require_once dirname(__DIR__) . '/includes/storefront_bestsellers.php';
     <p>Loading reviews…</p>
   </div>
 </section>
-<section class="store-section store-visit" id="visit-us"><div><p class="store-eyebrow">COME BY OR GET IN TOUCH</p><h2>Visit Us</h2><address>Blk 79 Lot 34 Florante at Laura St.<br>Brgy. Greater Lagro, Quezon City, Philippines</address><a href="tel:+639687430373">0968 743 0373</a><a href="mailto:kenjiskitchen.online@gmail.com">kenjiskitchen.online@gmail.com</a><p id="storeOpenStatus" class="store-status" role="status"></p><h3>Store Hours</h3><p>Monday – Saturday<br><strong>9:00 AM to 3:00 AM</strong><br>Sunday: Closed</p><a href="https://www.google.com/maps/search/?api=1&amp;query=Blk+79+Lot+34+Florante+at+Laura+Greater+Lagro+Quezon+City" target="_blank" rel="noopener">Get directions</a></div><div class="store-map"><iframe title="Map showing Kenji's Kitchen in Greater Lagro" src="https://maps.google.com/maps?q=Blk%2079%20Lot%2034%20Florante%20at%20Laura%20Greater%20Lagro%20Quezon%20City&amp;output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe></div></section>
+<section class="store-section store-visit" id="visit-us"><div><p class="store-eyebrow">COME BY OR GET IN TOUCH</p><h2>Visit Us</h2><address>Blk 79 Lot 34 Florante at Laura St.<br>Brgy. Greater Lagro, Quezon City, Philippines</address><a href="tel:+639687430373">0968 743 0373</a><a href="mailto:kenjiskitchen.online@gmail.com">kenjiskitchen.online@gmail.com</a><p id="storeOpenStatus" class="store-status" role="status"></p><h3>Store Hours</h3><p>Monday to Saturday<br><strong>9:00 AM to 3:00 AM</strong><br>Sunday: Closed</p><a href="https://www.google.com/maps/search/?api=1&amp;query=Blk+79+Lot+34+Florante+at+Laura+Greater+Lagro+Quezon+City" target="_blank" rel="noopener">Get directions</a></div><div class="store-map"><iframe title="Map showing Kenji's Kitchen in Greater Lagro" src="https://maps.google.com/maps?q=Blk%2079%20Lot%2034%20Florante%20at%20Laura%20Greater%20Lagro%20Quezon%20City&amp;output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe></div></section>
 <footer class="store-footer"><div class="footer-columns"><div><h3>Quick links</h3><nav aria-label="Footer"><a href="#menu">Our Menu</a><a href="#about-us">About Us</a><a href="terms.php">Terms of Use</a><a href="privacy.php">Privacy Policy</a></nav></div><div class="footer-contact"><h3>Contact Us</h3><a href="tel:+639687430373"><i class="bi bi-telephone" aria-hidden="true"></i>0968 743 0373</a><a href="mailto:kenjiskitchen.online@gmail.com"><i class="bi bi-envelope" aria-hidden="true"></i>kenjiskitchen.online@gmail.com</a><a href="https://www.google.com/maps/search/?api=1&amp;query=Blk+79+Lot+34+Florante+at+Laura+Greater+Lagro+Quezon+City" target="_blank" rel="noopener"><i class="bi bi-geo-alt" aria-hidden="true"></i><span>Blk 79 Lot 34 Florante at Laura St.<br>Brgy. Greater Lagro, Quezon City, Philippines</span></a><a class="footer-facebook" href="https://www.facebook.com/profile.php?id=61578450361358" target="_blank" rel="noopener" aria-label="Kenji’s Kitchen on Facebook"><i class="bi bi-facebook" aria-hidden="true"></i><span>Facebook</span></a></div></div><small>&copy; <?= date('Y') ?> Kenji's Kitchen. All Rights Reserved.</small></footer>
   </main>
 
@@ -195,7 +195,7 @@ require_once dirname(__DIR__) . '/includes/storefront_bestsellers.php';
           </div>
         </div>
         <p id="bilaoReservationNotice" class="kk-inline-feedback" style="display:none; margin:0 0 14px;" role="note">
-          <i class="bi bi-calendar2-event" aria-hidden="true"></i> Size M, L &amp; XL Bilao platters require <strong>1–2 days advance reservation</strong> for preparation.
+          <i class="bi bi-calendar2-event" aria-hidden="true"></i> Size M, L &amp; XL Bilao platters require <strong>1 to 2 days advance reservation</strong> for preparation.
         </p>
 
         <!-- Packaging Option Picker (Tray vs Bilao for Bilao Category Dishes) -->
@@ -511,10 +511,16 @@ require_once dirname(__DIR__) . '/includes/storefront_bestsellers.php';
 
           <div class="delivery-step-block">
             <label for="custAddressInput" style="font-size: 0.85rem; font-weight: 700; display: block; margin-bottom: 4px;">Delivery Address <span style="color:var(--danger);">*</span></label>
-            <textarea rows="2" id="custAddressInput" class="checkout-input" maxlength="500" placeholder="e.g. Blk 4 Lot 9 Misa de Gallo St, Brgy. Greater Lagro, Quezon City" oninput="handleDeliveryAddressInput(true)" autocomplete="street-address"></textarea>
+            <textarea rows="2" id="custAddressInput" class="checkout-input" maxlength="500" placeholder="House / Blk &amp; Lot, Street, Subdivision / Barangay" oninput="handleDeliveryAddressInput(true)" autocomplete="street-address"></textarea>
             <div class="delivery-address-assist-row">
-              <small style="color:var(--muted);font-size:0.75rem;">House / lot number, street, barangay and city.</small>
-              <button type="button" id="btnJumpSuggestedStreet" class="delivery-map-chip-btn" style="display:none;" onclick="jumpMapToSuggestedStreet()"></button>
+              <small style="color:var(--muted);font-size:0.75rem;">Fills from the map pin. Add House / Blk &amp; Lot / Unit if needed.</small>
+              <div class="delivery-address-assist-actions">
+                <button type="button" id="btnFindAddressOnMap" class="delivery-map-chip-btn" onclick="findTypedAddressOnMap()" title="Locate your typed delivery address on the map">
+                  <i class="bi bi-search" aria-hidden="true"></i> Find address on map
+                </button>
+                <button type="button" id="btnUsePinnedAddress" class="delivery-map-chip-btn" style="display:none;" onclick="applyPinnedAddressToInput()"></button>
+                <button type="button" id="btnJumpSuggestedStreet" class="delivery-map-chip-btn" style="display:none;" onclick="jumpMapToSuggestedStreet()"></button>
+              </div>
             </div>
           </div>
 
@@ -522,23 +528,24 @@ require_once dirname(__DIR__) . '/includes/storefront_bestsellers.php';
             <div class="delivery-map-header">
               <label for="deliveryCoverageMap" style="font-size: 0.85rem; font-weight: 700; margin: 0;">Pin your destination <span style="color:var(--danger);">*</span></label>
               <div class="delivery-map-actions" role="toolbar" aria-label="Map location actions">
-                <button type="button" class="delivery-map-action-btn" onclick="placeDeliveryPinAtMapCenter()" title="Place or move your delivery pin to the center of the map view">
-                  <i class="bi bi-geo-alt-fill" aria-hidden="true"></i> Pin center
+                <button type="button" id="btnPinCenter" class="delivery-map-action-btn" onclick="placeDeliveryPinAtMapCenter()" title="Drop pin at the center of the map">
+                  <i class="bi bi-geo-alt-fill" aria-hidden="true"></i> Drop pin at center
                 </button>
-                <button type="button" id="btnUseMyLocation" class="delivery-map-action-btn" onclick="useOneTimeDeviceLocation()" title="One-time location check using your device">
-                  <i class="bi bi-crosshair" aria-hidden="true"></i> Locate me
+                <button type="button" id="btnUseMyLocation" class="delivery-map-action-btn" onclick="useOneTimeDeviceLocation()" title="Use your device GPS location">
+                  <i class="bi bi-crosshair" aria-hidden="true"></i> Use My Location
                 </button>
-                <button type="button" class="delivery-map-action-btn" onclick="resetDeliveryMapView()" title="Reset map view to Barangay Greater Lagro">
-                  <i class="bi bi-arrows-fullscreen" aria-hidden="true"></i> Reset view
+                <button type="button" id="btnShowLagroZone" class="delivery-map-action-btn" onclick="resetDeliveryMapView()" title="Fit map to Barangay Greater Lagro">
+                  <i class="bi bi-bounding-box-circles" aria-hidden="true"></i> Show Lagro Zone
                 </button>
               </div>
             </div>
-            <p class="delivery-map-instructions">Place your destination on the map. Typing an address does not move the pin.</p>
+            <p class="delivery-map-instructions">Tap the map or drag the pin to set your location.</p>
             <div id="deliveryMapTileNotice" class="delivery-map-tile-notice" role="status" aria-live="polite" style="display:none;"></div>
-            <div id="deliveryCoverageMap" class="delivery-coverage-map" tabindex="0" role="region" aria-label="Interactive delivery coverage map for Barangay Greater Lagro. Use arrow keys to pan the map and press Enter or Space to place your delivery destination pin at the center."></div>
+            <div id="deliveryCoverageMap" class="delivery-coverage-map" tabindex="0" role="region" aria-label="Interactive delivery coverage map for Barangay Greater Lagro. Click to place your pin, or press Enter or Space to pin the map center."></div>
             <div class="delivery-map-legend">
-              <span><i class="legend-swatch legend-lagro" aria-hidden="true"></i> Free delivery zone</span>
-              <span><i class="legend-swatch legend-store" aria-hidden="true"></i> Our store</span>
+              <span><i class="legend-swatch legend-lagro" aria-hidden="true"></i> Greater Lagro (Free ₱0)</span>
+              <span><i class="legend-swatch legend-outside" aria-hidden="true"></i> Outside Lagro (Courier)</span>
+              <span><i class="legend-swatch legend-store" aria-hidden="true"></i> Kenji’s Kitchen</span>
             </div>
           </div>
 
@@ -547,16 +554,34 @@ require_once dirname(__DIR__) . '/includes/storefront_bestsellers.php';
           <div id="deliveryAreaVerificationStatus" class="delivery-coverage-status" role="status" aria-live="polite"></div>
 
           <div id="courierBookingWrap" style="display:none;margin-top:12px;">
-            <label for="courierBookingBy" style="font-size:0.85rem;font-weight:700;display:block;margin-bottom:6px;">Courier booking choice <span style="color:var(--danger);">*</span></label>
-            <select id="courierBookingBy" class="checkout-input" onchange="updateCourierBookingChoiceUI()">
-              <option value="customer">I’ll book the courier</option>
-              <option value="store">Ask the store to book</option>
-            </select>
-            <p id="courierBookingNote" class="checkout-delivery-note">Delivery outside Barangay Greater Lagro is arranged manually through a third-party courier (e.g. Lalamove, GrabExpress). The courier’s actual booking charge is separate from the food amount.</p>
-            <div id="thirdPartyTrackingWrap" style="margin-top:10px;">
-              <label for="custTrackingUrl" style="font-size:0.85rem;font-weight:700;display:block;margin-bottom:4px;">Courier tracking link</label>
-              <input type="url" id="custTrackingUrl" class="checkout-input" placeholder="https://..." inputmode="url">
-              <small id="thirdPartyTrackingHelp" style="color:var(--muted);display:block;margin-top:5px;">Paste the external courier share link from your manual booking (e.g. GrabExpress, Lalamove), or add it later in My Orders before handoff.</small>
+            <input type="hidden" id="courierBookingBy" value="customer">
+            <fieldset class="courier-booking-fieldset">
+              <legend class="courier-choice-heading">Who will book the courier? <span style="color:var(--danger);">*</span></legend>
+              <div class="courier-choice-group" id="courierBookingGroup">
+                <label class="courier-choice-card active" data-choice="customer">
+                  <span class="courier-choice-top">
+                    <input type="radio" class="courier-choice-radio" name="courierBookingChoice" value="customer" checked onchange="selectCourierBookingChoice('customer')">
+                    <span class="courier-choice-title">I’ll book the rider</span>
+                  </span>
+                  <span class="courier-choice-desc">Use Lalamove or GrabExpress and pay the rider directly.</span>
+                </label>
+                <label class="courier-choice-card" data-choice="store">
+                  <span class="courier-choice-top">
+                    <input type="radio" class="courier-choice-radio" name="courierBookingChoice" value="store" onchange="selectCourierBookingChoice('store')">
+                    <span class="courier-choice-title">Staff will book for me</span>
+                  </span>
+                  <span class="courier-choice-desc">We’ll book the rider and post the fee in My Orders.</span>
+                </label>
+              </div>
+            </fieldset>
+            <p id="courierBookingNote" class="checkout-delivery-note" style="display:none;"></p>
+            <div id="thirdPartyTrackingWrap" class="courier-tracking-field">
+              <div class="courier-tracking-label-row">
+                <label for="custTrackingUrl">Courier tracking link</label>
+                <span class="courier-optional-badge">Optional</span>
+              </div>
+              <input type="url" id="custTrackingUrl" class="checkout-input" placeholder="https://..." inputmode="url" autocomplete="url" autocorrect="off" autocapitalize="none" spellcheck="false" aria-describedby="thirdPartyTrackingHelp">
+              <small id="thirdPartyTrackingHelp" class="courier-tracking-help">Paste your third-party carrier (Lalamove, GrabExpress) tracking link now, or add it later in My Orders.</small>
             </div>
           </div>
         </div>
@@ -609,7 +634,7 @@ require_once dirname(__DIR__) . '/includes/storefront_bestsellers.php';
 
         <div style="margin-bottom: 14px; padding: 10px 12px; border-radius: 10px; background: rgba(242, 193, 46, 0.12); border: 1px solid rgba(242, 193, 46, 0.4); font-size: 0.82rem; color: var(--dark); line-height: 1.45;">
           <i class="bi bi-clock-history" style="color: var(--primary);"></i>
-          <strong>Estimated kitchen preparation: <span id="checkoutPrepEstimateText">~15–25 minutes</span></strong>
+          <strong>Estimated kitchen preparation: <span id="checkoutPrepEstimateText">~15 to 25 minutes</span></strong>
           <div id="checkoutPrepHelp" style="font-size: 0.75rem; color: var(--muted); margin-top: 2px;">This covers food preparation only. Delivery time depends on courier availability, travel distance, and traffic.</div>
         </div>
 
@@ -646,7 +671,7 @@ require_once dirname(__DIR__) . '/includes/storefront_bestsellers.php';
           </div>
           <div style="display:flex; justify-content:space-between; font-size: 0.85rem; margin-top: 6px;">
             <span>Estimated prep</span>
-            <strong id="confPrepEstimate">~15–25 mins (Estimate)</strong>
+            <strong id="confPrepEstimate">~15 to 25 mins (Estimate)</strong>
           </div>
           <div style="display:flex; justify-content:space-between; font-size: 0.95rem; font-weight: 800; border-top: 1px dashed var(--border); padding-top: 6px; margin-top: 6px;">
             <span>Order total</span>
@@ -762,18 +787,18 @@ require_once dirname(__DIR__) . '/includes/storefront_bestsellers.php';
 
   <!-- Customer Receipt / Order Summary Modal (View, Print, Save as PDF) -->
   <div class="modal-overlay" id="customerReceiptModal">
-    <div class="modal-card" style="max-width: 480px;">
+    <div class="modal-card receipt-modal-card" style="max-width: 440px;">
       <button type="button" class="btn-close-modal" aria-label="Close Receipt" onclick="closeModal('customerReceiptModal')">✕</button>
-      <div class="modal-body" style="padding: 24px;">
+      <div class="modal-body" style="padding: 20px;">
         <div id="customerReceiptPrintableArea" class="customer-receipt-sheet">
           <div style="text-align: center; padding: 24px 0;">Loading receipt…</div>
         </div>
-        <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px;">
-          <button type="button" class="btn-primary" style="flex: 1; min-width: 140px;" disabled data-receipt-print onclick="printCustomerReceipt(false)">
-            <i class="bi bi-printer"></i> Print Receipt
+        <div class="receipt-modal-actions">
+          <button type="button" class="btn-receipt-secondary" disabled data-receipt-print onclick="printCustomerReceipt(false)">
+            <i class="bi bi-printer"></i> Print
           </button>
-          <button type="button" class="btn-primary customer-secondary-action" style="flex: 1; min-width: 140px;" disabled data-receipt-print onclick="printCustomerReceipt(true)">
-            <i class="bi bi-file-earmark-pdf"></i> Save as PDF
+          <button type="button" class="btn-receipt-primary" disabled data-receipt-print onclick="printCustomerReceipt(true)">
+            <i class="bi bi-file-earmark-pdf"></i> Save PDF
           </button>
         </div>
       </div>
@@ -795,7 +820,7 @@ require_once dirname(__DIR__) . '/includes/storefront_bestsellers.php';
               <option>Ordered the wrong items.</option><option>Changed my mind.</option><option>Accidental duplicate order.</option><option>Delivery or pickup concern.</option><option>Other reason</option>
             </select>
           </div>
-          <textarea id="customerCancelOther" class="auth-input" aria-label="Explain your reason" placeholder="Please explain (8–480 characters)" minlength="8" maxlength="480" hidden></textarea>
+          <textarea id="customerCancelOther" class="auth-input" aria-label="Explain your reason" placeholder="Please explain (8 to 480 characters)" minlength="8" maxlength="480" hidden></textarea>
           <p id="customerCancelError" role="status" style="color:var(--danger);margin:10px 0;"></p>
           <div style="display:flex;gap:10px;flex-wrap:wrap;">
             <button type="button" class="auth-btn-back" onclick="closeCustomerCancellation()">Keep Order</button>
@@ -810,15 +835,15 @@ require_once dirname(__DIR__) . '/includes/storefront_bestsellers.php';
   <div class="modal-overlay" id="courierFeeModal">
     <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="courierFeeTitle" style="max-width:480px;">
       <button type="button" class="btn-close-modal" aria-label="Close courier fee payment" onclick="closeCourierFeeModal()">✕</button>
-      <div class="modal-body" style="padding:24px;">
-        <h2 id="courierFeeTitle" style="margin:0 0 4px;font-size:1.2rem;font-weight:800;color:var(--dark);display:flex;align-items:center;gap:8px;">
+      <div class="modal-body" style="padding:18px 20px;">
+        <h2 id="courierFeeTitle" style="margin:0 0 3px;font-size:1.12rem;font-weight:800;color:var(--dark);display:flex;align-items:center;gap:8px;">
           <i class="bi bi-truck" style="color:var(--primary);"></i> Pay Courier Delivery Fee
         </h2>
-        <p class="muted" id="courierFeeSubtitle" style="margin:0 0 14px;font-size:0.84rem;">Settle the manually quoted third-party courier fee via static GCash QR so staff can complete manual arrangement and log handoff.</p>
+        <p class="muted" id="courierFeeSubtitle" style="margin:0 0 10px;font-size:0.81rem;">Pay the quoted courier fee via GCash QR and upload your payment receipt below.</p>
 
         <div class="courier-fee-summary-box">
-          <div class="courier-fee-summary-row"><span>Order No.</span><strong id="courierFeeOrderNo">—</strong></div>
-          <div class="courier-fee-summary-row"><span>Courier Service</span><strong id="courierFeeService">—</strong></div>
+          <div class="courier-fee-summary-row"><span>Order No.</span><strong id="courierFeeOrderNo">N/A</strong></div>
+          <div class="courier-fee-summary-row"><span>Courier Service</span><strong id="courierFeeService">N/A</strong></div>
           <div class="courier-fee-summary-row total"><span>Quoted Delivery Fee</span><strong id="courierFeeAmount">₱0.00</strong></div>
         </div>
 
@@ -832,35 +857,34 @@ require_once dirname(__DIR__) . '/includes/storefront_bestsellers.php';
             </div>
           </div>
           <div class="gcash-account-details"><span>Account name</span><strong id="courierFeeGcashName">Loading payment details…</strong><span>Account number</span><strong id="courierFeeGcashPhone">Loading…</strong></div><div class="gcash-account-actions"><a id="courierFeeGcashDownload" hidden download="kenjis-kitchen-gcash.png"><i class="bi bi-download"></i> Save QR image</a><button type="button" onclick="copyGcashNumber('courierFeeGcashPhone', this)"><i class="bi bi-copy"></i> Copy number</button></div><p class="gcash-payment-help">Check the account name in GCash before confirming your payment.</p>
-          <p class="gcash-payment-help">Pay the quoted delivery fee above, then enter your 13-digit GCash reference number and upload your payment screenshot.</p>
         </section>
 
         <form id="courierFeeForm" onsubmit="event.preventDefault(); submitCourierFeePayment(); return false;" novalidate>
-          <div id="courierFeeError" class="checkout-validation-alert" style="display:none;margin-bottom:12px;" role="alert"></div>
+          <div id="courierFeeError" class="checkout-validation-alert" style="display:none;margin-bottom:10px;" role="alert"></div>
 
-          <div style="margin-bottom:12px;">
-            <label for="courierFeeGcashRef" style="font-size:0.85rem;font-weight:700;display:block;margin-bottom:4px;">GCash Reference Number <span style="color:var(--danger);">*</span></label>
-            <input type="text" id="courierFeeGcashRef" class="checkout-input" style="letter-spacing:1px;" maxlength="13" inputmode="numeric" placeholder="Enter 13-digit reference" required>
+          <div style="margin-bottom:10px;">
+            <label for="courierFeeGcashRef" style="font-size:0.83rem;font-weight:700;display:block;margin-bottom:3px;">GCash Reference Number <span style="color:var(--danger);">*</span></label>
+            <input type="text" id="courierFeeGcashRef" class="checkout-input" style="letter-spacing:1px;padding:8px 11px;" maxlength="13" inputmode="numeric" placeholder="Enter 13-digit reference" required>
           </div>
 
-          <div style="margin-bottom:16px;">
-            <label for="courierFeeProofInput" style="font-size:0.85rem;font-weight:700;display:block;margin-bottom:4px;">Upload Courier Fee Receipt <span style="color:var(--danger);">*</span></label>
-            <input type="file" id="courierFeeProofInput" class="checkout-input" accept="image/jpeg,image/png,image/webp" onchange="handleCourierFeeProofSelection(event)" style="padding:8px;">
-            <small style="color:var(--muted);font-size:0.75rem;display:block;margin-top:3px;">JPG, PNG, or WebP screenshot (max 5 MB).</small>
-            <div id="courierFeeProofPreviewWrap" style="display:none;margin-top:10px;padding:10px;border:1px solid var(--border);border-radius:10px;background:var(--soft);">
-              <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;">
-                <span id="courierFeeProofFileName" style="font-size:0.8rem;font-weight:700;color:var(--dark);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
-                <button type="button" onclick="clearCourierFeeProofSelection()" style="background:rgba(217,83,79,0.12);color:#ef4444;border:1px solid rgba(217,83,79,0.35);border-radius:6px;padding:4px 10px;font-size:0.76rem;font-weight:700;cursor:pointer;flex-shrink:0;">
+          <div style="margin-bottom:12px;">
+            <label for="courierFeeProofInput" style="font-size:0.83rem;font-weight:700;display:block;margin-bottom:3px;">Upload Courier Fee Receipt <span style="color:var(--danger);">*</span></label>
+            <input type="file" id="courierFeeProofInput" class="checkout-input" accept="image/jpeg,image/png,image/webp" onchange="handleCourierFeeProofSelection(event)" style="padding:6px 8px;">
+            <small style="color:var(--muted);font-size:0.73rem;display:block;margin-top:2px;">JPG, PNG, or WebP screenshot (max 5 MB).</small>
+            <div id="courierFeeProofPreviewWrap" style="display:none;margin-top:8px;padding:8px;border:1px solid var(--border);border-radius:10px;background:var(--soft);">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px;">
+                <span id="courierFeeProofFileName" style="font-size:0.78rem;font-weight:700;color:var(--dark);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+                <button type="button" onclick="clearCourierFeeProofSelection()" style="background:rgba(217,83,79,0.12);color:#ef4444;border:1px solid rgba(217,83,79,0.35);border-radius:6px;padding:3px 9px;font-size:0.75rem;font-weight:700;cursor:pointer;flex-shrink:0;">
                   <i class="bi bi-trash"></i> Remove
                 </button>
               </div>
-              <img id="courierFeeProofPreviewImg" src="" alt="Courier fee receipt preview" style="max-height:150px;max-width:100%;border-radius:8px;display:block;margin:0 auto;object-fit:contain;border:1px solid var(--border);">
+              <img id="courierFeeProofPreviewImg" src="" alt="Courier fee receipt preview" style="max-height:110px;max-width:100%;border-radius:8px;display:block;margin:0 auto;object-fit:contain;border:1px solid var(--border);">
             </div>
           </div>
 
           <div style="display:flex;gap:10px;">
-            <button type="button" class="auth-btn-back" style="flex:0.8;height:auto;padding:12px;" onclick="closeCourierFeeModal()">Cancel</button>
-            <button type="submit" id="btnSubmitCourierFee" class="btn-primary" style="flex:1.4;">Submit Fee Payment</button>
+            <button type="button" class="auth-btn-back" style="flex:0.8;height:auto;padding:10px;" onclick="closeCourierFeeModal()">Cancel</button>
+            <button type="submit" id="btnSubmitCourierFee" class="btn-primary" style="flex:1.4;padding:10px;">Submit Fee Payment</button>
           </div>
         </form>
       </div>
@@ -881,7 +905,7 @@ require_once dirname(__DIR__) . '/includes/storefront_bestsellers.php';
         <div style="display: inline-block; background: rgba(242, 193, 46, 0.16); color: #92400e; font-size: 0.72rem; font-weight: 800; letter-spacing: 1.5px; padding: 4px 12px; border-radius: 999px; margin-bottom: 12px;">OUR STORY &amp; MISSION</div>
         <h3 style="margin: 0 0 10px; font-size: 1.25rem; font-weight: 800; color: var(--dark);">Lutong Bahay Sarap, Crafted with Passion</h3>
         <p style="font-size: 0.92rem; line-height: 1.6; color: var(--text); margin-bottom: 20px;">
-          Located in Barangay Greater Lagro, Quezon City, <strong>Kenji’s Kitchen</strong> is your neighborhood home for authentic Filipino comfort meals. From our signature crispy silogs cooked fresh to order, savory simmered beef and bagnet pares, to generous party bilao trays designed for family celebrations—we take pride in serving high-quality ingredients with genuine hospitality.
+          Located in Barangay Greater Lagro, Quezon City, <strong>Kenji’s Kitchen</strong> is your neighborhood home for authentic Filipino comfort meals. From our signature crispy silogs cooked fresh to order, savory simmered beef and bagnet pares, to generous party bilao trays designed for family celebrations, we take pride in serving high-quality ingredients with genuine hospitality.
         </p>
 
         <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 24px; text-align: center;">
@@ -904,7 +928,7 @@ require_once dirname(__DIR__) . '/includes/storefront_bestsellers.php';
 
         <div style="border-top: 1px dashed var(--border); padding-top: 16px; display: flex; flex-direction: column; gap: 8px; font-size: 0.84rem; color: var(--muted);">
           <div><i class="bi bi-geo-alt-fill" style="color:#ef4444;"></i> <strong>Location:</strong> Blk 79 Lot 34 Florante at Laura St. Brgy. Greater Lagro, Quezon City</div>
-          <div><i class="bi bi-clock-fill" style="color:var(--primary);"></i> <strong>Hours:</strong> Mon – Sat: 9:00 AM – 3:00 AM (next day) | <span style="color:#ef4444;font-weight:700;">Sunday: CLOSED</span></div>
+          <div><i class="bi bi-clock-fill" style="color:var(--primary);"></i> <strong>Hours:</strong> Mon to Sat: 9:00 AM to 3:00 AM (next day) | <span style="color:#ef4444;font-weight:700;">Sunday: CLOSED</span></div>
           <div><i class="bi bi-check2-circle" style="color:#10b981;"></i> <strong>Services:</strong> Dine-In · Takeout · Pickup · Delivery</div>
         </div>
       </div>

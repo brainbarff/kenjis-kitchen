@@ -101,6 +101,87 @@ function require_customer_id(PDO $conn, string $message = 'Please sign in or reg
     return (int)$user['id'];
 }
 
+function handle_verify_address_request(PDO $conn, array $input): void
+{
+    $rl = kk_check_delivery_verify_rate_limit();
+    $reqSeq = isset($input['seq']) ? (int)$input['seq'] : null;
+    if (!empty($rl['blocked'])) {
+        order_json([
+            'status' => 'error',
+            'code' => 'RATE_LIMITED',
+            'message' => $rl['message'] ?? 'Unable to check right now.',
+            'data' => [
+                'status' => 'OUTAGE',
+                'headline' => 'Unable to check right now.',
+                'reason_code' => 'RATE_LIMITED',
+                'eligible_free' => false,
+                'eligible_outside' => false,
+                'message' => $rl['message'] ?? 'Unable to check right now.',
+                'seq' => $reqSeq,
+            ],
+        ], 429);
+    }
+    $addr = trim((string)($input['address'] ?? ($input['delivery_address'] ?? '')));
+    $brgy = trim((string)($input['barangay'] ?? ($input['delivery_barangay'] ?? '')));
+    $lat = $input['lat'] ?? ($input['delivery_lat'] ?? null);
+    $lng = $input['lng'] ?? ($input['delivery_lng'] ?? null);
+    $verification = verify_lagro_delivery_address($addr, $brgy, $lat, $lng, $conn);
+    if ($reqSeq !== null) {
+        $verification['seq'] = $reqSeq;
+    }
+    if (($verification['status'] ?? '') === 'OUTAGE') {
+        order_json(['status' => 'error', 'code' => 'OUTAGE', 'message' => $verification['message'], 'data' => $verification], 503);
+    }
+    order_json(['status' => 'success', 'data' => $verification]);
+}
+
+function handle_reverse_geocode_request(array $input): void
+{
+    $rl = kk_check_delivery_verify_rate_limit();
+    $reqSeq = isset($input['seq']) ? (int)$input['seq'] : null;
+    if (!empty($rl['blocked'])) {
+        order_json(['status' => 'error', 'code' => 'RATE_LIMITED', 'message' => $rl['message'] ?? 'Too many requests.'], 429);
+    }
+    $lat = $input['lat'] ?? ($input['delivery_lat'] ?? null);
+    $lng = $input['lng'] ?? ($input['delivery_lng'] ?? null);
+    if (!is_numeric($lat) || !is_numeric($lng)) {
+        order_json(['status' => 'error', 'message' => 'Valid latitude and longitude are required.'], 400);
+    }
+    $latFloat = (float)$lat;
+    $lngFloat = (float)$lng;
+    if (!is_finite($latFloat) || !is_finite($lngFloat) || $latFloat < 14.10 || $latFloat > 15.20 || $lngFloat < 120.70 || $lngFloat > 121.45) {
+        order_json(['status' => 'error', 'message' => 'Selected coordinates are outside the serviceable Metro Manila region.'], 400);
+    }
+    try {
+        $geo = kk_reverse_geocode_delivery_point($latFloat, $lngFloat);
+        if ($reqSeq !== null) {
+            $geo['seq'] = $reqSeq;
+        }
+        order_json(['status' => 'success', 'data' => $geo]);
+    } catch (Throwable $e) {
+        order_json(['status' => 'error', 'code' => 'OUTAGE', 'message' => 'Unable to resolve map location right now.'], 503);
+    }
+}
+
+function handle_geocode_address_request(array $input): void
+{
+    $rl = kk_check_delivery_verify_rate_limit();
+    $reqSeq = isset($input['seq']) ? (int)$input['seq'] : null;
+    if (!empty($rl['blocked'])) {
+        order_json(['status' => 'error', 'code' => 'RATE_LIMITED', 'message' => $rl['message'] ?? 'Too many requests.'], 429);
+    }
+    $addr = trim((string)($input['address'] ?? ($input['delivery_address'] ?? '')));
+    try {
+        $geo = kk_forward_geocode_delivery_address($addr);
+        if ($reqSeq !== null) {
+            $geo['seq'] = $reqSeq;
+        }
+        order_json(['status' => 'success', 'data' => $geo]);
+    } catch (Throwable $e) {
+        order_json(['status' => 'error', 'code' => 'OUTAGE', 'message' => 'Unable to search address on map right now.'], 503);
+    }
+}
+
 $action = $_GET['action'] ?? '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
@@ -122,36 +203,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         order_json(['status' => 'success', 'csrf_token' => csrf_token()]);
     }
     if ($action === 'verify_address') {
-        $rl = kk_check_delivery_verify_rate_limit();
-        if (!empty($rl['blocked'])) {
-            order_json([
-                'status' => 'error',
-                'code' => 'RATE_LIMITED',
-                'message' => $rl['message'] ?? 'Unable to check right now.',
-                'data' => [
-                    'status' => 'OUTAGE',
-                    'headline' => 'Unable to check right now.',
-                    'reason_code' => 'RATE_LIMITED',
-                    'eligible_free' => false,
-                    'eligible_outside' => false,
-                    'message' => $rl['message'] ?? 'Unable to check right now.',
-                    'seq' => isset($_GET['seq']) ? (int)$_GET['seq'] : null,
-                ],
-            ], 429);
-        }
-        $addr = trim((string)($_GET['address'] ?? ''));
-        $brgy = trim((string)($_GET['barangay'] ?? ''));
-        $lat = $_GET['lat'] ?? ($_GET['delivery_lat'] ?? null);
-        $lng = $_GET['lng'] ?? ($_GET['delivery_lng'] ?? null);
-        $seq = isset($_GET['seq']) ? (int)$_GET['seq'] : null;
-        $verification = verify_lagro_delivery_address($addr, $brgy, $lat, $lng, $conn);
-        if ($seq !== null) {
-            $verification['seq'] = $seq;
-        }
-        if (($verification['status'] ?? '') === 'OUTAGE') {
-            order_json(['status' => 'error', 'code' => 'OUTAGE', 'message' => $verification['message'], 'data' => $verification], 503);
-        }
-        order_json(['status' => 'success', 'data' => $verification]);
+        handle_verify_address_request($conn, $_GET);
+    }
+    if ($action === 'reverse_geocode') {
+        handle_reverse_geocode_request($_GET);
+    }
+    if ($action === 'geocode_address') {
+        handle_geocode_address_request($_GET);
     }
     if ($action === 'receipt') {
         $customerId = require_customer_id($conn, 'Sign in to view this receipt.');
@@ -203,7 +261,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $orderId = filter_var($_GET['order_id'] ?? null, FILTER_VALIDATE_INT);
         if (!$orderId || $orderId < 1) order_json(['status' => 'error', 'message' => 'Invalid order.'], 400);
 
-        $stmt = $conn->prepare("SELECT o.id, o.order_no, o.queue_no, o.order_type, o.status, o.customer_name, o.customer_phone, o.created_at, o.preparing_at, o.ready_at, o.served_at, o.subtotal, o.discount, o.tax, o.total, o.delivery_address, o.delivery_lat, o.delivery_lng, o.delivery_mode, o.coverage_status, o.coverage_boundary_version, o.courier_booking_by, o.delivery_tracking_url, o.notes, p.payment_method, p.payment_reference, p.payment_status, (p.payment_proof_path IS NOT NULL AND p.payment_proof_path <> '') AS has_payment_proof, r.receipt_no, r.email_status AS receipt_email_status, d.status AS delivery_status, d.rider_name, d.out_at, d.delivered_at, tpd.booking_service AS tp_service, tpd.delivery_fee AS tp_fee, tpd.tracking_reference AS tp_tracking_ref, tpd.fee_paid AS tp_fee_paid, tpd.status AS tp_status, tpp.verification_status AS tp_fee_proof_status, tpp.reference_number AS tp_fee_ref, tpp.rejection_reason AS tp_fee_rejection_reason, EXISTS(SELECT 1 FROM transaction_requests tr WHERE tr.order_id = o.id AND tr.request_type = 'Cancel Delivery' AND tr.status = 'Pending') AS cancellation_requested FROM orders o LEFT JOIN payments p ON p.order_id = o.id LEFT JOIN receipts r ON r.order_id = o.id LEFT JOIN delivery_dispatches d ON d.order_id = o.id LEFT JOIN thirdparty_deliveries tpd ON tpd.order_id = o.id LEFT JOIN payment_proofs tpp ON tpp.id = COALESCE(tpd.fee_payment_proof_id, (SELECT MAX(pp2.id) FROM payment_proofs pp2 WHERE pp2.order_id = o.id AND pp2.payment_type = 'thirdparty_delivery')) WHERE o.id = ? AND o.user_id = ? AND o.order_channel = 'ONLINE' LIMIT 1");
+        $stmt = $conn->prepare("SELECT o.id, o.order_no, o.queue_no, o.order_type, o.status, o.customer_name, o.customer_phone, o.created_at, o.preparing_at, o.ready_at, o.served_at, o.subtotal, o.discount, o.tax, o.total, o.delivery_address, o.delivery_lat, o.delivery_lng, o.delivery_mode, o.coverage_status, o.coverage_boundary_version, o.courier_booking_by, o.delivery_tracking_url, o.courier_tracking_status, o.courier_tracking_verified_at, o.courier_tracking_rejection_reason, o.payment_verification_status, o.notes, p.payment_method, p.payment_reference, p.payment_status, (p.payment_proof_path IS NOT NULL AND p.payment_proof_path <> '') AS has_payment_proof, r.receipt_no, r.email_status AS receipt_email_status, d.status AS delivery_status, d.rider_name, d.out_at, d.delivered_at, tpd.booking_service AS tp_service, tpd.delivery_fee AS tp_fee, tpd.tracking_reference AS tp_tracking_ref, tpd.fee_paid AS tp_fee_paid, tpd.status AS tp_status, tpp.verification_status AS tp_fee_proof_status, tpp.reference_number AS tp_fee_ref, tpp.rejection_reason AS tp_fee_rejection_reason, EXISTS(SELECT 1 FROM transaction_requests tr WHERE tr.order_id = o.id AND tr.request_type = 'Cancel Delivery' AND tr.status = 'Pending') AS cancellation_requested FROM orders o LEFT JOIN payments p ON p.order_id = o.id LEFT JOIN receipts r ON r.order_id = o.id LEFT JOIN delivery_dispatches d ON d.order_id = o.id LEFT JOIN thirdparty_deliveries tpd ON tpd.order_id = o.id LEFT JOIN payment_proofs tpp ON tpp.id = COALESCE(tpd.fee_payment_proof_id, (SELECT MAX(pp2.id) FROM payment_proofs pp2 WHERE pp2.order_id = o.id AND pp2.payment_type = 'thirdparty_delivery')) WHERE o.id = ? AND o.user_id = ? AND o.order_channel = 'ONLINE' LIMIT 1");
         $stmt->execute([$orderId, $customerId]);
         $order = $stmt->fetch();
         if (!$order) order_json(['status' => 'error', 'message' => 'Order not found.'], 404);
@@ -225,7 +283,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             order_json(['status' => 'success', 'data' => $order]);
         }
 
-        $stmt = $conn->prepare("SELECT o.id, o.order_no, o.queue_no, o.order_type, o.status, o.customer_name, o.created_at, o.preparing_at, o.ready_at, o.served_at, o.total, o.delivery_mode, o.coverage_status, o.courier_booking_by, o.delivery_tracking_url, o.notes, p.payment_method, p.payment_reference, p.payment_status, (p.payment_proof_path IS NOT NULL AND p.payment_proof_path <> '') AS has_payment_proof, r.receipt_no, r.email_status AS receipt_email_status, d.status AS delivery_status, tpd.booking_service AS tp_service, tpd.delivery_fee AS tp_fee, tpd.tracking_reference AS tp_tracking_ref, tpd.fee_paid AS tp_fee_paid, tpd.status AS tp_status, tpp.verification_status AS tp_fee_proof_status, tpp.reference_number AS tp_fee_ref, EXISTS(SELECT 1 FROM transaction_requests tr WHERE tr.order_id = o.id AND tr.request_type = 'Cancel Delivery' AND tr.status = 'Pending') AS cancellation_requested FROM orders o LEFT JOIN payments p ON p.order_id = o.id LEFT JOIN receipts r ON r.order_id = o.id LEFT JOIN delivery_dispatches d ON d.order_id = o.id LEFT JOIN thirdparty_deliveries tpd ON tpd.order_id = o.id LEFT JOIN payment_proofs tpp ON tpp.id = COALESCE(tpd.fee_payment_proof_id, (SELECT MAX(pp2.id) FROM payment_proofs pp2 WHERE pp2.order_id = o.id AND pp2.payment_type = 'thirdparty_delivery')) WHERE o.user_id = ? AND o.order_channel = 'ONLINE' ORDER BY o.id DESC LIMIT 50");
+        $stmt = $conn->prepare("SELECT o.id, o.order_no, o.queue_no, o.order_type, o.status, o.customer_name, o.created_at, o.preparing_at, o.ready_at, o.served_at, o.total, o.delivery_mode, o.coverage_status, o.courier_booking_by, o.delivery_tracking_url, o.courier_tracking_status, o.courier_tracking_verified_at, o.courier_tracking_rejection_reason, o.payment_verification_status, o.notes, p.payment_method, p.payment_reference, p.payment_status, (p.payment_proof_path IS NOT NULL AND p.payment_proof_path <> '') AS has_payment_proof, r.receipt_no, r.email_status AS receipt_email_status, d.status AS delivery_status, d.out_at, d.delivered_at, tpd.booking_service AS tp_service, tpd.delivery_fee AS tp_fee, tpd.tracking_reference AS tp_tracking_ref, tpd.fee_paid AS tp_fee_paid, tpd.status AS tp_status, tpp.verification_status AS tp_fee_proof_status, tpp.reference_number AS tp_fee_ref, tpp.rejection_reason AS tp_fee_rejection_reason, EXISTS(SELECT 1 FROM transaction_requests tr WHERE tr.order_id = o.id AND tr.request_type = 'Cancel Delivery' AND tr.status = 'Pending') AS cancellation_requested FROM orders o LEFT JOIN payments p ON p.order_id = o.id LEFT JOIN receipts r ON r.order_id = o.id LEFT JOIN delivery_dispatches d ON d.order_id = o.id LEFT JOIN thirdparty_deliveries tpd ON tpd.order_id = o.id LEFT JOIN payment_proofs tpp ON tpp.id = COALESCE(tpd.fee_payment_proof_id, (SELECT MAX(pp2.id) FROM payment_proofs pp2 WHERE pp2.order_id = o.id AND pp2.payment_type = 'thirdparty_delivery')) WHERE o.user_id = ? AND o.order_channel = 'ONLINE' ORDER BY o.id DESC LIMIT 50");
         $stmt->execute([$customerId]);
         $history = $stmt->fetchAll();
         $cancelOrder = $conn->prepare("SELECT * FROM orders WHERE id = ? AND user_id = ? AND order_channel = 'ONLINE'");
@@ -252,44 +310,22 @@ if (isset($_POST['payload']) && is_string($_POST['payload'])) {
     $data = json_decode(file_get_contents('php://input'), true);
 }
 
+$postInput = is_array($data) ? array_merge($_GET, $data) : $_GET;
 if ($action === 'verify_address') {
-    $rl = kk_check_delivery_verify_rate_limit();
-    $reqSeq = is_array($data) && isset($data['seq']) ? (int)$data['seq'] : (isset($_GET['seq']) ? (int)$_GET['seq'] : null);
-    if (!empty($rl['blocked'])) {
-        order_json([
-            'status' => 'error',
-            'code' => 'RATE_LIMITED',
-            'message' => $rl['message'] ?? 'Unable to check right now.',
-            'data' => [
-                'status' => 'OUTAGE',
-                'headline' => 'Unable to check right now.',
-                'reason_code' => 'RATE_LIMITED',
-                'eligible_free' => false,
-                'eligible_outside' => false,
-                'message' => $rl['message'] ?? 'Unable to check right now.',
-                'seq' => $reqSeq,
-            ],
-        ], 429);
-    }
-    $addr = trim((string)($data['address'] ?? ($data['delivery_address'] ?? ($_GET['address'] ?? ''))));
-    $brgy = trim((string)($data['barangay'] ?? ($data['delivery_barangay'] ?? ($_GET['barangay'] ?? ''))));
-    $lat = $data['lat'] ?? ($data['delivery_lat'] ?? ($_GET['lat'] ?? null));
-    $lng = $data['lng'] ?? ($data['delivery_lng'] ?? ($_GET['lng'] ?? null));
-    $verification = verify_lagro_delivery_address($addr, $brgy, $lat, $lng, $conn);
-    if ($reqSeq !== null) {
-        $verification['seq'] = $reqSeq;
-    }
-    if (($verification['status'] ?? '') === 'OUTAGE') {
-        order_json(['status' => 'error', 'code' => 'OUTAGE', 'message' => $verification['message'], 'data' => $verification], 503);
-    }
-    order_json(['status' => 'success', 'data' => $verification]);
+    handle_verify_address_request($conn, $postInput);
+}
+if ($action === 'reverse_geocode') {
+    handle_reverse_geocode_request($postInput);
+}
+if ($action === 'geocode_address') {
+    handle_geocode_address_request($postInput);
 }
 
 $customerId = require_customer_id($conn);
 if ($action === 'cancel') {
     if (!is_array($data) || !verify_csrf_token($data['csrf_token'] ?? null)) order_json(['status' => 'error', 'message' => 'Reload your orders and try again.'], 403);
     $reason = trim((string)($data['reason'] ?? ''));
-    if (mb_strlen($reason) < 8 || mb_strlen($reason) > 500) order_json(['status' => 'error', 'message' => 'Provide a cancellation reason of 8–500 characters.'], 400);
+    if (mb_strlen($reason) < 8 || mb_strlen($reason) > 500) order_json(['status' => 'error', 'message' => 'Provide a cancellation reason of 8 to 500 characters.'], 400);
     try {
         $conn->beginTransaction();
         $stmt = $conn->prepare("SELECT * FROM orders WHERE id = ? AND user_id = ? AND order_channel = 'ONLINE' FOR UPDATE");
@@ -331,21 +367,36 @@ if ($action === 'tracking_link') {
     } catch (InvalidArgumentException $e) {
         order_json(['status' => 'error', 'message' => $e->getMessage()], 400);
     }
-    if (!$trackingUrl) {
-        $dispatchCheck = $conn->prepare("SELECT d.status FROM delivery_dispatches d JOIN orders o ON o.id = d.order_id WHERE o.id = ? AND o.user_id = ? AND o.delivery_mode = 'CUSTOMER_BOOKED' LIMIT 1");
-        $dispatchCheck->execute([$orderId, $customerId]);
-        if ($dispatchCheck->fetchColumn() === 'Out for Delivery') {
-            order_json(['status' => 'error', 'message' => 'Keep a tracking link while the third-party rider has the order.'], 409);
-        }
+    if ($trackingUrl === null) {
+        order_json(['status' => 'error', 'message' => 'Enter a valid HTTPS courier tracking link (e.g. https://...).'], 400);
     }
-    $stmt = $conn->prepare("UPDATE orders SET delivery_tracking_url = ? WHERE id = ? AND user_id = ? AND order_channel = 'ONLINE' AND order_type = 'ONLINE' AND delivery_mode = 'CUSTOMER_BOOKED' AND status IN ('Pending','Preparing','Ready')");
+
+    $orderCheck = $conn->prepare("SELECT id, status, delivery_mode, fulfillment_mode, courier_booking_by, notes FROM orders WHERE id = ? AND user_id = ? AND order_channel = 'ONLINE' AND order_type = 'ONLINE' LIMIT 1");
+    $orderCheck->execute([$orderId, $customerId]);
+    $ordRow = $orderCheck->fetch();
+    if (!$ordRow || ($ordRow['delivery_mode'] ?? '') !== 'CUSTOMER_BOOKED' || !in_array((string)$ordRow['status'], ['Pending', 'Preparing', 'Ready'], true)) {
+        order_json(['status' => 'error', 'message' => 'This order cannot update its tracking link.'], 409);
+    }
+    if (kk_resolve_courier_booking_by($ordRow) !== 'CUSTOMER') {
+        order_json(['status' => 'error', 'message' => 'Staff is booking the courier for this order and will add the tracking link for you.'], 403);
+    }
+    $dispatchCheck = $conn->prepare("SELECT status FROM delivery_dispatches WHERE order_id = ? LIMIT 1");
+    $dispatchCheck->execute([$orderId]);
+    if ($dispatchCheck->fetchColumn() === 'Out for Delivery') {
+        order_json(['status' => 'error', 'message' => 'The rider already has this order; tracking link is locked.'], 409);
+    }
+
+    $stmt = $conn->prepare("UPDATE orders SET delivery_tracking_url = ?, courier_tracking_status = 'Pending', courier_tracking_verified_by = NULL, courier_tracking_verified_at = NULL, courier_tracking_rejection_reason = NULL, kitchen_queued_at = CASE WHEN status = 'Pending' THEN NULL ELSE kitchen_queued_at END WHERE id = ? AND user_id = ? AND order_channel = 'ONLINE' AND order_type = 'ONLINE' AND delivery_mode = 'CUSTOMER_BOOKED' AND status IN ('Pending','Preparing','Ready')");
     $stmt->execute([$trackingUrl, $orderId, $customerId]);
-    if ($stmt->rowCount() !== 1) {
-        $check = $conn->prepare("SELECT delivery_tracking_url FROM orders WHERE id = ? AND user_id = ? AND delivery_mode = 'CUSTOMER_BOOKED' AND status IN ('Pending','Preparing','Ready')");
-        $check->execute([$orderId, $customerId]);
-        if ($check->fetchColumn() !== $trackingUrl) order_json(['status' => 'error', 'message' => 'This order cannot update its tracking link.'], 409);
-    }
-    order_json(['status' => 'success', 'message' => 'Tracking link saved.', 'data' => ['tracking_url' => $trackingUrl]]);
+
+    order_json([
+        'status' => 'success',
+        'message' => 'Tracking link submitted for staff verification.',
+        'data' => [
+            'tracking_url' => $trackingUrl,
+            'courier_tracking_status' => 'Pending',
+        ]
+    ]);
 }
 if (!is_array($data) || !verify_csrf_token($data['csrf_token'] ?? null)) {
     order_json(['status' => 'error', 'message' => 'Invalid security token. Reload checkout and try again.'], 403);
@@ -746,7 +797,9 @@ try {
     $changeFor = ($isCod && isset($data['change_for']) && (float)$data['change_for'] >= $total) ? round((float)$data['change_for'], 2) : null;
     $kitchenQueuedAt = ($isGcash || $codApprovalStatus === 'Pending') ? null : date('Y-m-d H:i:s');
 
-    $orderStmt = $conn->prepare("INSERT INTO orders (order_no, queue_no, user_id, customer_name, customer_phone, order_type, fulfillment_mode, delivery_address, delivery_lat, delivery_lng, delivery_mode, coverage_status, coverage_boundary_version, courier_booking_by, delivery_tracking_url, order_channel, subtotal, discount, tax, delivery_fee, free_delivery_discount, total, change_for, status, kitchen_queued_at, notes, inventory_deducted, payment_verification_status, payment_auto_cancel_at, cod_approval_status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ONLINE', ?, 0, 0, 0.00, 0.00, ?, ?, 'Pending', ?, ?, 1, ?, ?, ?, NOW())");
+    $courierTrackingStatus = ($fulfillment === 'DELIVERY' && $deliveryMode === 'CUSTOMER_BOOKED' && $courierBookingBy === 'CUSTOMER' && $trackingUrl !== null) ? 'Pending' : 'None';
+
+    $orderStmt = $conn->prepare("INSERT INTO orders (order_no, queue_no, user_id, customer_name, customer_phone, order_type, fulfillment_mode, delivery_address, delivery_lat, delivery_lng, delivery_mode, coverage_status, coverage_boundary_version, courier_booking_by, delivery_tracking_url, courier_tracking_status, order_channel, subtotal, discount, tax, delivery_fee, free_delivery_discount, total, change_for, status, kitchen_queued_at, notes, inventory_deducted, payment_verification_status, payment_auto_cancel_at, cod_approval_status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ONLINE', ?, 0, 0, 0.00, 0.00, ?, ?, 'Pending', ?, ?, 1, ?, ?, ?, NOW())");
     $orderStmt->execute([
         $orderNo,
         $queueNo,
@@ -763,6 +816,7 @@ try {
         $coverageBoundaryVersion,
         $courierBookingBy,
         $trackingUrl,
+        $courierTrackingStatus,
         $subtotal,
         $total,
         $changeFor,
@@ -876,6 +930,7 @@ try {
             'delivery_lat' => $deliveryLat,
             'delivery_lng' => $deliveryLng,
             'delivery_tracking_url' => $trackingUrl,
+            'courier_tracking_status' => $courierTrackingStatus,
             'subtotal' => number_format($subtotal, 2, '.', ''),
             'total_amount' => number_format($total, 2, '.', ''),
             'status' => 'Pending',
@@ -888,7 +943,7 @@ try {
     $conn->commit();
     $checkoutCommitted = true;
 
-    checkout_after_commit(function () use ($conn, $customerId, $orderId, $orderNo, $queueNo, $orderType, $kitchenQueuedAt, $total, $breakdown, $name, $receiptNo, &$checkoutResponse) {
+    checkout_after_commit(function () use ($orderId, $orderNo, $queueNo, $orderType, $kitchenQueuedAt, $total, &$checkoutResponse) {
     require_once dirname(__DIR__, 2) . '/includes/realtime.php';
     if ($kitchenQueuedAt !== null && function_exists('realtime_publish')) {
         realtime_publish('order:submitted', [
@@ -902,40 +957,8 @@ try {
         ]);
     }
 
-    $emailStmt = $conn->prepare("SELECT email FROM users WHERE id = ? AND status = 'Active' LIMIT 1");
-    $emailStmt->execute([$customerId]);
-    $customerEmail = strtolower(trim((string)$emailStmt->fetchColumn()));
-    $receiptEmailSent = false;
-    if (filter_var($customerEmail, FILTER_VALIDATE_EMAIL)) {
-        $escape = static fn($value) => htmlspecialchars((string)$value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-        $emailRows = '';
-        $textRows = [];
-        foreach ($breakdown as $item) {
-            $emailRows .= '<tr><td style="padding:8px;border-bottom:1px solid #eee">' . $escape($item['name']) . '</td>' .
-                '<td style="padding:8px;border-bottom:1px solid #eee;text-align:center">' . (int)$item['qty'] . '</td>' .
-                '<td style="padding:8px;border-bottom:1px solid #eee;text-align:right">₱' . $escape($item['subtotal']) . '</td></tr>';
-            $textRows[] = $item['qty'] . ' x ' . $item['name'] . ' - ₱' . $item['subtotal'];
-        }
-        $receiptHtml = '<div style="font-family:Arial,sans-serif;max-width:620px;margin:20px auto;padding:24px;color:#252b33">' .
-            '<h1 style="margin:0 0 4px">Kenji\'s Kitchen</h1><p style="color:#667085">Order receipt</p>' .
-            '<p>Hi ' . $escape($name) . ', thank you for your order.</p>' .
-            '<p><strong>Order:</strong> ' . $escape($orderNo) . '<br><strong>Receipt:</strong> ' . $escape($receiptNo) .
-            '<br><strong>Placed:</strong> ' . $escape(date('M j, Y g:i A')) . '<br><strong>Status:</strong> Pending</p>' .
-            '<table style="width:100%;border-collapse:collapse"><thead><tr><th align="left">Item</th><th>Qty</th><th align="right">Amount</th></tr></thead><tbody>' . $emailRows . '</tbody></table>' .
-            '<p style="text-align:right;font-size:18px"><strong>Total: ₱' . number_format($total, 2) . '</strong></p>' .
-            '<p>Track this order from the My Orders section on the Kenji\'s Kitchen online store.</p></div>';
-        $receiptText = "Kenji's Kitchen receipt\nOrder: {$orderNo}\nReceipt: {$receiptNo}\nStatus: Pending\n\n" .
-            implode("\n", $textRows) . "\n\nTotal: ₱" . number_format($total, 2);
-        $mailResult = send_app_email($customerEmail, "Order receipt {$orderNo} - Kenji's Kitchen", $receiptText, $receiptHtml);
-        $receiptEmailSent = $mailResult['ok'];
-    }
-    $emailStatus = $receiptEmailSent ? 'Sent' : 'Failed';
-    $conn->prepare('UPDATE receipts SET email_status = ?, email_sent_at = ? WHERE order_id = ?')
-        ->execute([$emailStatus, $receiptEmailSent ? date('Y-m-d H:i:s') : null, $orderId]);
-
-
-        $checkoutResponse['data']['receipt_email_sent'] = $receiptEmailSent;
-        $checkoutResponse['data']['receipt_email_status'] = $emailStatus;
+    $checkoutResponse['data']['receipt_email_sent'] = false;
+    $checkoutResponse['data']['receipt_email_status'] = 'Disabled';
     });
     order_json($checkoutResponse, 201);
 } catch (InvalidArgumentException $e) {

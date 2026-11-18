@@ -16,7 +16,7 @@
     "crs": "EPSG:4326",
     "license": "Open Data Commons Open Database License (ODbL 1.0)",
     "attribution": "© OpenStreetMap contributors (ODbL 1.0)",
-    "edge_buffer_meters": 20,
+    "edge_buffer_meters": 2,
     "store_location": {
         "name": "Kenji's Kitchen",
         "address": "Blk 79 Lot 34 Florante at Laura St., Brgy. Greater Lagro, Quezon City",
@@ -2014,8 +2014,8 @@
         {
             "name": "Belfast Avenue",
             "kind": "street",
-            "lat": 14.734686,
-            "lng": 121.05604,
+            "lat": 14.7305,
+            "lng": 121.0567,
             "min_lat": 14.72671,
             "max_lat": 14.734781,
             "min_lng": 121.055463,
@@ -2172,6 +2172,16 @@
             "max_lng": 121.0638
         },
         {
+            "name": "Bronson Street",
+            "kind": "street",
+            "lat": 14.7265,
+            "lng": 121.066,
+            "min_lat": 14.72,
+            "max_lat": 14.7325,
+            "min_lng": 121.063,
+            "max_lng": 121.069
+        },
+        {
             "name": "Bronzetti Street",
             "kind": "street",
             "lat": 14.723817,
@@ -2283,13 +2293,13 @@
         },
         {
             "name": "Casa Milan",
-            "kind": "landmark",
-            "lat": 14.720958,
-            "lng": 121.058338,
-            "min_lat": 14.720113,
-            "max_lat": 14.721971,
-            "min_lng": 121.056477,
-            "max_lng": 121.058338
+            "kind": "subdivision",
+            "lat": 14.7245,
+            "lng": 121.059,
+            "min_lat": 14.718,
+            "max_lat": 14.7295,
+            "min_lng": 121.0535,
+            "max_lng": 121.064
         },
         {
             "name": "Casa Milan Phase V",
@@ -2334,12 +2344,12 @@
         {
             "name": "Commonwealth Avenue",
             "kind": "street",
-            "lat": 14.721258,
-            "lng": 121.052124,
-            "min_lat": 14.715246,
-            "max_lat": 14.72134,
-            "min_lng": 121.052124,
-            "max_lng": 121.057193
+            "lat": 14.7185,
+            "lng": 121.0545,
+            "min_lat": 14.7115,
+            "max_lat": 14.7345,
+            "min_lng": 121.05,
+            "max_lng": 121.074
         },
         {
             "name": "Cordillera Street",
@@ -2480,6 +2490,26 @@
             "max_lat": 14.720089,
             "min_lng": 121.065263,
             "max_lng": 121.066049
+        },
+        {
+            "name": "Ayala Malls Fairview Terraces",
+            "kind": "landmark",
+            "lat": 14.7343,
+            "lng": 121.0598,
+            "min_lat": 14.733,
+            "max_lat": 14.7353,
+            "min_lng": 121.0588,
+            "max_lng": 121.0611
+        },
+        {
+            "name": "Fairview Terraces",
+            "kind": "landmark",
+            "lat": 14.7343,
+            "lng": 121.0598,
+            "min_lat": 14.733,
+            "max_lat": 14.7353,
+            "min_lng": 121.0588,
+            "max_lng": 121.0611
         },
         {
             "name": "Fairview Terraces Main Entrance",
@@ -2646,10 +2676,10 @@
             "kind": "subdivision",
             "lat": 14.726547,
             "lng": 121.066023,
-            "min_lat": 14.726547,
-            "max_lat": 14.726547,
-            "min_lng": 121.066023,
-            "max_lng": 121.066023
+            "min_lat": 14.71,
+            "max_lat": 14.7365,
+            "min_lng": 121.0487,
+            "max_lng": 121.0798
         },
         {
             "name": "Greater Lagro Police Station",
@@ -2986,10 +3016,10 @@
             "kind": "subdivision",
             "lat": 14.7269,
             "lng": 121.0662,
-            "min_lat": 14.714,
-            "max_lat": 14.7355,
-            "min_lng": 121.061,
-            "max_lng": 121.0725
+            "min_lat": 14.71,
+            "max_lat": 14.7365,
+            "min_lng": 121.0487,
+            "max_lng": 121.0798
         },
         {
             "name": "Lakambini Street",
@@ -3224,12 +3254,12 @@
         {
             "name": "Mindanao Avenue",
             "kind": "street",
-            "lat": 14.733757,
-            "lng": 121.066745,
-            "min_lat": 14.718171,
-            "max_lat": 14.734213,
-            "min_lng": 121.048749,
-            "max_lng": 121.067431
+            "lat": 14.7275,
+            "lng": 121.057,
+            "min_lat": 14.715,
+            "max_lat": 14.735,
+            "min_lng": 121.0487,
+            "max_lng": 121.068
         },
         {
             "name": "Misa de Gallo Street",
@@ -3272,14 +3302,24 @@
             "max_lng": 121.05839
         },
         {
-            "name": "National University Fairivew",
+            "name": "National University Fairview",
             "kind": "landmark",
             "lat": 14.733137,
             "lng": 121.060285,
-            "min_lat": 14.733137,
-            "max_lat": 14.733137,
-            "min_lng": 121.060285,
-            "max_lng": 121.060285
+            "min_lat": 14.7325,
+            "max_lat": 14.734,
+            "min_lng": 121.0595,
+            "max_lng": 121.061
+        },
+        {
+            "name": "NU Fairview",
+            "kind": "landmark",
+            "lat": 14.733137,
+            "lng": 121.060285,
+            "min_lat": 14.7325,
+            "max_lat": 14.734,
+            "min_lng": 121.0595,
+            "max_lng": 121.061
         },
         {
             "name": "Neopolitan Avenue",
@@ -3344,12 +3384,12 @@
         {
             "name": "Northridge Park",
             "kind": "subdivision",
-            "lat": 14.713473,
-            "lng": 121.0519,
-            "min_lat": 14.712459,
-            "max_lat": 14.713473,
-            "min_lng": 121.0519,
-            "max_lng": 121.0534
+            "lat": 14.7138,
+            "lng": 121.0528,
+            "min_lat": 14.7125,
+            "max_lat": 14.7155,
+            "min_lng": 121.0518,
+            "max_lng": 121.0542
         },
         {
             "name": "Olympian Preparatory and English School",
@@ -3544,12 +3584,12 @@
         {
             "name": "Quirino Highway",
             "kind": "street",
-            "lat": 14.734781,
-            "lng": 121.056358,
-            "min_lat": 14.734781,
-            "max_lat": 14.736501,
-            "min_lng": 121.056358,
-            "max_lng": 121.07049
+            "lat": 14.7346,
+            "lng": 121.062,
+            "min_lat": 14.734,
+            "max_lat": 14.7365,
+            "min_lng": 121.0555,
+            "max_lng": 121.0715
         },
         {
             "name": "R. De Jesus Street",
@@ -3574,12 +3614,12 @@
         {
             "name": "Regalado Highway",
             "kind": "street",
-            "lat": 14.733915,
-            "lng": 121.061139,
-            "min_lat": 14.722826,
-            "max_lat": 14.735334,
-            "min_lng": 121.061133,
-            "max_lng": 121.061268
+            "lat": 14.7295,
+            "lng": 121.0612,
+            "min_lat": 14.7215,
+            "max_lat": 14.7354,
+            "min_lng": 121.0605,
+            "max_lng": 121.062
         },
         {
             "name": "Reyna Elena Street",
@@ -3942,10 +3982,30 @@
             "max_lng": 121.056982
         },
         {
+            "name": "SM City Fairview",
+            "kind": "landmark",
+            "lat": 14.734,
+            "lng": 121.0575,
+            "min_lat": 14.7322,
+            "max_lat": 14.7353,
+            "min_lng": 121.056,
+            "max_lng": 121.0592
+        },
+        {
+            "name": "SM Fairview",
+            "kind": "landmark",
+            "lat": 14.734,
+            "lng": 121.0575,
+            "min_lat": 14.7322,
+            "max_lat": 14.7353,
+            "min_lng": 121.056,
+            "max_lng": 121.0592
+        },
+        {
             "name": "Sorrento Street",
             "kind": "street",
-            "lat": 14.729523,
-            "lng": 121.05605,
+            "lat": 14.73,
+            "lng": 121.0565,
             "min_lat": 14.729523,
             "max_lat": 14.730476,
             "min_lng": 121.056007,
