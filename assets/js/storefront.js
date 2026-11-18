@@ -2,6 +2,9 @@
  const list=document.getElementById('reviewList');
  if(!list) return;
  let loading=false;
+ const PAGE_SIZE=3;
+ let currentPage=1;
+ let cachedReviews=[];
  const SVG_NS='http://www.w3.org/2000/svg';
  const STAR_PATH='M12 2.4l2.92 5.92 6.53.95-4.72 4.6 1.11 6.5L12 17.3l-5.84 3.07 1.11-6.5-4.72-4.6 6.53-.95L12 2.4z';
  const text=(tag,value,className='')=>{const el=document.createElement(tag);el.textContent=value;if(className)el.className=className;return el;};
@@ -46,38 +49,79 @@
    text('span',` / 5 · ${label}`,'review-summary-meta')
   );
  }
+ function renderPagination(totalPages){
+  let nav=document.getElementById('reviewPagination');
+  if(totalPages<=1){
+   if(nav)nav.remove();
+   return;
+  }
+  if(!nav){
+   nav=document.createElement('nav');
+   nav.id='reviewPagination';
+   nav.className='review-pagination';
+   nav.setAttribute('aria-label','Customer reviews pagination');
+   list.after(nav);
+  }
+  nav.replaceChildren();
+  const prevBtn=text('button','Previous','review-page-btn');
+  prevBtn.type='button';
+  prevBtn.disabled=currentPage<=1;
+  prevBtn.addEventListener('click',()=>{if(currentPage>1){currentPage--;renderReviewPage();}});
+
+  const status=text('span',`Page ${currentPage} of ${totalPages}`,'review-page-status');
+
+  const nextBtn=text('button','Next','review-page-btn');
+  nextBtn.type='button';
+  nextBtn.disabled=currentPage>=totalPages;
+  nextBtn.addEventListener('click',()=>{if(currentPage<totalPages){currentPage++;renderReviewPage();}});
+
+  nav.append(prevBtn,status,nextBtn);
+ }
+ function renderReviewPage(){
+  list.replaceChildren();
+  if(!cachedReviews.length){
+   list.append(text('p','No reviews yet. Complete an order to share your experience with Kenji’s Kitchen.','review-empty'));
+   renderPagination(0);
+   return;
+  }
+  const totalPages=Math.max(1,Math.ceil(cachedReviews.length/PAGE_SIZE));
+  if(currentPage>totalPages)currentPage=totalPages;
+  const start=(currentPage-1)*PAGE_SIZE;
+  const pageItems=cachedReviews.slice(start,start+PAGE_SIZE);
+  pageItems.forEach(review=>{
+   const card=document.createElement('article');
+   card.className='store-review';
+
+   const head=document.createElement('div');
+   head.className='review-card-head';
+   const meta=document.createElement('div');
+   meta.className='review-author-meta';
+   const authorName=String(review.name||'Customer').trim().split(/\s+/)[0]||'Customer';
+   const formattedDate=new Date(String(review.created_at||'').replace(' ','T')+'+08:00').toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'});
+   meta.append(text('strong',authorName,'review-author'),text('time',formattedDate,'review-date'));
+   head.append(createReviewerAvatar(review),meta);
+
+   const rating=Math.max(1,Math.min(5,Number(review.rating)||5));
+   const stars=document.createElement('div');
+   stars.className='review-stars';
+   stars.setAttribute('aria-label',`${rating} out of 5 stars`);
+   for(let i=0;i<5;i++)stars.append(createStar(i<rating,'review-star-svg'));
+
+   const body=text('p',review.comment,'review-comment');
+   card.append(head,stars,body);
+   list.append(card);
+  });
+  renderPagination(totalPages);
+ }
  async function refresh(){
   if(loading)return;loading=true;
   try{
    const response=await fetch('./api/reviews.php',{cache:'no-store'});
    const data=await response.json();
    if(!response.ok)throw new Error(data.message);
-   list.replaceChildren();
    renderSummary(data.summary);
-   if(!data.reviews.length)list.append(text('p','No reviews yet. Complete an order to share your experience with Kenji’s Kitchen.','review-empty'));
-   data.reviews.forEach(review=>{
-    const card=document.createElement('article');
-    card.className='store-review';
-
-    const head=document.createElement('div');
-    head.className='review-card-head';
-    const meta=document.createElement('div');
-    meta.className='review-author-meta';
-    const authorName=String(review.name||'Customer').trim().split(/\s+/)[0]||'Customer';
-    const formattedDate=new Date(String(review.created_at||'').replace(' ','T')+'+08:00').toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'});
-    meta.append(text('strong',authorName,'review-author'),text('time',formattedDate,'review-date'));
-    head.append(createReviewerAvatar(review),meta);
-
-    const rating=Math.max(1,Math.min(5,Number(review.rating)||5));
-    const stars=document.createElement('div');
-    stars.className='review-stars';
-    stars.setAttribute('aria-label',`${rating} out of 5 stars`);
-    for(let i=0;i<5;i++)stars.append(createStar(i<rating,'review-star-svg'));
-
-    const body=text('p',review.comment,'review-comment');
-    card.append(head,stars,body);
-    list.append(card);
-   });
+   cachedReviews=Array.isArray(data.reviews)?data.reviews:[];
+   renderReviewPage();
   }catch(error){
    if(!list.querySelector('.store-review'))list.replaceChildren(text('p',error.message||'Reviews are temporarily unavailable.'));
   }finally{loading=false;}
