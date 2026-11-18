@@ -2718,8 +2718,9 @@ body.dark-mode .favorite-toggle.active {
   color: #A66500;
 }
 .order-status-chip.preparing {
-  background: rgba(59, 130, 246, 0.16);
-  color: #1D4ED8;
+  background: #fff3c4;
+  color: #775600;
+  border: 1px solid #eed98a;
 }
 .order-status-chip.ready {
   background: rgba(16, 185, 129, 0.16);
@@ -2727,8 +2728,9 @@ body.dark-mode .favorite-toggle.active {
 }
 .order-status-chip.rider-assigned,
 .order-status-chip.out-for-delivery {
-  background: rgba(59, 130, 246, 0.16);
-  color: #1D4ED8;
+  background: #fff8e1;
+  color: #78350f;
+  border: 1px solid #e2c567;
 }
 .order-status-chip.delivered {
   background: rgba(16, 185, 129, 0.16);
@@ -2758,8 +2760,9 @@ body.dark-mode .order-status-chip.cancellation-requested {
   background: rgba(245, 158, 11, 0.22);
 }
 body.dark-mode .order-status-chip.preparing {
-  color: #93C5FD;
-  background: rgba(59, 130, 246, 0.22);
+  color: #fde68a;
+  background: rgba(242, 193, 46, 0.22);
+  border-color: rgba(242, 193, 46, 0.4);
 }
 body.dark-mode .order-status-chip.ready {
   color: #6EE7B7;
@@ -2767,8 +2770,9 @@ body.dark-mode .order-status-chip.ready {
 }
 body.dark-mode .order-status-chip.rider-assigned,
 body.dark-mode .order-status-chip.out-for-delivery {
-  color: #93C5FD;
-  background: rgba(59, 130, 246, 0.22);
+  color: #fde68a;
+  background: rgba(242, 193, 46, 0.22);
+  border-color: rgba(242, 193, 46, 0.4);
 }
 body.dark-mode .order-status-chip.delivered {
   color: #6EE7B7;

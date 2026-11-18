@@ -605,26 +605,32 @@ body.dark-mode .account-avatar-remove {background:transparent;color:#ffadb5;}
 #customerOrdersModal .customer-order-actions {gap:8px;}
 #customerOrdersModal .btn-review-order {background:#fff8e1;border-color:#e2c567;color:#594113;}
 #customerOrdersModal .btn-review-order:hover {background:#f2c12e;border-color:#d6a81f;color:#24231e;}
+.kk-courier-heading {font-size:0.84rem;font-weight:800;color:var(--text);margin-bottom:4px;}
 .kk-opt1-tracking-box {margin:8px 0 10px;padding:10px 12px;border-radius:10px;border:1px solid #e6e3d8;background:#fcfbf7;}
-.kk-opt1-tracking-status {display:flex;align-items:flex-start;gap:7px;font-size:12.5px;font-weight:700;line-height:1.4;padding:7px 10px;border-radius:8px;border:1px solid transparent;}
-.kk-opt1-tracking-status.is-missing {background:#fffbeb;color:#92400e;border-color:#fde68a;}
-.kk-opt1-tracking-status.is-pending {background:#fff3c4;color:#775600;border-color:#eed98a;}
+.kk-opt1-tracking-status {display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700;line-height:1.4;padding:8px 11px;border-radius:8px;border:1px solid transparent;}
+.kk-opt1-tracking-status.is-missing {background:#fff8e1;color:#594113;border-color:#e2c567;}
+.kk-opt1-tracking-status.is-pending {background:#fff8e1;color:#594113;border-color:#e2c567;}
 .kk-opt1-tracking-status.is-rejected {background:rgba(220,38,38,.10);color:#b91c1c;border-color:rgba(220,38,38,.25);}
 .kk-opt1-tracking-status.is-verified {background:#dcfce7;color:#15803d;border-color:#bbf7d0;}
-.kk-opt1-gate-note {margin:6px 0 4px;font-size:12px;line-height:1.45;color:var(--muted);}
+.kk-opt1-gate-note {margin:7px 0 4px;font-size:12px;line-height:1.45;color:var(--muted);}
+.kk-tracking-ext-wrap {margin:8px 0 4px;}
+.kk-tracking-ext-btn {display:inline-flex;align-items:center;gap:6px;padding:7px 13px;border-radius:9px;background:#fff8e1;border:1px solid #e2c567;color:#594113!important;font-size:12.5px;font-weight:700;text-decoration:none!important;transition:background .15s,border-color .15s,transform .12s;}
+.kk-tracking-ext-btn:hover {background:#f2c12e;border-color:#d6a81f;color:#1f2328!important;transform:translateY(-1px);}
 .kk-inline-tracking-form {margin-top:8px;}
-.kk-inline-tracking-label {display:block;font-size:12px;font-weight:700;color:var(--text);margin-bottom:4px;}
+.kk-inline-tracking-label {display:block;font-size:12px;font-weight:700;color:var(--text);margin-bottom:5px;}
 .kk-inline-tracking-row {display:flex;gap:8px;flex-wrap:wrap;align-items:stretch;}
 .kk-inline-tracking-input {flex:1 1 200px;min-width:0;min-height:40px;font-size:13px;}
-.kk-inline-tracking-btn {min-height:40px;padding:8px 14px;border-radius:9px;border:1px solid #d6a81f;background:#f2c12e;color:#24231e;font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap;}
-.kk-inline-tracking-btn:hover:not(:disabled) {background:#e0af1d;}
-.kk-inline-tracking-btn:disabled {opacity:.6;cursor:not-allowed;}
-.kk-inline-tracking-hint {display:block;margin-top:4px;font-size:11.5px;line-height:1.4;color:var(--muted);}
+.kk-inline-tracking-btn {min-height:40px;padding:8px 16px;border-radius:10px;border:1px solid #d6a81f;background:#f2c12e;color:#1f2328;font:inherit;font-size:12.5px;font-weight:800;cursor:pointer;white-space:nowrap;box-shadow:0 2px 6px rgba(242,193,46,.24);transition:background .15s,border-color .15s,transform .12s;}
+.kk-inline-tracking-btn:hover:not(:disabled) {background:#e5b420;border-color:#c69814;transform:translateY(-1px);}
+.kk-inline-tracking-btn:disabled {opacity:.6;cursor:not-allowed;box-shadow:none;}
+.kk-inline-tracking-hint {display:block;margin-top:5px;font-size:11.5px;line-height:1.4;color:var(--muted);}
 body.dark-mode .kk-opt1-tracking-box {background:#252B33;border-color:#454F5B;}
-body.dark-mode .kk-opt1-tracking-status.is-missing {background:rgba(245,158,11,.18);color:#fcd34d;border-color:rgba(245,158,11,.35);}
+body.dark-mode .kk-opt1-tracking-status.is-missing {background:rgba(242,193,46,.18);color:#fde68a;border-color:rgba(242,193,46,.38);}
 body.dark-mode .kk-opt1-tracking-status.is-pending {background:rgba(242,193,46,.20);color:#fde68a;border-color:rgba(242,193,46,.40);}
 body.dark-mode .kk-opt1-tracking-status.is-rejected {background:rgba(239,68,68,.20);color:#fca5a5;border-color:rgba(239,68,68,.35);}
 body.dark-mode .kk-opt1-tracking-status.is-verified {background:rgba(34,197,94,.20);color:#86efac;border-color:rgba(34,197,94,.35);}
+body.dark-mode .kk-tracking-ext-btn {background:#353020;border-color:#705300;color:#fbe38e!important;}
+body.dark-mode .kk-tracking-ext-btn:hover {background:#f2c12e;border-color:#f2c12e;color:#1f2328!important;}
 #courierFeeModal .courier-fee-summary-box {padding:8px 12px;margin-bottom:10px;font-size:0.82rem;background:#fcfbf7;border-color:#e6e3d8;}
 #courierFeeModal .courier-fee-summary-row {padding:2px 0;}
 #courierFeeModal .courier-fee-summary-row.total {margin-top:4px;padding-top:5px;font-size:0.9rem;}

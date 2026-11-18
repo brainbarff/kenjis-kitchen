@@ -28,10 +28,15 @@ $stmt = $conn->prepare("
     ORDER BY id ASC
 ");
 
+$serverNowMs = (int)round(microtime(true) * 1000);
 foreach ($orders as &$order) {
     $stmt->execute([$order['id']]);
     $order['items'] = $stmt->fetchAll();
+    $order['server_now_ms'] = $serverNowMs;
+    $order['created_at_ts'] = !empty($order['created_at']) ? (strtotime((string)$order['created_at']) ?: null) : null;
+    $order['kitchen_queued_at_ts'] = !empty($order['kitchen_queued_at']) ? (strtotime((string)$order['kitchen_queued_at']) ?: null) : null;
 }
+unset($order);
 
 echo json_encode($orders);
 ?>

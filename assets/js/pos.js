@@ -3404,23 +3404,26 @@ function renderOnlineOrders(orders) {
                     ${itemHtml || '<div class="online-order-meta">No item details available.</div>'}
                 </div>
 
-                <div class="online-order-footer" style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+                <div class="online-order-footer" style="display:flex; justify-content:space-between; align-items:flex-end; gap:12px; flex-wrap:wrap; padding-top:10px; border-top:1px dashed #e6e3d8;">
                     <div>
-                        <span>${escapeHtml(order.payment_method || 'Payment not set')}</span>
-                        ${order.payment_method === 'GCash' ? (order.payment_status === 'Paid' ? '<span class="badge" style="font-size:0.7rem; background:#10B981; color:#fff; padding:2px 6px; border-radius:4px; margin-left:4px;">Verified</span>' : '<span class="badge" style="font-size:0.7rem; background:#F59E0B; color:#fff; padding:2px 6px; border-radius:4px; margin-left:4px;">Pending</span>') : ''}
-                        <strong class="online-order-total" style="margin-left:6px;">${peso.format(Number(order.total || 0))}</strong>
-                        ${order.payment_reference ? `<div style="font-size:0.72rem; color:#6B7280;">Ref: ${escapeHtml(order.payment_reference)}${Number(order.has_payment_proof) === 1 ? ` · <a href="../online/api/payment_proof.php?order_id=${Number(order.id)}" target="_blank" rel="noopener noreferrer" style="color:#2563EB;font-weight:700;text-decoration:underline;"><i class="bi bi-image"></i> View Screenshot</a>` : ''}</div>` : ''}
+                        <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                            <span style="font-weight:700; color:#29251f;">${escapeHtml(order.payment_method || 'Payment not set')}</span>
+                            ${order.payment_method === 'GCash' ? (order.payment_status === 'Paid' ? '<span class="badge" style="font-size:0.72rem; background:#dcfce7; color:#15803d; border:1px solid #bbf7d0; padding:2px 8px; border-radius:999px; font-weight:700;">Verified</span>' : '<span class="badge" style="font-size:0.72rem; background:#fff3c4; color:#775600; border:1px solid #eed98a; padding:2px 8px; border-radius:999px; font-weight:700;">Pending</span>') : ''}
+                            <strong class="online-order-total" style="margin-left:2px; font-size:0.98rem; color:#24231e;">${peso.format(Number(order.total || 0))}</strong>
+                        </div>
+                        ${order.payment_reference ? `<div style="margin-top:5px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:0.76rem; color:#655c4c;">
+                            <span>Ref: <strong style="color:#29251f;">${escapeHtml(order.payment_reference)}</strong></span>
+                            ${Number(order.has_payment_proof) === 1 ? `<a href="../online/api/payment_proof.php?order_id=${Number(order.id)}" target="_blank" rel="noopener noreferrer" class="pos-online-proof-link"><i class="bi bi-image" aria-hidden="true"></i> View Screenshot</a>` : ''}
+                        </div>` : ''}
                     </div>
-                    <div>
+                    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
                         ${(order.payment_method === 'GCash' && order.payment_status === 'Pending') ? `
-                            <button type="button" class="btn btn-sm" onclick="verifyOnlineGCashPayment(${order.id}, '${escapeHtml(order.payment_reference || '')}')" style="padding:5px 12px; font-size:0.8rem; border-radius:6px; cursor:pointer; background:#2563EB; color:#fff; border:none; font-weight:700; margin-right:6px;">
-                                <i class="bi bi-shield-check"></i> Verify GCash
-                            </button>
+                            <button type="button" class="pos-online-verify-btn" onclick="verifyOnlineGCashPayment(${order.id}, '${escapeHtml(order.payment_reference || '')}')">Verify GCash</button>
                         ` : ''}
                         ${order.order_type === 'ONLINE' ? `
-                            <a class="btn btn-sm btn-primary" href="../delivery/index.php" style="padding:5px 12px; font-size:0.8rem; border-radius:6px; background:#F59E0B; color:#fff; text-decoration:none; font-weight:700;">Manage Delivery</a>
+                            <a class="pos-online-manage-btn" href="../delivery/index.php">Manage Delivery</a>
                         ` : order.status === 'Ready' ? `
-                            <button type="button" class="btn btn-sm btn-primary" onclick="completeOnlineOrder(${order.id})" style="padding:5px 12px; font-size:0.8rem; border-radius:6px; cursor:pointer; background:#F59E0B; color:#fff; border:none; font-weight:700;">
+                            <button type="button" class="pos-online-verify-btn" onclick="completeOnlineOrder(${order.id})">
                                 <i class="bi bi-check2-circle"></i> Complete Order
                             </button>
                         ` : '<span class="online-order-meta">Awaiting kitchen readiness</span>'}

@@ -139,7 +139,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             delivery_flash('Delivery fee verified! Order can be handed off once Kitchen marks it Ready and a tracking link is saved.', 'success', $activeReturnFilter);
         }
 
-        // Dispatch / completion / override actions require Kitchen status = Ready
+        // Dispatch / completion actions require Kitchen status = Ready
         $conn->beginTransaction();
         $orderStmt = $conn->prepare("SELECT id, order_no, order_channel, order_type, status, total, free_delivery_discount, customer_phone, delivery_address, delivery_lat, delivery_lng, coverage_status, coverage_boundary_version, courier_booking_by, notes, inventory_deducted, delivery_mode, delivery_tracking_url, cod_approval_status, cash_collected, delivered_by_user_id FROM orders WHERE id = ? FOR UPDATE");
         $orderStmt->execute([$orderId]);
@@ -166,58 +166,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $cancellationCheck = $conn->prepare("SELECT COUNT(*) FROM transaction_requests WHERE order_id = ? AND request_type = 'Cancel Delivery' AND status = 'Pending'");
         $cancellationCheck->execute([$orderId]);
         if ((int)$cancellationCheck->fetchColumn() > 0) throw new RuntimeException('Cancellation review is pending.');
-
-        if (in_array($action, ['set_external', 'set_local'], true)) {
-            if ($dispatch && $dispatch['status'] !== 'Failed') throw new RuntimeException('The delivery is already in progress. Record a failure before changing its arrangement.');
-            $overrideReason = trim((string)($_POST['override_reason'] ?? ''));
-            if (mb_strlen($overrideReason) < 8 || mb_strlen($overrideReason) > 500) {
-                throw new RuntimeException('Enter a staff override reason of 8 to 500 characters for the audit trail.');
-            }
-            if ($action === 'set_external') {
-                if (strcasecmp((string)$payment['payment_method'], 'GCash') !== 0 || $payment['payment_status'] !== 'Paid') {
-                    throw new RuntimeException('Outside-Lagro third-party delivery requires verified GCash payment for the food.');
-                }
-                $trackingUrl = normalize_delivery_tracking_url((string)($_POST['tracking_url'] ?? ''));
-                $bookingBy = strtoupper(trim((string)($_POST['courier_booking_by'] ?? 'CUSTOMER')));
-                if (!in_array($bookingBy, ['CUSTOMER', 'STORE'], true)) {
-                    $bookingBy = 'CUSTOMER';
-                }
-                $conn->prepare("UPDATE orders SET delivery_mode = 'CUSTOMER_BOOKED', fulfillment_mode = 'OUTSIDE', coverage_status = 'STAFF_OVERRIDE', courier_booking_by = ?, delivery_tracking_url = ? WHERE id = ?")
-                    ->execute([$bookingBy, $trackingUrl, $orderId]);
-                log_audit(
-                    $conn,
-                    'delivery_coverage_override',
-                    'order',
-                    (string)$orderId,
-                    sprintf(
-                        'Staff overrode delivery arrangement for %s from %s (%s) to CUSTOMER_BOOKED (%s). Reason: %s',
-                        (string)$order['order_no'],
-                        (string)$order['delivery_mode'],
-                        (string)($order['coverage_status'] ?? 'NONE'),
-                        $bookingBy,
-                        $overrideReason
-                    )
-                );
-            } else {
-                $conn->prepare("UPDATE orders SET delivery_mode = 'LAGRO_FREE', fulfillment_mode = 'LAGRO', coverage_status = 'STAFF_OVERRIDE', courier_booking_by = 'NONE', delivery_tracking_url = NULL WHERE id = ?")
-                    ->execute([$orderId]);
-                log_audit(
-                    $conn,
-                    'delivery_coverage_override',
-                    'order',
-                    (string)$orderId,
-                    sprintf(
-                        'Staff overrode delivery arrangement for %s from %s (%s) to LAGRO_FREE. Reason: %s',
-                        (string)$order['order_no'],
-                        (string)$order['delivery_mode'],
-                        (string)($order['coverage_status'] ?? 'NONE'),
-                        $overrideReason
-                    )
-                );
-            }
-            $conn->commit();
-            delivery_flash('Delivery arrangement updated and logged for ' . $order['order_no'] . '.', 'success', $activeReturnFilter);
-        }
 
         if ($action === 'handoff') {
             $res = kk_dispatch_thirdparty_order($conn, $orderId, $actorId);
@@ -387,7 +335,8 @@ include ROOT_PATH . '/includes/header.php';
         <span class="outside-policy-icon" aria-hidden="true"><i class="bi bi-shield-check"></i></span>
         <div class="outside-policy-body">
             <strong>Outside Lagro Delivery Guide</strong>
-            <p><strong>Customer Books Rider:</strong> Check and approve the customer's courier tracking link to send the order to Kitchen. <strong>Staff Books Rider:</strong> Enter the courier fee quote, confirm the customer's GCash fee receipt, and save the tracking link before handoff.</p>
+            <p><strong>Customer Books Rider:</strong> Check and approve the customer's courier tracking link to send the order to Kitchen.</p>
+            <p><strong>Staff Books Rider:</strong> Enter the courier fee quote, confirm the customer's GCash fee receipt, and save the tracking link before handoff.</p>
         </div>
     </div>
     <?php endif; ?>
@@ -602,42 +551,6 @@ include ROOT_PATH . '/includes/header.php';
         <p class="muted" style="margin:8px 0 0;">Kitchen must mark this order Ready before rider handoff actions become available.</p>
         <?php elseif ($order['cancel_pending']): ?><p class="muted" style="margin:8px 0 0;">Cancellation pending Admin review. Delivery status updates are paused.</p><?php else: ?>
         <?php if ($order['order_status'] === 'Ready' && $order['dispatch_status'] === 'Failed' && $order['payment_method'] === 'Cash on Delivery' && $order['payment_status'] === 'Pending'): ?><p style="display:flex;gap:8px;flex-wrap:wrap;"><a class="btn btn-secondary" href="<?= e(BASE_URL . '/modules/pos/cod_approvals.php') ?>">Resolve Failed COD</a><a class="btn btn-secondary" href="<?= e(BASE_URL . '/modules/transactions/index.php?order_no=' . rawurlencode($order['order_no']) . '&request_type=Cancel%20Delivery') ?>">Request Cancellation</a></p><?php endif; ?>
-        <?php if ($order['order_status'] === 'Ready' && (!$order['dispatch_status'] || $order['dispatch_status'] === 'Failed')): ?>
-            <?php if ($order['delivery_mode'] === 'LAGRO_FREE' && $order['payment_method'] === 'GCash' && $order['payment_status'] === 'Paid'): ?>
-            <details style="margin-bottom:12px;">
-                <summary style="font-size:13px;font-weight:700;color:#705300;cursor:pointer;">Override to Outside-Lagro Third-Party Delivery</summary>
-                <form class="form" method="post" style="max-width:700px;margin-top:8px;">
-                    <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
-                    <input type="hidden" name="filter" value="<?= e($deliveryFilter) ?>">
-                    <input type="hidden" name="order_id" value="<?= (int)$order['id'] ?>">
-                    <input type="hidden" name="action" value="set_external">
-                    <div class="field">
-                        <label>Who books the third-party courier?</label>
-                        <select name="courier_booking_by">
-                            <option value="CUSTOMER">Customer books the courier</option>
-                            <option value="STORE">Store books the courier</option>
-                        </select>
-                    </div>
-                    <div class="field"><label>Third-party courier tracking link (optional until handoff)</label><input name="tracking_url" type="url" placeholder="https://..."></div>
-                    <div class="field"><label>Staff override reason (required, 8 to 500 characters for audit log)</label><input name="override_reason" minlength="8" maxlength="500" required placeholder="Explain why this order is being changed to Outside Lagro..."></div>
-                    <button class="btn btn-secondary" type="submit">Confirm Override to Outside-Lagro</button>
-                </form>
-            </details>
-            <?php elseif ($order['delivery_mode'] === 'CUSTOMER_BOOKED'): ?>
-            <details style="margin-bottom:12px;">
-                <summary style="font-size:13px;font-weight:700;color:#705300;cursor:pointer;">Override to Within-Lagro Free Delivery</summary>
-                <form class="form" method="post" style="max-width:700px;margin-top:8px;">
-                    <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
-                    <input type="hidden" name="filter" value="<?= e($deliveryFilter) ?>">
-                    <input type="hidden" name="order_id" value="<?= (int)$order['id'] ?>">
-                    <input type="hidden" name="action" value="set_local">
-                    <div class="field"><label>Staff override reason (required, 8 to 500 characters for audit log)</label><input name="override_reason" minlength="8" maxlength="500" required placeholder="Explain why this order qualifies for Within-Lagro delivery..."></div>
-                    <button class="btn btn-secondary" type="submit">Confirm Override to Within-Lagro</button>
-                </form>
-            </details>
-            <?php endif; ?>
-        <?php endif; ?>
-
         <?php if ($order['order_status'] === 'Ready' && (!$order['dispatch_status'] || in_array($order['dispatch_status'], ['Assigned', 'Failed'], true)) && $order['delivery_mode'] === 'LAGRO_FREE'): ?>
         <form class="form" method="post" style="max-width:700px">
             <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
@@ -651,11 +564,11 @@ include ROOT_PATH . '/includes/header.php';
             $handoffReady = $foodPaid && $hasHttpsTracking && ($isCustomerBooked ? ($trackVerifyStatus === 'Verified') : !empty($order['fee_paid']));
             if ($handoffReady):
         ?>
-            <form method="post" style="margin:0;">
+            <form method="post" style="margin:6px 0 0;">
                 <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
                 <input type="hidden" name="filter" value="<?= e($deliveryFilter) ?>">
                 <input type="hidden" name="order_id" value="<?= (int)$order['id'] ?>">
-                <button class="btn btn-primary" name="action" value="handoff" type="submit">
+                <button class="btn btn-primary delivery-handoff-btn" name="action" value="handoff" type="submit">
                     <i class="bi bi-box-arrow-right" aria-hidden="true"></i> Confirm Handed Over to Third-Party Rider
                 </button>
             </form>
@@ -777,11 +690,8 @@ include ROOT_PATH . '/includes/header.php';
                             <div><?= e($hist['order_status']) ?></div>
                             <div class="muted" style="font-size:12px;white-space:nowrap;"><?= e($hist['payment_method'] ?: 'N/A') ?> (<?= e($hist['payment_status'] ?: 'Pending') ?>)</div>
                         </td>
-                        <td style="white-space:nowrap;"><?= money($hist['total']) ?></td>
-                        <td style="white-space:nowrap;font-size:12px;line-height:1.35;">
-                            <div><?= e($fmtHistDate) ?></div>
-                            <?php if ($fmtHistClock !== ''): ?><div class="muted"><?= e($fmtHistClock) ?></div><?php endif; ?>
-                        </td>
+                        <td style="white-space:nowrap;"><?php echo money($hist['total']); ?></td>
+                        <td style="white-space:nowrap;font-size:12.5px;"><?= e($fmtHistDate . ($fmtHistClock !== '' ? ', ' . $fmtHistClock : '')) ?></td>
                     </tr>
                     <?php endforeach; ?>
                 <?php endif; ?>
@@ -835,17 +745,19 @@ include ROOT_PATH . '/includes/header.php';
 .delivery-fail-form { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; align-items:center; }
 .delivery-fail-form input { min-width:210px; min-height:38px; padding:6px 10px; border:1px solid #d6d0bf; border-radius:8px; font-size:13px; }
 .delivery-page table { min-width:0; width:100%; border-collapse:collapse; }
-.delivery-page th { background:#fcfbf7; font-size:12px; color:#5e5a4c; line-height:1.3; }
-.delivery-page td { font-size:12.5px; vertical-align:top; line-height:1.4; }
-.delivery-page th, .delivery-page td { padding:9px 8px; }
+.delivery-page th { background:#fcfbf7; font-size:12px; font-weight:700; color:#5e5a4c; line-height:1.3; text-align:left; white-space:nowrap; }
+.delivery-page td { font-size:12.5px; vertical-align:middle; line-height:1.45; }
+.delivery-page th, .delivery-page td { padding:10px 9px; }
 .delivery-page td:nth-child(2) { max-width:210px; overflow-wrap:anywhere; }
-.delivery-page td:nth-child(3) { max-width:155px; }
-.delivery-page td:nth-child(4) { max-width:140px; overflow-wrap:anywhere; }
-.delivery-page td:nth-child(7) { white-space:nowrap; font-weight:700; font-variant-numeric:tabular-nums; }
-.delivery-page td:last-child { white-space:nowrap; font-variant-numeric:tabular-nums; color:#5e5a4c; }
+.delivery-page td:nth-child(3) { max-width:165px; }
+.delivery-page td:nth-child(4) { max-width:130px; overflow-wrap:anywhere; }
+.delivery-page td:nth-child(7), .delivery-page th:nth-child(7) { text-align:right; white-space:nowrap; font-weight:700; font-variant-numeric:tabular-nums; }
+.delivery-page td:last-child, .delivery-page th:last-child { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; color:#5e5a4c; }
 .delivery-page .table-wrap { border:1px solid #e6e3d8; border-radius:12px; overflow-x:auto; margin-top:16px; }
 .delivery-page .btn { min-height:40px; border-radius:9px; font-size:14px; }
-.delivery-page .btn-primary { background:#f7c62f; color:#242424; border-color:#e8b720; }
+.delivery-page .btn-primary { background:#f2c12e; color:#1f2328; border-color:#dfaf1e; font-weight:800; }
+.delivery-page .btn-primary:hover { background:#e5b420; border-color:#c69814; }
+.delivery-page .delivery-handoff-btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:42px; padding:9px 20px; border-radius:10px; box-shadow:0 2px 8px rgba(242,193,46,0.28); }
 .delivery-page input:focus, .delivery-page select:focus, .delivery-page textarea:focus { outline:2px solid #b48b12; outline-offset:2px; }
 .delivery-page input[type=checkbox] { accent-color:#c49a19!important; }
 .delivery-filter-card { display:flex; align-items:flex-start; gap:14px; padding:18px; border:1px solid #e5e1d7; border-radius:12px; background:#fff; text-decoration:none; transition:background .15s,border-color .15s; }

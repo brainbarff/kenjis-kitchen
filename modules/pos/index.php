@@ -1999,13 +1999,23 @@ include ROOT_PATH . '/includes/header.php';
     #cashDrawerModalOverlay input:focus, #cashDrawerModalOverlay select:focus { outline:2px solid #b48b12; outline-offset:2px; border-color:#b48b12!important; }
     #drawerReasonSelect { min-height:44px; }
     #btnUnlockDrawer:hover:not(:disabled), #refreshOnlineOrdersBtn:hover:not(:disabled) { background:#eebc20!important; }
-    .online-orders-modal-head { padding:22px 24px; flex-wrap:wrap; }
-    .online-orders-modal-title { font-size:24px; font-weight:800; color:#242424; }
-    .online-orders-modal-subtitle { font-size:14px; line-height:1.5; color:#626262; }
+    .online-orders-modal { border-color:#e6dfd0; border-top:4px solid #f2c12e; background:#fffdf8; }
+    .online-orders-modal-head { padding:20px 24px; flex-wrap:wrap; background:#ffffff; border-bottom-color:#ece6d8; }
+    .online-orders-modal-title { font-size:22px; font-weight:800; color:#242424; }
+    .online-orders-modal-subtitle { font-size:13.5px; line-height:1.45; color:#655c4c; }
     .online-orders-modal-actions { gap:8px; }
-    .online-orders-modal-btn { min-height:40px; padding:0 14px; font-size:14px; border-radius:9px; border-color:#deded9; }
-    #refreshOnlineOrdersBtn { background:#f7c62f; color:#242424; border-color:#e8b720; }
+    .online-orders-modal-btn { min-height:38px; padding:0 14px; font-size:13.5px; border-radius:9px; border-color:#dfd8c8; background:#fffaf0; color:#29251f; }
+    #refreshOnlineOrdersBtn { background:#f2c12e; color:#1f2328; border-color:#dfaf1e; }
     .online-orders-list { padding:16px 24px; }
+    .online-order-card { background:#ffffff; border-color:#e6dfd0; border-radius:12px; padding:14px 16px; box-shadow:0 2px 8px rgba(0,0,0,.04); }
+    .online-order-number { color:#1f2328; font-size:0.95rem; }
+    .online-order-meta { color:#655c4c; font-size:0.78rem; }
+    .pos-online-proof-link { display:inline-flex; align-items:center; gap:5px; padding:3px 9px; border-radius:999px; background:#fff8e1; border:1px solid #e2c567; color:#594113; font-size:0.74rem; font-weight:700; text-decoration:none; transition:background .15s, border-color .15s; }
+    .pos-online-proof-link:hover { background:#f2c12e; border-color:#d6a81f; color:#1f2328; }
+    .pos-online-verify-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; min-height:34px; padding:6px 14px; border-radius:8px; background:#f2c12e; border:1px solid #dfaf1e; color:#1f2328; font:inherit; font-size:0.8rem; font-weight:800; cursor:pointer; transition:background .15s, border-color .15s; }
+    .pos-online-verify-btn:hover { background:#e5b420; border-color:#c69814; }
+    .pos-online-manage-btn { display:inline-flex; align-items:center; justify-content:center; min-height:34px; padding:6px 14px; border-radius:8px; background:#fff8e1; border:1px solid #e2c567; color:#594113; font-size:0.8rem; font-weight:700; text-decoration:none; transition:background .15s, border-color .15s; }
+    .pos-online-manage-btn:hover { background:#f2c12e; border-color:#d6a81f; color:#1f2328; }
     .online-orders-empty { padding:40px 16px; font-size:15px; line-height:1.6; color:#626262; }
     .online-orders-empty .online-empty-icon { display:flex; align-items:center; justify-content:center; width:60px; height:60px; margin:0 auto 16px; border-radius:16px; background:#fff4c9; color:#242424; font-size:28px; }
     .online-orders-empty strong { display:block; font-size:18px; color:#242424; margin-bottom:6px; }

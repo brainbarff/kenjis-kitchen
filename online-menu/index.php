@@ -610,13 +610,10 @@ require_once dirname(__DIR__) . '/includes/storefront_bestsellers.php';
               </div>
             </div>
             <div class="gcash-account-details"><span>Account name</span><strong id="onlineGcashName">Loading payment details…</strong><span>Account number</span><strong id="onlineGcashPhone">Loading…</strong></div><div class="gcash-account-actions"><a id="onlineGcashDownload" hidden download="kenjis-kitchen-gcash.png"><i class="bi bi-download"></i> Save QR image</a><button type="button" onclick="copyGcashNumber('onlineGcashPhone', this)"><i class="bi bi-copy"></i> Copy number</button></div><p class="gcash-payment-help">Check the account name in GCash before confirming your payment.</p>
-            <p class="gcash-payment-help">Pay by scanning the QR or sending to this number, then enter the 13-digit reference number and upload your payment screenshot below.</p>
+            <p class="gcash-payment-help">Pay by scanning the QR or sending to this number, then upload your payment screenshot and enter the 13-digit reference number below.</p>
           </section>
-          <label for="custGcashRef" style="font-size: 0.85rem; font-weight: 700; display: block; margin-bottom: 4px;">GCash reference number <span style="color:var(--danger);">*</span></label>
-          <input type="text" id="custGcashRef" class="checkout-input" style="letter-spacing: 1px;" maxlength="13" placeholder="Enter 13-digit reference" inputmode="numeric" aria-describedby="gcashReferenceHelp">
-          <small id="gcashReferenceHelp" style="color: var(--muted); font-size: 0.75rem; display: block; margin-top: 3px;">Find this number on your GCash receipt.</small>
 
-          <div style="margin-top: 12px;">
+          <div style="margin-bottom: 12px;">
             <label for="custGcashProofInput" style="font-size: 0.85rem; font-weight: 700; display: block; margin-bottom: 4px;">Upload Payment Proof <span style="color:var(--danger);">*</span></label>
             <input type="file" id="custGcashProofInput" class="checkout-input" accept="image/jpeg,image/png,image/webp" onchange="handleGcashProofSelection(event)" style="padding: 8px;">
             <small style="color: var(--muted); font-size: 0.75rem; display: block; margin-top: 3px;">Accepted formats: JPG, PNG, or WebP (max 5 MB). Staff will verify your payment before kitchen preparation.</small>
@@ -630,11 +627,15 @@ require_once dirname(__DIR__) . '/includes/storefront_bestsellers.php';
               <img id="gcashProofPreviewImg" src="" alt="Upload Payment Proof Preview" style="max-height: 160px; max-width: 100%; border-radius: 8px; display: block; margin: 0 auto; object-fit: contain; border: 1px solid var(--border);">
             </div>
           </div>
+
+          <label for="custGcashRef" style="font-size: 0.85rem; font-weight: 700; display: block; margin-bottom: 4px;">GCash Reference Number <span style="color:var(--danger);">*</span></label>
+          <input type="text" id="custGcashRef" class="checkout-input" style="letter-spacing: 1px;" maxlength="13" placeholder="Enter 13-digit reference" inputmode="numeric" aria-describedby="gcashReferenceHelp">
+          <small id="gcashReferenceHelp" style="color: var(--muted); font-size: 0.75rem; display: block; margin-top: 3px;">Find this number on your GCash receipt.</small>
         </div>
 
         <div style="margin-bottom: 14px; padding: 10px 12px; border-radius: 10px; background: rgba(242, 193, 46, 0.12); border: 1px solid rgba(242, 193, 46, 0.4); font-size: 0.82rem; color: var(--dark); line-height: 1.45;">
           <i class="bi bi-clock-history" style="color: var(--primary);"></i>
-          <strong>Estimated kitchen preparation: <span id="checkoutPrepEstimateText">~15 to 25 minutes</span></strong>
+          <strong>Estimated Kitchen Preparation: <span id="checkoutPrepEstimateText">15 - 25 minutes</span></strong>
           <div id="checkoutPrepHelp" style="font-size: 0.75rem; color: var(--muted); margin-top: 2px;">This covers food preparation only. Delivery time depends on courier availability, travel distance, and traffic.</div>
         </div>
 

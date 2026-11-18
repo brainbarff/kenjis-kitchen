@@ -3490,12 +3490,12 @@ function computeEstimatedPrepTime(cartItems = appState.cart) {
   const totalQty = items.reduce((sum, i) => sum + Number(i.qty || i.quantity || 1), 0);
   const hasBilao = items.some(i => Boolean(i.packaging) || /bilao|tray/i.test(String(i.name || i.item_name || '')));
   if (hasBilao || totalQty >= 8) {
-    return '~25 to 35 minutes';
+    return '25 - 35 minutes';
   }
   if (totalQty >= 4) {
-    return '~20 to 30 minutes';
+    return '20 - 30 minutes';
   }
-  return '~15 to 25 minutes';
+  return '15 - 25 minutes';
 }
 
 function toggleOnlinePaymentMethod() {
@@ -4054,17 +4054,21 @@ function buildOption1TrackingWidget(order, isClosed, context = 'panel') {
   const helpId = `kkTrackingHelp-${context}-${id}`;
   const canEditLink = !isClosed && !isOutForDelivery;
 
+  const statusIcon = trackStatus === 'Verified'
+    ? '<i class="bi bi-check-circle-fill" aria-hidden="true"></i>'
+    : (trackStatus === 'Rejected' ? '<i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>' : '');
+
   return `
     <div class="kk-opt1-tracking-box">
       <div class="kk-opt1-tracking-status ${badgeClass}">
-        <i class="bi ${trackStatus === 'Verified' ? 'bi-check-circle-fill' : (trackStatus === 'Rejected' ? 'bi-exclamation-triangle-fill' : 'bi-hourglass-split')}" aria-hidden="true"></i>
+        ${statusIcon}
         <span>${escapeHtml(statusText)}</span>
       </div>
       ${(!isClosed && trackStatus !== 'Verified') ? '<p class="kk-opt1-gate-note">Food preparation begins once Kenji’s Kitchen verifies both GCash payment and your courier tracking link.</p>' : ''}
-      ${safeTrackingUrl ? `<div style="margin:6px 0;"><a href="${escapeHtml(safeTrackingUrl)}" target="_blank" rel="noopener noreferrer" style="font-weight:700;">Open third-party tracking ↗</a></div>` : ''}
+      ${safeTrackingUrl ? `<div class="kk-tracking-ext-wrap"><a href="${escapeHtml(safeTrackingUrl)}" target="_blank" rel="noopener noreferrer" class="kk-tracking-ext-btn"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i> Open third-party tracking</a></div>` : ''}
       ${canEditLink ? `
         <form class="kk-inline-tracking-form" onsubmit="event.preventDefault(); submitInlineTrackingLink(${id}, '${context}');">
-          <label for="${inputId}" class="kk-inline-tracking-label">Courier tracking link (HTTPS)</label>
+          <label for="${inputId}" class="kk-inline-tracking-label">Courier Tracking Link:</label>
           <div class="kk-inline-tracking-row">
             <input type="url" id="${inputId}" class="checkout-input kk-inline-tracking-input" value="${escapeHtml(draftVal)}" placeholder="https://..." inputmode="url" autocomplete="url" autocorrect="off" autocapitalize="none" spellcheck="false" aria-describedby="${helpId}" required oninput="updateInlineTrackingDraft(${id}, this.value)">
             <button type="submit" id="${btnId}" class="kk-inline-tracking-btn">${safeTrackingUrl ? 'Update Tracking Link' : 'Submit Tracking Link'}</button>
@@ -5028,7 +5032,7 @@ async function fetchOrderTracking(orderId, isBackgroundPoll = false) {
 
     const statusNote = completed
       ? (isDelivery ? 'Delivered' : 'Order complete')
-      : (cancelled ? 'Order closed' : Number(order.cancellation_requested) === 1 ? 'Cancellation awaits Admin review' : order.delivery_status === 'Failed' ? 'Delivery attempt failed; staff can retry delivery handoff' : order.delivery_status === 'Assigned' ? 'Ready for manual handoff' : '<span class="live-pulse">●</span> Status updates live (every 3 to 5s)');
+      : (cancelled ? 'Order closed' : Number(order.cancellation_requested) === 1 ? 'Cancellation awaits Admin review' : order.delivery_status === 'Failed' ? 'Delivery attempt failed; staff can retry delivery handoff' : order.delivery_status === 'Assigned' ? 'Ready for manual handoff' : '');
     const isCustomerBooked = isDelivery && order.delivery_mode === 'CUSTOMER_BOOKED';
     const resolvedBooker = String(order.resolved_courier_booking_by || order.courier_booking_by || 'CUSTOMER').toUpperCase();
     const isStoreBookedCourier = isCustomerBooked && resolvedBooker === 'STORE';
@@ -5037,10 +5041,10 @@ async function fetchOrderTracking(orderId, isBackgroundPoll = false) {
     const courierFeeInfo = isStoreBookedCourier ? buildCourierFeeInfo(order, completed || cancelled) : null;
     const externalTrackingHtml = isCustomerBooked ? `
       <div style="border:1px solid var(--border);border-radius:10px;padding:12px;margin:12px 0;">
-        <strong>${isStoreBookedCourier ? 'Outside Greater Lagro · Staff Books Rider' : 'Outside Greater Lagro · Customer Books Rider'}</strong>
+        <div class="kk-courier-heading">${isStoreBookedCourier ? 'Outside Greater Lagro · Staff Books Rider' : 'Outside Greater Lagro · Customer Books Rider'}</div>
         ${isStoreBookedCourier ? `
           <p class="muted" style="margin:5px 0 9px">Our staff is booking your rider. Pay the quoted delivery fee here via GCash once posted.</p>
-          ${safeTrackingUrl ? `<a href="${escapeHtml(safeTrackingUrl)}" target="_blank" rel="noopener noreferrer" style="font-weight:700;">Open third-party tracking ↗</a>` : '<span class="muted">No courier tracking link saved yet.</span>'}
+          ${safeTrackingUrl ? `<div class="kk-tracking-ext-wrap"><a href="${escapeHtml(safeTrackingUrl)}" target="_blank" rel="noopener noreferrer" class="kk-tracking-ext-btn"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i> Open third-party tracking</a></div>` : '<span class="muted">No courier tracking link saved yet.</span>'}
           ${courierFeeInfo ? courierFeeInfo.trackingHtml : ''}
         ` : buildOption1TrackingWidget(order, completed || cancelled, 'panel')}
       </div>` : (isDelivery ? `
@@ -5054,8 +5058,8 @@ async function fetchOrderTracking(orderId, isBackgroundPoll = false) {
     if (panel && !editingInlineInPanel) {
       const isOrderPaid = String(order.payment_status || '').toLowerCase() === 'paid';
       const prepEstimateBanner = (order.status === 'Pending' || order.status === 'Preparing')
-        ? `<div style="margin: 10px 0; padding: 8px 12px; border-radius: 8px; background: rgba(242, 193, 46, 0.12); border: 1px solid rgba(242, 193, 46, 0.35); font-size: 0.8rem;">
-             <i class="bi bi-clock-history"></i> <strong>Estimated kitchen preparation:</strong> ${escapeHtml(computeEstimatedPrepTime(items || []))}
+        ? `<div style="margin: 10px 0; padding: 9px 12px; border-radius: 8px; background: #fffaf0; border: 1px solid #e7d9b8; font-size: 0.82rem; color: var(--dark);">
+             <i class="bi bi-clock-history" style="color: #866018;"></i> <strong>Estimated Kitchen Preparation: ${escapeHtml(computeEstimatedPrepTime(items || []))}</strong>
              <div style="font-size:0.75rem;color:var(--muted);margin-top:2px;">${isDelivery ? 'This covers food preparation only. Delivery time depends on courier availability, travel distance, and traffic.' : 'Check your order status before collecting. Preparation may vary with kitchen volume.'}</div>
            </div>`
         : '';
@@ -5082,7 +5086,7 @@ async function fetchOrderTracking(orderId, isBackgroundPoll = false) {
           <div class="tracking-card-header">
             <div>
               <h3>Tracking ${escapeHtml(order.order_no)} <span class="order-status-chip ${displayStatusClass}">${escapeHtml(displayStatus)}</span></h3>
-              <p class="muted">Receipt ${escapeHtml(order.receipt_no || 'N/A')} · ${formatPeso(order.total)} · ${statusNote}</p>
+              <p class="muted">Receipt ${escapeHtml(order.receipt_no || 'N/A')} · ${formatPeso(order.total)}${statusNote ? ` · ${statusNote}` : ''}</p>
             </div>
             <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
               <button type="button" class="btn-track-order" onclick="openCustomerReceiptModal(${Number(order.id)})">
@@ -5515,7 +5519,7 @@ async function loadOrderHistory(targetOrderId = null, showLoading = true) {
             Receipt ${escapeHtml(order.receipt_no || 'N/A')} · ${paymentStatusLabel}
           </p>
           ${rowFeeInfo ? `<div style="margin:6px 0 8px;">${rowFeeInfo.pillHtml}</div>` : ''}
-          ${(isStoreBookedRow && rowSafeUrl) ? `<div style="margin:4px 0 8px;font-size:0.84rem;"><a href="${escapeHtml(rowSafeUrl)}" target="_blank" rel="noopener noreferrer" style="font-weight:700;">Open third-party tracking ↗</a></div>` : ''}
+          ${(isStoreBookedRow && rowSafeUrl) ? `<div class="kk-tracking-ext-wrap" style="margin:6px 0 8px;"><a href="${escapeHtml(rowSafeUrl)}" target="_blank" rel="noopener noreferrer" class="kk-tracking-ext-btn"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i> Open third-party tracking</a></div>` : ''}
           ${(isOption1Row && !rowClosed) ? buildOption1TrackingWidget(order, false, 'card') : ''}
           <div class="customer-order-actions" style="display:flex;gap:8px;flex-wrap:wrap;">
             ${rowFeeInfo?.needsPayment && !rowClosed ? `<button type="button" style="background:var(--primary);color:#1f2328;border-color:var(--primary);font-weight:800;" onclick="openCourierFeeModal(${Number(order.id)})"><i class="bi bi-wallet2"></i> Pay Courier Fee (${formatPeso(rowFeeInfo.fee)})</button>` : ''}
@@ -5661,17 +5665,24 @@ async function openCustomerReceiptModal(orderId) {
           </div>
         </div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;font-size:0.81rem;margin-bottom:12px;border-bottom:1px dashed var(--border);padding-bottom:12px;">
-          <div><span style="color:var(--muted);">Document:</span><br><strong>${escapeHtml(document_title)}</strong></div>
-          <div><span style="color:var(--muted);">Receipt No.:</span><br><strong>${escapeHtml(order.receipt_no || 'N/A')}</strong></div>
-          <div><span style="color:var(--muted);">Order No.:</span><br><strong>${escapeHtml(order.order_no)}</strong></div>
-          <div><span style="color:var(--muted);">Date &amp; Time:</span><br><strong>${escapeHtml(placedDate)}</strong></div>
-          <div><span style="color:var(--muted);">Customer Name:</span><br><strong>${escapeHtml(order.customer_name || 'Online Customer')}</strong></div>
-          <div><span style="color:var(--muted);">Order Type:</span><br><strong>${escapeHtml(orderTypeLabel)}</strong></div>
-          <div><span style="color:var(--muted);">Payment Method:</span><br><strong>${escapeHtml(order.payment_method || 'N/A')}</strong></div>
-          <div><span style="color:var(--muted);">Payment Status:</span><br><strong>${escapeHtml(order.payment_status || 'Pending')}</strong></div>
-          ${order.payment_reference ? `<div style="grid-column:1/-1;"><span style="color:var(--muted);">GCash Ref No.:</span> <strong>${escapeHtml(order.payment_reference)}</strong> ${Number(order.has_payment_proof) === 1 ? `· <a href="./api/payment_proof.php?order_id=${Number(order.id)}" target="_blank" rel="noopener noreferrer" style="color:var(--primary);font-weight:700;text-decoration:underline;">View Uploaded Screenshot</a>` : ''}</div>` : ''}
-          ${order.delivery_address ? `<div style="grid-column:1/-1;"><span style="color:var(--muted);">Delivery Address:</span> <strong>${escapeHtml(order.delivery_address)}</strong></div>` : ''}
+        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 16px;align-items:start;font-size:0.8rem;margin-bottom:14px;padding:12px;border-radius:10px;background:rgba(242,193,46,0.06);border:1px solid #ece5d3;">
+          <div><div style="color:var(--muted);font-size:0.74rem;margin-bottom:1px;">Document:</div><strong style="display:block;line-height:1.35;">${escapeHtml(document_title)}</strong></div>
+          <div><div style="color:var(--muted);font-size:0.74rem;margin-bottom:1px;">Receipt No.:</div><strong style="display:block;line-height:1.35;word-break:break-word;">${escapeHtml(order.receipt_no || 'N/A')}</strong></div>
+          <div><div style="color:var(--muted);font-size:0.74rem;margin-bottom:1px;">Order No.:</div><strong style="display:block;line-height:1.35;">${escapeHtml(order.order_no)}</strong></div>
+          <div><div style="color:var(--muted);font-size:0.74rem;margin-bottom:1px;">Date &amp; Time:</div><strong style="display:block;line-height:1.35;">${escapeHtml(placedDate)}</strong></div>
+          <div><div style="color:var(--muted);font-size:0.74rem;margin-bottom:1px;">Customer Name:</div><strong style="display:block;line-height:1.35;">${escapeHtml(order.customer_name || 'Online Customer')}</strong></div>
+          <div><div style="color:var(--muted);font-size:0.74rem;margin-bottom:1px;">Order Type:</div><strong style="display:block;line-height:1.35;">${escapeHtml(orderTypeLabel)}</strong></div>
+          <div><div style="color:var(--muted);font-size:0.74rem;margin-bottom:1px;">Payment Method:</div><strong style="display:block;line-height:1.35;">${escapeHtml(order.payment_method || 'N/A')}</strong></div>
+          <div><div style="color:var(--muted);font-size:0.74rem;margin-bottom:1px;">Payment Status:</div><strong style="display:block;line-height:1.35;">${escapeHtml(order.payment_status || 'Pending')}</strong></div>
+          ${order.payment_reference ? `<div style="grid-column:1/-1;padding-top:8px;border-top:1px dashed var(--border);">
+            <div style="color:var(--muted);font-size:0.74rem;margin-bottom:2px;">GCash Ref No.:</div>
+            <strong style="display:block;font-size:0.86rem;letter-spacing:0.03em;margin-bottom:${Number(order.has_payment_proof) === 1 ? '4px' : '0'};">${escapeHtml(order.payment_reference)}</strong>
+            ${Number(order.has_payment_proof) === 1 ? `<a href="./api/payment_proof.php?order_id=${Number(order.id)}" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:5px;color:#866018;font-size:0.78rem;font-weight:700;text-decoration:underline;text-underline-offset:2px;"><i class="bi bi-image" aria-hidden="true"></i> View Uploaded Screenshot</a>` : ''}
+          </div>` : ''}
+          ${order.delivery_address ? `<div style="grid-column:1/-1;padding-top:8px;border-top:1px dashed var(--border);">
+            <div style="color:var(--muted);font-size:0.74rem;margin-bottom:2px;">Delivery Address:</div>
+            <strong style="display:block;line-height:1.4;">${escapeHtml(order.delivery_address)}</strong>
+          </div>` : ''}
         </div>
 
         <table style="width:100%;border-collapse:collapse;margin-bottom:12px;">
@@ -5686,23 +5697,23 @@ async function openCustomerReceiptModal(orderId) {
           </tbody>
         </table>
 
-        <div style="border-top:1.5px dashed var(--border);padding-top:10px;font-size:0.85rem;">
-          <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+        <div style="border-top:1.5px dashed var(--border);padding-top:10px;font-size:0.84rem;">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:5px;">
             <span style="color:var(--muted);">Subtotal:</span>
-            <strong>${formatPeso(subtotal)}</strong>
+            <strong style="text-align:right;">${formatPeso(subtotal)}</strong>
           </div>
           ${discount > 0 ? `
-          <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:5px;">
             <span style="color:var(--muted);">Discount:</span>
-            <strong>-${formatPeso(discount)}</strong>
+            <strong style="text-align:right;">-${formatPeso(discount)}</strong>
           </div>` : ''}
-          <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
-            <span style="color:var(--muted);">Delivery / Fulfillment Fee:</span>
-            <strong>${escapeHtml(deliveryFeeReceiptLabel)}</strong>
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:5px;">
+            <span style="color:var(--muted);flex-shrink:0;">Delivery / Fulfillment Fee:</span>
+            <strong style="text-align:right;line-height:1.35;">${escapeHtml(deliveryFeeReceiptLabel)}</strong>
           </div>
-          <div style="display:flex;justify-content:space-between;font-size:1.05rem;font-weight:900;margin-top:8px;padding-top:8px;border-top:1px solid var(--border);">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-size:1.05rem;font-weight:900;margin-top:8px;padding-top:8px;border-top:1px solid var(--border);">
             <span>Total Amount:</span>
-            <span>${formatPeso(total)}</span>
+            <span style="text-align:right;">${formatPeso(total)}</span>
           </div>
         </div>
 

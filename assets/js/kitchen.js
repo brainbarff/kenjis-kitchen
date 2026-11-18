@@ -39,21 +39,55 @@ function escapeHtml(value) {
         .replaceAll("'", '&#039;');
 }
 
-function formatElapsed(createdAt) {
-    if (!createdAt) return '0m';
-    const timestamp = new Date(String(createdAt).replace(' ', 'T')).getTime();
-    const mins = Math.max(0, Math.floor((Date.now() - timestamp) / 60000));
+let kdsServerOffsetMs = 0;
+
+function parseManilaTimestampMs(dateStr) {
+    if (!dateStr) return 0;
+    const raw = String(dateStr).trim();
+    const iso = raw.includes('T') ? raw : raw.replace(' ', 'T');
+    const withTz = /([+-]\d{2}:?\d{2}|Z)$/i.test(iso) ? iso : `${iso}+08:00`;
+    const ms = new Date(withTz).getTime();
+    return Number.isFinite(ms) ? ms : 0;
+}
+
+function formatElapsed(order) {
+    const tsSec = Number(order?.created_at_ts || 0);
+    const createdMs = tsSec > 0 ? tsSec * 1000 : parseManilaTimestampMs(order?.created_at);
+    if (!createdMs) return '0m';
+    const serverNowMs = Date.now() + kdsServerOffsetMs;
+    const mins = Math.max(0, Math.floor((serverNowMs - createdMs) / 60000));
+    if (mins >= 60) {
+        const hrs = Math.floor(mins / 60);
+        const rem = mins % 60;
+        return `${hrs}h ${rem}m`;
+    }
     return `${mins}m`;
 }
 
-function formatOrderTime(createdAt) {
-    if (!createdAt) return '';
+function formatOrderTime(createdAt, createdAtTs) {
+    const ms = Number(createdAtTs || 0) > 0 ? Number(createdAtTs) * 1000 : parseManilaTimestampMs(createdAt);
+    if (!ms) return '';
     try {
-        const d = new Date(String(createdAt).replace(' ', 'T'));
-        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        return new Date(ms).toLocaleTimeString('en-PH', {
+            timeZone: 'Asia/Manila',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
     } catch {
         return '';
     }
+}
+
+function refreshKdsTimers() {
+    const serverNowMs = Date.now() + kdsServerOffsetMs;
+    document.querySelectorAll('.kds-timer-badge[data-created-ms]').forEach(badge => {
+        const createdMs = Number(badge.dataset.createdMs || 0);
+        if (!createdMs) return;
+        const mins = Math.max(0, Math.floor((serverNowMs - createdMs) / 60000));
+        const text = mins >= 60 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${mins}m`;
+        const span = badge.querySelector('.kds-timer-text');
+        if (span) span.textContent = text;
+    });
 }
 
 function getTableOrChannelBadge(order) {
@@ -99,7 +133,7 @@ function renderTicket(order) {
     } else if (order.status === 'Preparing') {
         actionBtn = `
             <button class="kds-ticket-btn btn-mark-ready" data-status="Ready" data-id="${escapeHtml(order.id)}">
-                <i class="bi bi-check-circle-fill"></i> Mark Ready
+                <i class="bi bi-check-circle-fill"></i> Mark as Ready
             </button>
         `;
     }
@@ -107,6 +141,9 @@ function renderTicket(order) {
     const cleanNotes = String(order.notes || '')
         .replace(/^\[Courier booking:[^\]]+\]\s*/i, '')
         .trim();
+    const createdMs = Number(order.created_at_ts || 0) > 0
+        ? Number(order.created_at_ts) * 1000
+        : parseManilaTimestampMs(order.created_at);
 
     return `
         <article class="kds-ticket ticket-${escapeHtml(statusClass)}" data-order-id="${escapeHtml(order.id)}">
@@ -114,15 +151,15 @@ function renderTicket(order) {
             <div>
                 <div class="kds-ticket-top">
                     ${getTableOrChannelBadge(order)}
-                    <span class="kds-timer-badge">
-                        <i class="bi bi-clock" aria-hidden="true"></i> ${formatElapsed(order.created_at)}
+                    <span class="kds-timer-badge" data-created-ms="${createdMs}">
+                        <i class="bi bi-clock" aria-hidden="true"></i> <span class="kds-timer-text">${formatElapsed(order)}</span>
                     </span>
                 </div>
                 <div class="kds-ticket-id kds-order-no">${order.order_no ? escapeHtml(order.order_no) : ('ORD-' + escapeHtml(order.id))}</div>
                 <div class="kds-ticket-meta">
                     <span class="kds-customer-name"><i class="bi bi-person"></i> ${escapeHtml(order.customer_name || 'Walk-in Customer')}</span>
                     <span>•</span>
-                    <span><i class="bi bi-clock"></i> ${formatOrderTime(order.created_at)}</span>
+                    <span><i class="bi bi-clock"></i> ${formatOrderTime(order.created_at, order.created_at_ts)}</span>
                 </div>
             </div>
 
@@ -163,6 +200,9 @@ async function loadOrders() {
         const res = await fetch('fetch_orders.php');
         const orders = await res.json();
         const safeOrders = Array.isArray(orders) ? orders : [];
+        if (safeOrders.length && Number(safeOrders[0]?.server_now_ms) > 0) {
+            kdsServerOffsetMs = Number(safeOrders[0].server_now_ms) - Date.now();
+        }
 
         alertForNewOnlineOrders(safeOrders);
 
@@ -237,6 +277,7 @@ document.addEventListener('click', async event => {
     }
 });
 
-// Auto-refresh every 4 seconds
+// Auto-refresh every 4 seconds and update elapsed minute badges smoothly
 loadOrders();
 setInterval(loadOrders, 4000);
+setInterval(refreshKdsTimers, 10000);

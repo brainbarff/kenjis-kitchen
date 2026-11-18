@@ -212,9 +212,9 @@ include ROOT_PATH . '/includes/header.php';
         <h1 style="display:flex;align-items:center;gap:10px;">
             <i class="bi bi-qr-code-scan" style="color:var(--primary,#F2C12E);"></i> QR Payment Verification Queue
         </h1>
-        <p class="muted">Review uploaded customer GCash/QR screenshots, verify reference numbers against bank/merchant app, and release orders to the kitchen.</p>
+        <p class="muted">Review uploaded customer receipts, verify reference numbers in your official GCash app, and release orders to the kitchen.</p>
     </div>
-    <div style="font-size:14px; background:var(--soft); padding:8px 14px; border-radius:10px;">
+    <div style="font-size:14px; background:#fffaf0; border:1px solid #e7d9b8; padding:8px 14px; border-radius:10px; color:#29251f;">
         Awaiting review: <strong><?= count($pendingList) ?></strong>
     </div>
 </div>
@@ -227,8 +227,8 @@ include ROOT_PATH . '/includes/header.php';
 
 <!-- Important Operational Warning (Requirement 4.5) -->
 <div style="background:#fff9e6; border:1px solid #eedda5; padding:12px 16px; border-radius:10px; margin-bottom:20px; font-size:14px; line-height:1.6; color:#38352c;">
-    <i class="bi bi-shield-check" style="font-size:16px; margin-right:4px;"></i>
-    <strong>Security Reminder:</strong> Always confirm the actual incoming money in your official GCash or Merchant Banking app before clicking Verify. A screenshot alone can be faked or reused.
+    <i class="bi bi-shield-check" style="font-size:16px; margin-right:4px; color:#866018;"></i>
+    <strong>Security Reminder:</strong> Always confirm the actual incoming money in your official GCash app before clicking Verify. A screenshot alone can be faked or reused.
 </div>
 
 <?php if ($opt1PendingLinks > 0 || $opt1WaitingCust > 0 || $opt2ActiveCount > 0): ?>
@@ -246,8 +246,8 @@ include ROOT_PATH . '/includes/header.php';
             <span><strong><?= $opt2ActiveCount ?></strong> staff-booked courier order<?= $opt2ActiveCount > 1 ? 's' : '' ?> in Outside Lagro.</span>
         <?php endif; ?>
     </div>
-    <a href="<?= e(BASE_URL . '/modules/delivery/index.php?filter=outside') ?>" class="btn btn-primary" style="min-height:36px; padding:6px 14px; font-size:13px; white-space:nowrap;">
-        Open Delivery Status (Outside Lagro) <i class="bi bi-arrow-right"></i>
+    <a href="<?= e(BASE_URL . '/modules/delivery/index.php?filter=outside') ?>" class="qr-outside-link-btn">
+        Open Delivery Status (Outside Lagro)
     </a>
 </div>
 <?php endif; ?>
@@ -259,12 +259,15 @@ include ROOT_PATH . '/includes/header.php';
     <p class="muted">New GCash and QR payment submissions will appear here for review.</p>
 </div>
 <?php else: ?>
+<?php $serverNowTs = time(); ?>
 <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, 360px), 1fr)); gap:20px;">
     <?php foreach ($pendingList as $item):
-        $createdAt = new DateTime($item['created_at']);
-        $now = new DateTime();
-        $waitInterval = $createdAt->diff($now);
-        $waitStr = ($waitInterval->h > 0 ? $waitInterval->h . 'h ' : '') . $waitInterval->i . 'm ' . $waitInterval->s . 's';
+        $createdTs = strtotime((string)$item['created_at']) ?: $serverNowTs;
+        $diffSecs = max(0, $serverNowTs - $createdTs);
+        $waitHours = (int)floor($diffSecs / 3600);
+        $waitMins = (int)floor(($diffSecs % 3600) / 60);
+        $waitSecs = (int)($diffSecs % 60);
+        $waitStr = ($waitHours > 0 ? $waitHours . 'h ' : '') . $waitMins . 'm ' . $waitSecs . 's';
 
         // Check for duplicates
         $dupeRefStmt->execute([$item['reference_number'], $item['proof_id']]);
@@ -274,40 +277,41 @@ include ROOT_PATH . '/includes/header.php';
         $hasDupeHash = ($dupeHashStmt->fetchColumn() > 0);
 
         $isLocked = !empty($item['locked_by_user_id']) && (int)$item['locked_by_user_id'] !== $userId && (strtotime($item['locked_at']) > time() - 300);
+        $qrCoverageLabel = ($item['fulfillment_mode'] ?? '') === 'OUTSIDE' ? 'Outside Lagro' : 'Within Lagro';
     ?>
-    <section class="card qr-payment-card" style="display:flex; flex-direction:column; justify-content:space-between; border:2px solid <?= ($hasDupeRef || $hasDupeHash) ? '#ef4444' : '#e2e8f0' ?>;">
+    <section class="card qr-payment-card" style="display:flex; flex-direction:column; justify-content:space-between; border:1.5px solid <?= ($hasDupeRef || $hasDupeHash) ? '#ef4444' : '#e6dfd0' ?>; background:#ffffff;">
         <div>
-            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px;">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:12px;">
                 <div>
-                    <h3 style="margin:0 0 2px; font-size:17px;"><?= e($item['order_no']) ?></h3>
-                    <small class="muted">Queue #<?= e($item['queue_no']) ?> · <?= e($item['fulfillment_mode']) ?></small>
+                    <h3 style="margin:0 0 3px; font-size:17px; font-weight:800; color:#1f2328;"><?= e($item['order_no']) ?></h3>
+                    <small class="muted">Queue #<?= e($item['queue_no']) ?> · <?= e($qrCoverageLabel) ?></small>
                 </div>
-                <span class="badge badge-warning" style="background:#fef3c7; color:#b45309;">
-                    <i class="bi bi-clock"></i> <?= $waitStr ?> ago
+                <span class="qr-wait-badge" data-created-ts="<?= (int)$createdTs ?>">
+                    <i class="bi bi-clock" aria-hidden="true"></i> <span class="qr-wait-text"><?= e($waitStr) ?></span> ago
                 </span>
             </div>
 
             <!-- Customer & Amount -->
-            <div style="background:var(--soft); border-radius:8px; padding:10px 12px; margin-bottom:12px; font-size:14px; line-height:1.5;">
-                <div>Customer: <strong><?= e($item['customer_name']) ?></strong> (<?= e($item['customer_phone']) ?>)</div>
-                <div>Amount to Verify: <strong style="font-size:15px; color:var(--text);">₱<?= number_format((float)$item['total'], 2) ?></strong></div>
-                <div>Method: <span class="badge" style="background:#fff3c4; color:#343434;"><?= e($item['method_code']) ?></span></div>
-                <div>Reference #: <code style="font-size:14px; font-weight:800; background:#fcfbf7; border:1px solid #e6e3d8; padding:2px 6px; border-radius:4px;"><?= e($item['reference_number']) ?></code></div>
+            <div style="background:#fcfbf7; border:1px solid #ece6d8; border-radius:10px; padding:11px 13px; margin-bottom:12px; font-size:13.5px; line-height:1.6; color:#29251f;">
+                <div>Customer: <strong><?= e($item['customer_name']) ?></strong><?= !empty($item['customer_phone']) ? ' (' . e($item['customer_phone']) . ')' : '' ?></div>
+                <div>Amount to Verify: <strong style="font-size:15px; color:#1f2328;">₱<?= number_format((float)$item['total'], 2) ?></strong></div>
+                <div>Payment Method: <strong><?= e($item['method_code']) ?></strong></div>
+                <div>Reference #: <strong style="font-family:monospace; font-size:14px; letter-spacing:0.03em; color:#1f2328;"><?= e($item['reference_number']) ?></strong></div>
                 <?php if (($item['fulfillment_mode'] ?? '') === 'OUTSIDE'):
                     $qrBooker = kk_resolve_courier_booking_by($item);
                     $qrTrackStatus = (string)($item['courier_tracking_status'] ?? 'None');
                 ?>
-                <div style="margin-top:6px; padding-top:6px; border-top:1px dashed #e6e3d8; font-size:13px;">
+                <div style="margin-top:8px; padding-top:8px; border-top:1px dashed #e6e3d8; font-size:13px;">
                     <?php if ($qrBooker === 'CUSTOMER'): ?>
                         <strong>Outside Lagro · Customer Books Rider:</strong>
                         <span>Tracking Link: <strong><?= e($qrTrackStatus === 'None' ? 'Not submitted yet' : $qrTrackStatus) ?></strong></span>
                         <?php if (!empty($item['delivery_tracking_url']) && str_starts_with(strtolower((string)$item['delivery_tracking_url']), 'https://')): ?>
-                            · <a href="<?= e($item['delivery_tracking_url']) ?>" target="_blank" rel="noopener noreferrer">Open link ↗</a>
+                            · <a href="<?= e($item['delivery_tracking_url']) ?>" target="_blank" rel="noopener noreferrer" style="color:#866018; font-weight:700;">Open link</a>
                         <?php endif; ?>
-                        <div class="muted" style="font-size:12px;">After verifying payment, approve the tracking link in <a href="<?= e(BASE_URL . '/modules/delivery/index.php?filter=outside') ?>">Delivery Status (Outside Lagro)</a> before Kitchen prepares this order.</div>
+                        <div class="muted" style="font-size:12px; margin-top:3px;">After verifying payment, approve the tracking link in <a href="<?= e(BASE_URL . '/modules/delivery/index.php?filter=outside') ?>" style="color:#866018; font-weight:700;">Delivery Status (Outside Lagro)</a> before Kitchen prepares this order.</div>
                     <?php else: ?>
                         <strong>Outside Lagro · Staff Books Rider:</strong>
-                        <span class="muted">Enter fee quote and manage tracking in <a href="<?= e(BASE_URL . '/modules/delivery/index.php?filter=outside') ?>">Delivery Status (Outside Lagro)</a>.</span>
+                        <span class="muted">Enter fee quote and manage tracking in <a href="<?= e(BASE_URL . '/modules/delivery/index.php?filter=outside') ?>" style="color:#866018; font-weight:700;">Delivery Status (Outside Lagro)</a>.</span>
                     <?php endif; ?>
                 </div>
                 <?php endif; ?>
@@ -328,9 +332,9 @@ include ROOT_PATH . '/includes/header.php';
             <!-- Screenshot Thumbnail Preview -->
             <div style="text-align:center; margin-bottom:12px;">
                 <a href="<?= BASE_URL ?>/modules/online/api/proof_image.php?id=<?= $item['proof_id'] ?>" target="_blank" title="Click to view full image">
-                    <img src="<?= BASE_URL ?>/modules/online/api/proof_image.php?id=<?= $item['proof_id'] ?>" alt="Payment Proof" style="max-height:160px; max-width:100%; object-fit:contain; border-radius:8px; border:1px solid #cbd5e1; box-shadow:0 2px 6px rgba(0,0,0,0.06);">
+                    <img src="<?= BASE_URL ?>/modules/online/api/proof_image.php?id=<?= $item['proof_id'] ?>" alt="Payment Proof" style="max-height:160px; max-width:100%; object-fit:contain; border-radius:8px; border:1px solid #e6dfd0; box-shadow:0 2px 6px rgba(0,0,0,0.05);">
                 </a>
-                <div style="font-size:13px; color:var(--muted); margin-top:4px;">(Click image to open full resolution)</div>
+                <div style="font-size:12px; color:var(--muted); margin-top:4px;">(Click image to open full resolution)</div>
             </div>
         </div>
 
@@ -340,16 +344,16 @@ include ROOT_PATH . '/includes/header.php';
                     <i class="bi bi-lock-fill"></i> Being reviewed by <?= e($item['locked_by_name'] ?? 'another staff') ?>
                 </div>
             <?php else: ?>
-                <div style="display:flex; gap:8px;">
-                    <button type="button" class="btn btn-outline" style="flex:1; color:#dc2626; border-color:#fca5a5; font-size:14px;" onclick="openRejectModal(<?= $item['id'] ?>, <?= $item['proof_id'] ?>, '<?= e($item['order_no']) ?>')">
+                <div class="qr-card-actions">
+                    <button type="button" class="qr-btn-reject" onclick="openRejectModal(<?= $item['id'] ?>, <?= $item['proof_id'] ?>, '<?= e($item['order_no']) ?>')">
                         <i class="bi bi-x-circle"></i> Reject
                     </button>
-                    <form method="POST" style="flex:1; margin:0;" onsubmit="return confirm('Confirm that you have checked your GCash/Bank app and the funds are received?');">
+                    <form method="POST" style="flex:1; margin:0;" onsubmit="return handleVerifyPaymentSubmit(event, this, '<?= e($item['order_no']) ?>', '₱<?= number_format((float)$item['total'], 2) ?>', '<?= e($item['reference_number']) ?>');">
                         <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
                         <input type="hidden" name="action" value="verify_payment">
                         <input type="hidden" name="order_id" value="<?= $item['id'] ?>">
                         <input type="hidden" name="proof_id" value="<?= $item['proof_id'] ?>">
-                        <button type="submit" class="btn btn-primary" style="width:100%; font-size:14px;">
+                        <button type="submit" class="qr-btn-verify">
                             <i class="bi bi-check-circle-fill"></i> Verify Payment
                         </button>
                     </form>
@@ -394,16 +398,25 @@ include ROOT_PATH . '/includes/header.php';
 </div>
 
 <style>
-.qr-verification-page .page-head { padding:24px; gap:18px!important; }
+.qr-verification-page .page-head { padding:24px; gap:18px!important; border-color:#e6dfd0; }
 .qr-verification-page .page-head h1 { font-size:28px; margin:0 0 10px; line-height:1.25; }
 .qr-verification-page .page-head p { font-size:15px; line-height:1.6; margin:0; max-width:950px; }
-.qr-verification-page .card { border:1px solid #e8e8e5; border-radius:16px; box-shadow:0 3px 14px rgba(0,0,0,.025); }
+.qr-verification-page .card { border:1px solid #e6dfd0; border-radius:16px; box-shadow:0 3px 14px rgba(0,0,0,.025); }
 .qr-verification-page .qr-empty h3 { font-size:22px; margin:0 0 10px; color:#242424; }
 .qr-verification-page .qr-empty p { font-size:15px; line-height:1.6; }
-.qr-verification-page .qr-payment-card { padding:22px; overflow-wrap:anywhere; }
+.qr-verification-page .qr-payment-card { padding:20px; overflow-wrap:anywhere; border-top:4px solid #f2c12e!important; }
 .qr-verification-page .qr-payment-card small { font-size:13px; }
-.qr-verification-page .qr-payment-card .btn { min-height:42px; border-radius:9px; }
-.qr-verification-page .btn-primary { background:#f7c62f; border-color:#e8b720; color:#242424; }
+.qr-verification-page .qr-wait-badge { display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:999px; background:#fff3c4; border:1px solid #eed98a; color:#775600; font-size:12px; font-weight:800; white-space:nowrap; font-variant-numeric:tabular-nums; }
+.qr-verification-page .qr-outside-link-btn { display:inline-flex; align-items:center; justify-content:center; min-height:36px; padding:7px 15px; border-radius:9px; background:#f2c12e; border:1px solid #dfaf1e; color:#1f2328; font-size:13px; font-weight:800; text-decoration:none; white-space:nowrap; transition:background .15s, border-color .15s; }
+.qr-verification-page .qr-outside-link-btn:hover { background:#e5b420; border-color:#c69814; }
+.qr-verification-page .qr-card-actions { display:flex; gap:8px; }
+.qr-verification-page .qr-btn-reject,
+.qr-verification-page .qr-btn-verify { display:inline-flex; align-items:center; justify-content:center; gap:6px; min-height:37px; padding:7px 12px; border-radius:9px; font:inherit; font-size:13px; font-weight:800; cursor:pointer; transition:background .15s, border-color .15s; }
+.qr-verification-page .qr-btn-reject { flex:1; background:#fff5f5; color:#b91c1c; border:1px solid #fca5a5; }
+.qr-verification-page .qr-btn-reject:hover { background:#fee2e2; border-color:#f87171; }
+.qr-verification-page .qr-btn-verify { width:100%; background:#f2c12e; color:#1f2328; border:1px solid #dfaf1e; }
+.qr-verification-page .qr-btn-verify:hover { background:#e5b420; border-color:#c69814; }
+.qr-verification-page .btn-primary { background:#f2c12e; border-color:#dfaf1e; color:#1f2328; }
 #rejectModal > div { border-radius:18px!important; padding:28px!important; max-height:90vh; overflow:auto; }
 #rejectModal h3 { font-size:24px; line-height:1.3; }
 #rejectModal p { line-height:1.6; }
@@ -412,6 +425,54 @@ include ROOT_PATH . '/includes/header.php';
 @media(max-width:600px) { .qr-verification-page .page-head h1 { font-size:24px; } .qr-verification-page .page-head { padding:18px; } }
 </style>
 <script>
+const QR_SERVER_OFFSET_MS = <?= time() * 1000 ?> - Date.now();
+function formatQrElapsed(diffSecs) {
+    const secs = Math.max(0, Math.floor(diffSecs));
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    const s = secs % 60;
+    return (h > 0 ? h + 'h ' : '') + m + 'm ' + s + 's';
+}
+function tickQrWaitBadges() {
+    const nowSecs = Math.floor((Date.now() + QR_SERVER_OFFSET_MS) / 1000);
+    document.querySelectorAll('.qr-wait-badge[data-created-ts]').forEach(badge => {
+        const createdTs = Number(badge.dataset.createdTs || 0);
+        if (!createdTs) return;
+        const textEl = badge.querySelector('.qr-wait-text');
+        if (textEl) textEl.textContent = formatQrElapsed(nowSecs - createdTs);
+    });
+}
+if (document.querySelector('.qr-wait-badge[data-created-ts]')) {
+    tickQrWaitBadges();
+    setInterval(tickQrWaitBadges, 1000);
+}
+function handleVerifyPaymentSubmit(event, form, orderNo, amountText, refNo) {
+    if (form.dataset.kkVerifiedSubmit === '1') {
+        return true;
+    }
+    if (event) event.preventDefault();
+    if (typeof window.kkConfirm === 'function') {
+        window.kkConfirm({
+            title: 'Verify GCash Payment?',
+            details: [
+                { label: 'Order Number', value: orderNo || 'N/A' },
+                { label: 'Amount', value: amountText || 'N/A' },
+                { label: 'GCash Ref No.', value: refNo || 'N/A' }
+            ],
+            message: 'Confirm that you have checked your official GCash app and received the exact incoming payment.',
+            confirmText: 'Verify Payment',
+            cancelText: 'Cancel',
+            variant: 'primary'
+        }).then(confirmed => {
+            if (confirmed) {
+                form.dataset.kkVerifiedSubmit = '1';
+                form.submit();
+            }
+        });
+        return false;
+    }
+    return true;
+}
 function openRejectModal(orderId, proofId, orderNo) {
     document.getElementById('reject_order_id').value = orderId;
     document.getElementById('reject_proof_id').value = proofId;
