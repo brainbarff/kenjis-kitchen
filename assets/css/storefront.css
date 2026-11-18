@@ -702,10 +702,10 @@ body.dark-mode .order-review-form textarea {background:#303943;border-color:#454
   .star-rating .star-icon{transition:none;}
   .star-rating label.hovered .star-icon{transform:none;}
 }
-.review-pagination {display:flex;align-items:center;justify-content:center;gap:12px;margin-top:20px;}
-.review-page-btn {min-height:38px;padding:8px 16px;border-radius:10px;border:1px solid #dfd8c8;background:#fffdf8;color:#24231e;font:inherit;font-size:13px;font-weight:700;cursor:pointer;transition:background .15s,border-color .15s;}
+.review-header-right {display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.review-pagination {display:inline-flex;align-items:center;gap:6px;}
+.review-page-btn {width:34px;height:34px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;border:1px solid #dfd8c8;background:#fffdf8;color:#24231e;font:inherit;font-size:18px;line-height:1;font-weight:700;cursor:pointer;transition:background .15s,border-color .15s;}
 .review-page-btn:hover:not(:disabled) {background:#fff4d2;border-color:#d6a81f;}
-.review-page-btn:disabled {opacity:.45;cursor:not-allowed;}
-.review-page-status {font-size:13px;font-weight:600;color:var(--muted);}
+.review-page-btn:disabled {opacity:.4;cursor:not-allowed;}
 body.dark-mode .review-page-btn {background:#23272e;color:#f2f0e8;border-color:#444b56;}
 body.dark-mode .review-page-btn:hover:not(:disabled) {background:#3a3219;border-color:#f2c12e;color:#fbe38e;}

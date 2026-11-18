@@ -2,7 +2,8 @@
  const list=document.getElementById('reviewList');
  if(!list) return;
  let loading=false;
- const PAGE_SIZE=3;
+ const mobileQuery=window.matchMedia('(max-width: 640px)');
+ const getPageSize=()=>mobileQuery.matches?1:3;
  let currentPage=1;
  let cachedReviews=[];
  const SVG_NS='http://www.w3.org/2000/svg';
@@ -55,27 +56,40 @@
    if(nav)nav.remove();
    return;
   }
+  const summaryEl=document.getElementById('reviewSummary');
   if(!nav){
    nav=document.createElement('nav');
    nav.id='reviewPagination';
    nav.className='review-pagination';
    nav.setAttribute('aria-label','Customer reviews pagination');
-   list.after(nav);
+   if(summaryEl&&summaryEl.parentNode){
+    let rightGroup=summaryEl.parentNode.querySelector('.review-header-right');
+    if(!rightGroup){
+     rightGroup=document.createElement('div');
+     rightGroup.className='review-header-right';
+     summaryEl.before(rightGroup);
+     rightGroup.append(nav,summaryEl);
+    }else{
+     rightGroup.prepend(nav);
+    }
+   }else{
+    list.before(nav);
+   }
   }
   nav.replaceChildren();
-  const prevBtn=text('button','Previous','review-page-btn');
+  const prevBtn=text('button','‹','review-page-btn');
   prevBtn.type='button';
+  prevBtn.setAttribute('aria-label','Previous reviews');
   prevBtn.disabled=currentPage<=1;
   prevBtn.addEventListener('click',()=>{if(currentPage>1){currentPage--;renderReviewPage();}});
 
-  const status=text('span',`Page ${currentPage} of ${totalPages}`,'review-page-status');
-
-  const nextBtn=text('button','Next','review-page-btn');
+  const nextBtn=text('button','›','review-page-btn');
   nextBtn.type='button';
+  nextBtn.setAttribute('aria-label','Next reviews');
   nextBtn.disabled=currentPage>=totalPages;
   nextBtn.addEventListener('click',()=>{if(currentPage<totalPages){currentPage++;renderReviewPage();}});
 
-  nav.append(prevBtn,status,nextBtn);
+  nav.append(prevBtn,nextBtn);
  }
  function renderReviewPage(){
   list.replaceChildren();
@@ -84,10 +98,11 @@
    renderPagination(0);
    return;
   }
-  const totalPages=Math.max(1,Math.ceil(cachedReviews.length/PAGE_SIZE));
+  const pageSize=getPageSize();
+  const totalPages=Math.max(1,Math.ceil(cachedReviews.length/pageSize));
   if(currentPage>totalPages)currentPage=totalPages;
-  const start=(currentPage-1)*PAGE_SIZE;
-  const pageItems=cachedReviews.slice(start,start+PAGE_SIZE);
+  const start=(currentPage-1)*pageSize;
+  const pageItems=cachedReviews.slice(start,start+pageSize);
   pageItems.forEach(review=>{
    const card=document.createElement('article');
    card.className='store-review';
@@ -128,6 +143,7 @@
  }
  window.addEventListener('kk:profile-updated',refresh);
  window.addEventListener('kk:reviews-updated',refresh);
+ mobileQuery.addEventListener('change',()=>{currentPage=1;renderReviewPage();});
  refresh();setInterval(()=>{if(!document.hidden)refresh();},30000);
  // Put menu search beside the catalog, away from the landing-page header.
  const search=document.querySelector('.search-wrapper');if(search){document.getElementById('menu').after(search);search.style.setProperty('display','flex','important');search.style.marginBottom='18px';}
