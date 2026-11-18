@@ -259,7 +259,7 @@ body.dark-mode #secretStaffLogo {border-color:#f2c12e}
 .about-photo-stack::before,.about-photo-stack::after {border:2px solid #efbd24;background:#26241e}
 
 /* Kenji's storefront notifications. */
-.kk-toast-container {width:min(380px,calc(100vw - 32px));right:20px;left:auto;top:auto;bottom:20px}
+.kk-toast-container {width:min(380px,calc(100vw - 32px));right:20px;left:auto;top:calc(var(--store-header-height, 76px) + 12px);bottom:auto}
 .kk-toast {background:#fffaf0;color:#29251f;border:1px solid #e7d9b8;border-left:0!important;border-top:3px solid #f2c12e;border-radius:12px;padding:12px 14px;gap:10px;box-shadow:0 8px 24px #0000001f}
 .kk-toast-brand {display:block;font-size:10px;letter-spacing:1.3px;font-weight:800;color:#866018;margin-bottom:4px}
 .kk-toast-title {font-size:15px;line-height:1.35;color:#29251f;margin-bottom:3px}
