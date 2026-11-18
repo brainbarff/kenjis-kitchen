@@ -5830,7 +5830,12 @@ async function handleSignOut() {
   appState.currentUser = null;
   appState.favoriteIds.clear();
   appState.favoriteItems = [];
+  appState.cart = [];
+  appState.cartRowFeedback = {};
+  appState.cartStockBanner = '';
+  saveCart();
   localStorage.removeItem('kk_customer_session');
+  closeCartDrawer();
   filterAndRenderMenu();
   closeModal('customerAccountModal');
   closeModal('customerOrdersModal');
