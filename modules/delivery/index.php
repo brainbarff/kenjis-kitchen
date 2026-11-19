@@ -127,6 +127,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new RuntimeException('Invalid courier fee proof selected.');
             }
             $conn->beginTransaction();
+            $cancelReqStmt = $conn->prepare("SELECT id FROM transaction_requests WHERE order_id = ? AND request_type IN ('Cancel Order', 'Cancel Delivery') AND status = 'Pending' LIMIT 1 FOR UPDATE");
+            $cancelReqStmt->execute([$orderId]);
+            if ($cancelReqStmt->fetchColumn()) {
+                throw new RuntimeException('Customer has requested to cancel this order. Review the cancellation request in Order Requests before confirming fee payment.');
+            }
             $updProof = $conn->prepare("UPDATE payment_proofs SET verification_status = 'verified', verified_by = ?, verified_at = NOW() WHERE id = ? AND order_id = ? AND payment_type = 'thirdparty_delivery' AND verification_status = 'pending'");
             $updProof->execute([$actorId, $proofId, $orderId]);
             if ($updProof->rowCount() !== 1) {
@@ -163,7 +168,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $dispatchStmt = $conn->prepare('SELECT * FROM delivery_dispatches WHERE order_id = ? FOR UPDATE');
         $dispatchStmt->execute([$orderId]);
         $dispatch = $dispatchStmt->fetch();
-        $cancellationCheck = $conn->prepare("SELECT COUNT(*) FROM transaction_requests WHERE order_id = ? AND request_type = 'Cancel Delivery' AND status = 'Pending'");
+        $cancellationCheck = $conn->prepare("SELECT COUNT(*) FROM transaction_requests WHERE order_id = ? AND request_type IN ('Cancel Order', 'Cancel Delivery') AND status = 'Pending'");
         $cancellationCheck->execute([$orderId]);
         if ((int)$cancellationCheck->fetchColumn() > 0) throw new RuntimeException('Cancellation review is pending.');
 
@@ -247,6 +252,17 @@ $totalEligiblePages = max(1, (int)ceil($totalEligibleOrders / $perPage));
 $eligiblePage = max(1, min((int)($_GET['eligible_page'] ?? 1), $totalEligiblePages));
 $eligibleOffset = ($eligiblePage - 1) * $perPage;
 
+$deliverySort = strtolower(trim((string)($_GET['sort'] ?? 'action')));
+if (!in_array($deliverySort, ['action', 'fifo', 'newest', 'highest'], true)) {
+    $deliverySort = 'action';
+}
+$ordersOrderBy = match ($deliverySort) {
+    'fifo' => 'o.created_at ASC, o.id ASC',
+    'newest' => 'o.created_at DESC, o.id DESC',
+    'highest' => 'o.total DESC, o.id DESC',
+    default => "CASE WHEN o.status = 'Ready' THEN 0 ELSE 1 END ASC, CASE WHEN o.delivery_mode = 'CUSTOMER_BOOKED' AND o.courier_tracking_status = 'Pending' THEN 0 ELSE 1 END ASC, o.id DESC",
+};
+
 $ordersStmt = $conn->prepare("
     SELECT o.id, o.order_no, o.customer_name, o.customer_phone, o.delivery_address,
            o.delivery_lat, o.delivery_lng, o.coverage_status, o.coverage_boundary_version,
@@ -271,10 +287,7 @@ $ordersStmt = $conn->prepare("
         WHERE pp2.order_id = o.id AND pp2.payment_type = 'thirdparty_delivery' AND pp2.verification_status = 'pending'
     )
     WHERE $eligibleWhereWithFilter
-    ORDER BY
-        CASE WHEN o.status = 'Ready' THEN 0 ELSE 1 END ASC,
-        CASE WHEN o.delivery_mode = 'CUSTOMER_BOOKED' AND o.courier_tracking_status = 'Pending' THEN 0 ELSE 1 END ASC,
-        o.id DESC
+    ORDER BY $ordersOrderBy
     LIMIT :limit OFFSET :offset
 ");
 $ordersStmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
@@ -295,9 +308,10 @@ $historyStmt->bindValue(':offset', $historyOffset, PDO::PARAM_INT);
 $historyStmt->execute();
 $historyOrders = $historyStmt->fetchAll();
 
-$buildDeliveryQuery = static function (array $overrides = []) use ($eligiblePage, $historyPage, $deliveryFilter): string {
+$buildDeliveryQuery = static function (array $overrides = []) use ($eligiblePage, $historyPage, $deliveryFilter, $deliverySort): string {
     $params = array_merge([
         'filter' => $deliveryFilter,
+        'sort' => $deliverySort,
         'eligible_page' => $eligiblePage,
         'history_page' => $historyPage,
     ], $overrides);
@@ -329,7 +343,22 @@ include ROOT_PATH . '/includes/header.php';
         </a>
         <?php endforeach; ?>
     </nav>
-    <div class="delivery-filter-summary"><span><?= $deliveryFilter === 'all' ? 'Showing all delivery orders' : 'Filtering eligible orders and history by: ' . e(['lagro' => 'Within Lagro', 'outside' => 'Outside Lagro', 'cod' => 'Cash on delivery'][$deliveryFilter]) ?></span><?php if ($deliveryFilter !== 'all'): ?><a href="?filter=all">Show all deliveries</a><?php endif; ?></div>
+    <div class="delivery-filter-summary">
+        <span><?= $deliveryFilter === 'all' ? 'Showing all delivery orders' : 'Filtering eligible orders and history by: ' . e(['lagro' => 'Within Lagro', 'outside' => 'Outside Lagro', 'cod' => 'Cash on delivery'][$deliveryFilter]) ?></span>
+        <?php if ($deliveryFilter !== 'all'): ?><a href="<?= e($buildDeliveryQuery(['filter' => 'all', 'eligible_page' => 1, 'history_page' => 1])) ?>">Show all deliveries</a><?php endif; ?>
+        <form method="GET" style="margin-left:auto; display:inline-flex; align-items:center; gap:8px;">
+            <input type="hidden" name="filter" value="<?= e($deliveryFilter) ?>">
+            <label class="kk-queue-sort-wrap" style="margin:0;">
+                <span>Prioritize</span>
+                <select class="kk-queue-sort" name="sort" aria-label="Prioritize delivery orders" onchange="this.form.submit()">
+                    <option value="action" <?= $deliverySort === 'action' ? 'selected' : '' ?>>Action needed first</option>
+                    <option value="fifo" <?= $deliverySort === 'fifo' ? 'selected' : '' ?>>First in, first out</option>
+                    <option value="newest" <?= $deliverySort === 'newest' ? 'selected' : '' ?>>Newest first</option>
+                    <option value="highest" <?= $deliverySort === 'highest' ? 'selected' : '' ?>>Highest total (₱)</option>
+                </select>
+            </label>
+        </form>
+    </div>
     <?php if ($deliveryFilter === 'outside'): ?>
     <div class="outside-policy-banner" role="note">
         <span class="outside-policy-icon" aria-hidden="true"><i class="bi bi-shield-check"></i></span>

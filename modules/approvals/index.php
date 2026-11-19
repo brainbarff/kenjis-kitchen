@@ -372,6 +372,7 @@ $pending = $conn->query("
     ORDER BY ar.created_at ASC, ar.id ASC
 ")->fetchAll();
 $highlightId = (int)($_GET['highlight'] ?? 0);
+$pendingOrderReqCount = (int)$conn->query("SELECT COUNT(*) FROM transaction_requests WHERE status = 'Pending'")->fetchColumn();
 
 $statusCountsStmt = $conn->query("SELECT status, COUNT(*) AS cnt FROM approval_requests WHERE status IN ('Approved','Rejected') GROUP BY status");
 $approvedCount = 0;
@@ -476,6 +477,12 @@ tr.approval-row-highlight td { background:#fffbeb!important; box-shadow:inset 0 
 </style>
 
 <?php if ($msg): ?><div class="alert alert-<?= $msgType === 'danger' ? 'danger' : 'success' ?>"><?= e($msg) ?></div><?php endif; ?>
+<?php if ($pendingOrderReqCount > 0): ?>
+<div class="alert alert-warning" style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:16px;">
+    <span><i class="bi bi-exclamation-triangle-fill"></i> There <?= $pendingOrderReqCount === 1 ? 'is <strong>1</strong> pending order cancellation / refund request' : "are <strong>{$pendingOrderReqCount}</strong> pending order cancellation / refund requests" ?> awaiting review.</span>
+    <a class="btn btn-sm" href="<?= e(BASE_URL . '/modules/transactions/index.php') ?>" style="background:#f7c62f; color:#242424; font-weight:700; text-decoration:none; padding:6px 12px; border-radius:8px;">Open Order Requests →</a>
+</div>
+<?php endif; ?>
 
 <div class="approvals-workspace">
 <header class="approval-heading"><div><p class="muted">Review menu and inventory changes before they take effect at Kenji’s Kitchen.</p></div><a class="approval-reset" href="?status=all" <?= $filter === 'all' ? 'aria-current="page"' : '' ?>>View all requests</a></header>

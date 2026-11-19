@@ -103,7 +103,7 @@ function getTableOrChannelBadge(order) {
     if (order.order_type === 'DINE-IN') {
         return `<span class="kds-table-badge"><i class="bi bi-geo-alt-fill"></i> Table ${escapeHtml(order.table_no || 'TBD')}</span>`;
     }
-    if (order.order_channel === 'ONLINE' || order.fulfillment_mode === 'PICKUP') {
+    if (order.order_channel === 'ONLINE' && order.order_type !== 'ONLINE') {
         return `<span class="kds-table-badge"><i class="bi bi-bag-check-fill"></i> Online Pickup</span>`;
     }
     return `<span class="kds-table-badge"><i class="bi bi-bag-check-fill"></i> Take-Out</span>`;
@@ -195,6 +195,82 @@ function renderEmptyState(label) {
     return '<div class="kds-empty-col"><i class="bi bi-' + icon + '" aria-hidden="true"></i><p>' + title + '</p><small>' + description + '</small></div>';
 }
 
+let kdsLastOrders = [];
+let kdsFilter = localStorage.getItem('kk_kds_filter') || 'all';
+let kdsSort = localStorage.getItem('kk_kds_sort') || 'fifo';
+
+function matchesKdsFilter(order) {
+    if (kdsFilter === 'dine-in') return order.order_type === 'DINE-IN';
+    if (kdsFilter === 'takeout') return order.order_channel !== 'ONLINE' && order.order_type === 'TAKE-OUT';
+    if (kdsFilter === 'pickup') return order.order_channel === 'ONLINE' && order.order_type !== 'ONLINE';
+    if (kdsFilter === 'delivery') return order.order_type === 'ONLINE';
+    return true;
+}
+
+function renderKdsBoard(safeOrders) {
+    const filtered = safeOrders.filter(matchesKdsFilter);
+    const ordered = window.kkSortOrders
+        ? window.kkSortOrders(filtered, kdsSort, { timeField: 'kitchen_queued_at' })
+        : filtered;
+
+    // Segregate into the 3 columns:
+    const pendingOrders = ordered.filter(o => o.status === 'Pending');
+    const preparingOrders = ordered.filter(o => o.status === 'Preparing');
+    const readyOrders = ordered.filter(o => o.status === 'Ready');
+
+    if (kdsTotalActive) kdsTotalActive.textContent = ordered.length;
+    if (countPending) countPending.textContent = pendingOrders.length;
+    if (countPreparing) countPreparing.textContent = preparingOrders.length;
+    if (countReady) countReady.textContent = readyOrders.length;
+
+    // Populate Column 1: New Orders
+    if (ticketsPending) {
+        ticketsPending.innerHTML = pendingOrders.length
+            ? pendingOrders.map(renderTicket).join('')
+            : renderEmptyState('new pending');
+    }
+
+    // Populate Column 2: Preparing
+    if (ticketsPreparing) {
+        ticketsPreparing.innerHTML = preparingOrders.length
+            ? preparingOrders.map(renderTicket).join('')
+            : renderEmptyState('in-progress preparing');
+    }
+
+    // Populate Column 3: To Be Served (Ready)
+    if (ticketsReady) {
+        ticketsReady.innerHTML = readyOrders.length
+            ? readyOrders.map(renderTicket).join('')
+            : renderEmptyState('ready to serve');
+    }
+}
+
+(function initKdsQueueControls() {
+    const pillsEl = document.getElementById('kdsFilterPills');
+    const sortEl = document.getElementById('kdsSortSelect');
+    if (pillsEl) {
+        pillsEl.querySelectorAll('[data-kds-filter]').forEach(btn => {
+            btn.classList.toggle('active', btn.getAttribute('data-kds-filter') === kdsFilter);
+        });
+        pillsEl.addEventListener('click', e => {
+            const btn = e.target.closest('[data-kds-filter]');
+            if (!btn) return;
+            kdsFilter = btn.getAttribute('data-kds-filter') || 'all';
+            localStorage.setItem('kk_kds_filter', kdsFilter);
+            pillsEl.querySelectorAll('[data-kds-filter]').forEach(b => b.classList.toggle('active', b === btn));
+            renderKdsBoard(kdsLastOrders);
+        });
+    }
+    if (sortEl) {
+        sortEl.value = kdsSort;
+        sortEl.addEventListener('change', () => {
+            kdsSort = sortEl.value || 'fifo';
+            localStorage.setItem('kk_kds_sort', kdsSort);
+            renderKdsBoard(kdsLastOrders);
+        });
+    }
+})();
+
 async function loadOrders() {
     try {
         const res = await fetch('fetch_orders.php');
@@ -205,37 +281,8 @@ async function loadOrders() {
         }
 
         alertForNewOnlineOrders(safeOrders);
-
-        // Segregate into the 3 columns:
-        const pendingOrders = safeOrders.filter(o => o.status === 'Pending');
-        const preparingOrders = safeOrders.filter(o => o.status === 'Preparing');
-        const readyOrders = safeOrders.filter(o => o.status === 'Ready');
-
-        if (kdsTotalActive) kdsTotalActive.textContent = safeOrders.length;
-        if (countPending) countPending.textContent = pendingOrders.length;
-        if (countPreparing) countPreparing.textContent = preparingOrders.length;
-        if (countReady) countReady.textContent = readyOrders.length;
-
-        // Populate Column 1: New Orders
-        if (ticketsPending) {
-            ticketsPending.innerHTML = pendingOrders.length
-                ? pendingOrders.map(renderTicket).join('')
-                : renderEmptyState('new pending');
-        }
-
-        // Populate Column 2: Preparing
-        if (ticketsPreparing) {
-            ticketsPreparing.innerHTML = preparingOrders.length
-                ? preparingOrders.map(renderTicket).join('')
-                : renderEmptyState('in-progress preparing');
-        }
-
-        // Populate Column 3: To Be Served (Ready)
-        if (ticketsReady) {
-            ticketsReady.innerHTML = readyOrders.length
-                ? readyOrders.map(renderTicket).join('')
-                : renderEmptyState('ready to serve');
-        }
+        kdsLastOrders = safeOrders;
+        renderKdsBoard(safeOrders);
 
     } catch (error) {
         console.error('KDS loadOrders error:', error);

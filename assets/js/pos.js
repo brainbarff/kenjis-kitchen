@@ -3189,6 +3189,8 @@ if (checkoutBtn) {
                     if (Array.isArray(json.stock_updates)) {
                         syncPosStockUpdates(json.stock_updates);
                     }
+                    refreshPosMenuStock();
+                    loadOnlineOrders(false);
                     showPosAlert(
                         'Order Not Completed',
                         json.msg ||
@@ -3350,24 +3352,50 @@ function onlineOrderStatusClass(status) {
     return '';
 }
 
+function formatOnlineOrderTypeLabel(order) {
+    if (!order || order.order_type !== 'ONLINE') {
+        return 'Online Pickup';
+    }
+    const isOutside = String(order.fulfillment_mode || '').toUpperCase() === 'OUTSIDE'
+        || String(order.delivery_mode || '').toUpperCase() === 'CUSTOMER_BOOKED';
+    return isOutside
+        ? 'Online Delivery (Outside Lagro)'
+        : 'Online Delivery (Within Lagro)';
+}
+
 let onlineOrdersData = [];
+let posOnlineFilter = localStorage.getItem('kk_pos_online_filter') || 'all';
+let posOnlineSort = localStorage.getItem('kk_pos_online_sort') || 'newest';
+
+function getVisibleOnlineOrders(orders) {
+    const filtered = (Array.isArray(orders) ? orders : []).filter(order => {
+        if (posOnlineFilter === 'delivery') return order.order_type === 'ONLINE';
+        if (posOnlineFilter === 'pickup') return order.order_type !== 'ONLINE';
+        if (posOnlineFilter === 'pending') return order.status === 'Pending';
+        if (posOnlineFilter === 'preparing') return order.status === 'Preparing';
+        if (posOnlineFilter === 'ready') return order.status === 'Ready';
+        return true;
+    });
+    return window.kkSortOrders ? window.kkSortOrders(filtered, posOnlineSort, { timeField: 'created_at' }) : filtered;
+}
 
 function renderOnlineOrders(orders) {
     onlineOrdersData = Array.isArray(orders) ? orders : [];
     if (!onlineOrdersList) return;
 
-    if (!orders.length) {
+    const visibleOrders = getVisibleOnlineOrders(onlineOrdersData);
+    if (!visibleOrders.length) {
         onlineOrdersList.innerHTML = `
             <div class="online-orders-empty">
                 <span class="online-empty-icon"><i class="bi bi-bag-check"></i></span>
-                <strong>No active online orders</strong>
-                <p>Today’s active Kenji’s Kitchen online orders will appear here.<br>Use Refresh to check for new orders.</p>
+                <strong>${onlineOrdersData.length ? 'No matching online orders' : 'No active online orders'}</strong>
+                <p>${onlineOrdersData.length ? 'Try another filter pill or sort option.' : 'Today’s active Kenji’s Kitchen online orders will appear here.<br>Use Refresh to check for new orders.'}</p>
             </div>
         `;
         return;
     }
 
-    onlineOrdersList.innerHTML = orders.map(order => {
+    onlineOrdersList.innerHTML = visibleOrders.map(order => {
         const statusClass = onlineOrderStatusClass(order.status);
         const items = Array.isArray(order.items) ? order.items : [];
         const itemHtml = items.map(item => `
@@ -3380,7 +3408,7 @@ function renderOnlineOrders(orders) {
             </div>
         `).join('');
 
-        const fulfillment = order.order_type === 'ONLINE' ? 'Delivery' : 'Take-Out';
+        const fulfillment = formatOnlineOrderTypeLabel(order);
         return `
             <div class="online-order-card">
                 <div class="online-order-card-head">
@@ -3542,10 +3570,29 @@ async function loadOnlineOrders(showLoading = false) {
             onlineOrdersBadge.classList.toggle('has-pending', pendingCount > 0);
         }
 
-        if (knownOnlineOrderIds !== null && [...currentIds].some(id => !knownOnlineOrderIds.has(id))) {
+        const newOrders = knownOnlineOrderIds !== null
+            ? orders.filter(order => !knownOnlineOrderIds.has(String(order.id)))
+            : [];
+        if (newOrders.length > 0) {
             window.KenjiOrderSounds?.play('online');
             onlineOrdersBtn?.classList.add('has-new-order');
             setTimeout(() => onlineOrdersBtn?.classList.remove('has-new-order'), 2500);
+            refreshPosMenuStock();
+            if (window.kkNotify) {
+                const newest = newOrders[0];
+                const typeLabel = formatOnlineOrderTypeLabel(newest);
+                const payLabel = newest.payment_method ? ` · ${newest.payment_method}` : '';
+                const extra = newOrders.length > 1 ? ` (+${newOrders.length - 1} more)` : '';
+                window.kkNotify(
+                    `${typeLabel}${payLabel} · ${peso.format(Number(newest.total || 0))}${extra}`,
+                    'info',
+                    {
+                        title: `New ${typeLabel}: ${newest.order_no || ''}`.trim(),
+                        dedupeKey: `pos-online-${newest.id}`,
+                        duration: 7000
+                    }
+                );
+            }
         }
 
         knownOnlineOrderIds = currentIds;
@@ -3581,6 +3628,32 @@ if (refreshOnlineOrdersBtn) {
     refreshOnlineOrdersBtn.addEventListener('click', () => loadOnlineOrders(true));
 }
 
+(function initPosOnlineQueueControls() {
+    const pillsEl = document.getElementById('posOnlineFilterPills');
+    const sortEl = document.getElementById('posOnlineSortSelect');
+    if (pillsEl) {
+        pillsEl.querySelectorAll('[data-pos-online-filter]').forEach(btn => {
+            btn.classList.toggle('active', btn.getAttribute('data-pos-online-filter') === posOnlineFilter);
+        });
+        pillsEl.addEventListener('click', event => {
+            const btn = event.target.closest('[data-pos-online-filter]');
+            if (!btn) return;
+            posOnlineFilter = btn.getAttribute('data-pos-online-filter') || 'all';
+            localStorage.setItem('kk_pos_online_filter', posOnlineFilter);
+            pillsEl.querySelectorAll('[data-pos-online-filter]').forEach(b => b.classList.toggle('active', b === btn));
+            renderOnlineOrders(onlineOrdersData);
+        });
+    }
+    if (sortEl) {
+        sortEl.value = posOnlineSort;
+        sortEl.addEventListener('change', () => {
+            posOnlineSort = sortEl.value || 'newest';
+            localStorage.setItem('kk_pos_online_sort', posOnlineSort);
+            renderOnlineOrders(onlineOrdersData);
+        });
+    }
+})();
+
 if (onlineOrdersOverlay) {
     onlineOrdersOverlay.addEventListener('click', event => {
         if (event.target === onlineOrdersOverlay) {
@@ -3595,7 +3668,50 @@ document.addEventListener('keydown', event => {
     }
 });
 
+let posStockSyncInflight = false;
+let posStockLastSignature = null;
+let posStockTimer = null;
+
+async function refreshPosMenuStock() {
+    if (posStockSyncInflight) return;
+    posStockSyncInflight = true;
+    try {
+        const res = await fetch('fetch_stock.php', {
+            method: 'GET',
+            headers: { 'Accept': 'application/json' },
+            cache: 'no-store'
+        });
+        if (!res.ok) return;
+        const json = await res.json();
+        if (!json || !json.ok || !Array.isArray(json.items)) return;
+        const signature = json.items
+            .map(it => `${it.id}:${Math.max(0, Math.floor(Number(it.stock ?? 0)))}:${it.availability || 'Available'}`)
+            .join('|');
+        if (signature === posStockLastSignature) return;
+        posStockLastSignature = signature;
+        syncPosStockUpdates(json.items);
+        updateMenuCardControls();
+    } catch (_) {
+        // Ignore transient network errors during background stock sync.
+    } finally {
+        posStockSyncInflight = false;
+    }
+}
+
 loadOnlineOrders(false);
-onlineOrdersTimer = setInterval(() => loadOnlineOrders(false), 5000);
+onlineOrdersTimer = setInterval(() => {
+    if (!document.hidden) loadOnlineOrders(false);
+}, 5000);
+
+refreshPosMenuStock();
+posStockTimer = setInterval(() => {
+    if (!document.hidden) refreshPosMenuStock();
+}, 4000);
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+        loadOnlineOrders(false);
+        refreshPosMenuStock();
+    }
+});
 
 renderCart();

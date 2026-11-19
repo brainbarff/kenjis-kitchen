@@ -903,15 +903,28 @@ if ($action === 'forgot_password_send') {
     $userStmt->execute([$email, $email]);
     $user = $userStmt->fetch();
 
-    $neutralSuccessMessage = 'If an active customer account is registered with this email address, a 6-digit password reset code has been sent to your inbox.';
-
-    // Never allow resetting staff accounts or inactive/archived/unverified accounts; return neutral response to prevent enumeration
-    if (!$user || !is_active_online_customer($user)) {
+    if (!$user) {
         online_json([
-            'ok'      => true,
-            'status'  => 'success',
-            'message' => $neutralSuccessMessage
-        ]);
+            'ok'      => false,
+            'status'  => 'error',
+            'message' => 'No customer account is registered with that email address. Please register an account first.'
+        ], 404);
+    }
+
+    if (($user['role_name'] ?? '') !== 'Customer (Online)') {
+        online_json([
+            'ok'      => false,
+            'status'  => 'error',
+            'message' => 'Staff accounts cannot reset passwords here. Please contact an administrator.'
+        ], 403);
+    }
+
+    if (!is_active_online_customer($user)) {
+        online_json([
+            'ok'      => false,
+            'status'  => 'error',
+            'message' => 'This customer account is inactive or not yet email-verified. Please complete registration or contact support.'
+        ], 403);
     }
 
     $code     = (string)random_int(100000, 999999);
@@ -951,7 +964,7 @@ if ($action === 'forgot_password_send') {
     online_json([
         'ok'      => true,
         'status'  => 'success',
-        'message' => $neutralSuccessMessage
+        'message' => 'A 6-digit password reset code has been sent to your registered email address.'
     ]);
 }
 

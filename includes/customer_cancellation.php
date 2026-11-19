@@ -35,12 +35,12 @@ function customer_cancel_context(PDO $conn, array $order, bool $lock = false): a
 
 function customer_cancel_stock_plan(PDO $conn, array $order): array
 {
-    $logs = $conn->prepare("SELECT menu_item_id, quantity, action, remarks FROM inventory_logs WHERE remarks LIKE ? ORDER BY id FOR UPDATE");
-    $logs->execute(['%' . $order['order_no'] . '%']);
+    $expectedRemark = 'Online order ' . $order['order_no'] . ' auto-deduction';
+    $logs = $conn->prepare("SELECT menu_item_id, quantity, action, remarks FROM inventory_logs WHERE action = 'Order Deduction' AND remarks = ? ORDER BY id FOR UPDATE");
+    $logs->execute([$expectedRemark]);
     $plan = [];
     foreach ($logs->fetchAll() as $log) {
-        if ($log['action'] !== 'Order Deduction' || $log['remarks'] !== 'Online order ' . $order['order_no'] . ' auto-deduction'
-            || (int)$log['menu_item_id'] < 1 || (float)$log['quantity'] <= 0 || (float)$log['quantity'] != (int)$log['quantity']) {
+        if ((int)$log['menu_item_id'] < 1 || (float)$log['quantity'] <= 0 || (float)$log['quantity'] != (int)$log['quantity']) {
             throw new DomainException('Stock history needs staff investigation before cancellation can be approved.');
         }
         $id = (int)$log['menu_item_id'];
@@ -68,10 +68,10 @@ function customer_cancel_apply(PDO $conn, array $order, array $plan, int $actor,
     $update = $conn->prepare("UPDATE orders SET status = 'Cancelled', cancelled_at = NOW(), cancel_reason = ?, inventory_deducted = 0 WHERE id = ? AND status = 'Pending' AND preparing_at IS NULL AND ready_at IS NULL AND served_at IS NULL");
     $update->execute([mb_substr($reason, 0, 255), $order['id']]);
     if ($update->rowCount() !== 1) throw new DomainException('Order status changed. Refresh your orders.');
-    $stock = $conn->prepare("UPDATE menu_items SET availability = CASE WHEN stock = 0 AND is_archived = 0 AND availability = 'Unavailable' THEN 'Available' ELSE availability END, stock = stock + ? WHERE id = ?");
+    $stock = $conn->prepare("UPDATE menu_items SET availability = CASE WHEN (stock + ?) > 0 AND is_archived = 0 AND availability = 'Unavailable' THEN 'Available' ELSE availability END, stock = stock + ? WHERE id = ?");
     $log = $conn->prepare("INSERT INTO inventory_logs (menu_item_id, user_id, action, quantity, remarks) VALUES (?, ?, 'Stock In', ?, ?)");
     foreach ($plan as $id => $qty) {
-        $stock->execute([$qty, $id]);
+        $stock->execute([$qty, $qty, $id]);
         if ($stock->rowCount() !== 1) throw new DomainException('A stock item is missing. Staff investigation is required.');
         $log->execute([$id, $actor, $qty, 'Customer cancellation ' . $order['order_no'] . ' stock return']);
     }

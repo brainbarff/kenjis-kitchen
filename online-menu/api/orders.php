@@ -5,7 +5,9 @@ header('Content-Type: application/json; charset=UTF-8');
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'GET' && ($_GET['action'] ?? '') === 'pickup_slots') {
     require_once dirname(__DIR__, 2) . '/includes/checkout_requests.php';
     header('Cache-Control: no-store');
-    echo json_encode(['status' => 'success', 'days' => kk_pickup_slots()]);
+    $requiresAdvance = !empty($_GET['advance']);
+    $days = $requiresAdvance ? kk_pickup_slots(null, 1440, 4) : kk_pickup_slots();
+    echo json_encode(['status' => 'success', 'advance' => $requiresAdvance, 'days' => $days]);
     exit;
 }
 
@@ -633,13 +635,6 @@ try {
         order_json($replay, 200);
     }
 
-    if ($fulfillment === 'PICKUP') {
-        $pickupAt = kk_validate_pickup_time($data['pickup_at'] ?? null);
-        $pickupDate = new DateTimeImmutable($pickupAt, new DateTimeZone('Asia/Manila'));
-        $notes = '[Pickup: ' . $pickupDate->format('M j, Y g:i A') . ' Philippine time] ' . $notes;
-        if (mb_strlen($notes, 'UTF-8') > 1000) throw new InvalidArgumentException('Please shorten your order notes.');
-    }
-
     $profile = $conn->prepare("UPDATE users SET full_name = CASE WHEN full_name IS NULL OR TRIM(full_name) = '' THEN ? ELSE full_name END, phone = ?, customer_address = CASE WHEN ? = '' THEN customer_address ELSE ? END WHERE id = ? AND status = 'Active'");
     $profile->execute([$name, $phone, $address, $address, $customerId]);
     if ($profile->rowCount() < 0) {
@@ -686,9 +681,9 @@ try {
         $availStock = max(0, (int)$product['stock']);
         if ($totalQtyForId > 0 && $availStock < $totalQtyForId) {
             if ($availStock <= 0) {
-                throw new RuntimeException($product['item_name'] . ' is currently out of stock.');
+                throw new RuntimeException($product['item_name'] . ' is currently out of stock — remaining stock was claimed by an earlier walk-in or online order.');
             }
-            throw new RuntimeException('Only ' . $availStock . ' left in stock for ' . $product['item_name'] . ' (requested ' . $totalQtyForId . ').');
+            throw new RuntimeException('Only ' . $availStock . ' left in stock for ' . $product['item_name'] . ' (requested ' . $totalQtyForId . ') — remaining stock was claimed by an earlier walk-in or online order.');
         }
         $lockedProducts[$menuId] = $product;
     }
@@ -696,6 +691,8 @@ try {
     $normalized = [];
     $subtotal = 0.0;
     $today = date('Y-m-d');
+    $hasAdvanceBilao = false;
+    $hasImmediateItem = false;
 
     foreach ($data['items'] as $entry) {
         $menuId = (int)filter_var($entry['menu_item_id'] ?? null, FILTER_VALIDATE_INT);
@@ -725,9 +722,15 @@ try {
             }
             $packagingLabel = ($packaging === 'TRAY') ? 'Tray' : 'Bilao';
             $itemName = $dishName . ' ' . $packagingLabel . ' (' . $requestedSize . ')';
+            if (in_array($requestedSize, ['M', 'L', 'XL'], true)) {
+                $hasAdvanceBilao = true;
+            } else {
+                $hasImmediateItem = true;
+            }
         } else {
             $packagingLabel = null;
             $itemName = (string)$product['item_name'];
+            $hasImmediateItem = true;
         }
 
         $customerNote = trim(strip_tags((string)($entry['notes'] ?? '')));
@@ -755,6 +758,19 @@ try {
             'line_total' => $lineTotal,
             'notes' => $itemNote
         ];
+    }
+
+    if ($hasAdvanceBilao && $hasImmediateItem) {
+        throw new InvalidArgumentException('Orders cannot combine regular same-day items with Medium, Large, or Extra Large Bilao platters (which require 1 to 2 days advance preparation). Please place separate orders.');
+    }
+    if ($hasAdvanceBilao && $fulfillment !== 'PICKUP') {
+        throw new InvalidArgumentException('Medium, Large, and Extra Large Bilao platters require scheduled Pickup at least 1 to 2 days in advance and cannot use same-day Delivery.');
+    }
+    if ($fulfillment === 'PICKUP') {
+        $pickupAt = kk_validate_pickup_time($data['pickup_at'] ?? null, null, $hasAdvanceBilao);
+        $pickupDate = new DateTimeImmutable($pickupAt, new DateTimeZone('Asia/Manila'));
+        $notes = '[Pickup: ' . $pickupDate->format('M j, Y g:i A') . ' Philippine time] ' . $notes;
+        if (mb_strlen($notes, 'UTF-8') > 1000) throw new InvalidArgumentException('Please shorten your order notes.');
     }
 
     $total = round($subtotal, 2);

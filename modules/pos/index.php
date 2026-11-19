@@ -2453,6 +2453,25 @@ include ROOT_PATH . '/includes/header.php';
                 <button type="button" class="online-orders-modal-btn" id="closeOnlineOrdersBtn">Close</button>
             </div>
         </div>
+        <div class="kk-queue-toolbar" id="posOnlineToolbar" style="margin:12px 12px 0;">
+            <div class="kk-queue-pills" id="posOnlineFilterPills" role="group" aria-label="Filter online orders">
+                <button type="button" class="kk-queue-pill active" data-pos-online-filter="all">All</button>
+                <button type="button" class="kk-queue-pill" data-pos-online-filter="delivery">Delivery</button>
+                <button type="button" class="kk-queue-pill" data-pos-online-filter="pickup">Pickup</button>
+                <button type="button" class="kk-queue-pill" data-pos-online-filter="pending">Pending</button>
+                <button type="button" class="kk-queue-pill" data-pos-online-filter="preparing">Preparing</button>
+                <button type="button" class="kk-queue-pill" data-pos-online-filter="ready">Ready</button>
+            </div>
+            <label class="kk-queue-sort-wrap">
+                <span>Prioritize</span>
+                <select class="kk-queue-sort" id="posOnlineSortSelect" aria-label="Prioritize online orders">
+                    <option value="newest">Newest first</option>
+                    <option value="fifo">First in, first out</option>
+                    <option value="pickup">Scheduled pickup time</option>
+                    <option value="fewest">Fewest items first</option>
+                </select>
+            </label>
+        </div>
         <div class="online-orders-list" id="onlineOrdersList">
             <div class="online-orders-empty">Loading online orders...</div>
         </div>

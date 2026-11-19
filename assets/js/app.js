@@ -794,3 +794,51 @@ window.addEventListener('pageshow', function (event) {
         }
     });
 })();
+
+// Shared staff queue prioritization helper (FIFO, Newest, Scheduled pickup time, Fewest items)
+window.kkSortOrders = function kkSortOrders(orders, sortKey, opts = {}) {
+    const list = Array.isArray(orders) ? orders.slice() : [];
+    const timeField = opts.timeField || 'created_at';
+    const toMs = (val) => {
+        if (!val) return 0;
+        const t = Date.parse(String(val).replace(' ', 'T'));
+        return Number.isFinite(t) ? t : 0;
+    };
+    const pickupMs = (o) => {
+        const note = String(o?.notes || '');
+        const match = note.match(/\[Pickup:\s*([^\]]+?)(?:\s+Philippine time)?\]/i);
+        if (match && match[1]) {
+            const t = Date.parse(match[1].trim());
+            if (Number.isFinite(t)) return t;
+        }
+        return Number.POSITIVE_INFINITY;
+    };
+    const itemCount = (o) => {
+        if (Array.isArray(o?.items)) {
+            return o.items.reduce((sum, it) => sum + Math.max(1, Number(it?.quantity || 1)), 0);
+        }
+        return Number(o?.item_count || 0);
+    };
+    const orderTime = (o) => toMs(o?.[timeField]) || toMs(o?.created_at) || Number(o?.id || 0);
+
+    list.sort((a, b) => {
+        if (sortKey === 'newest') {
+            return (orderTime(b) - orderTime(a)) || (Number(b.id || 0) - Number(a.id || 0));
+        }
+        if (sortKey === 'pickup') {
+            const pa = pickupMs(a);
+            const pb = pickupMs(b);
+            if (pa !== pb) return pa - pb;
+            return (orderTime(a) - orderTime(b)) || (Number(a.id || 0) - Number(b.id || 0));
+        }
+        if (sortKey === 'fewest') {
+            const ca = itemCount(a);
+            const cb = itemCount(b);
+            if (ca !== cb) return ca - cb;
+            return (orderTime(a) - orderTime(b)) || (Number(a.id || 0) - Number(b.id || 0));
+        }
+        // Default: fifo (First in, first out)
+        return (orderTime(a) - orderTime(b)) || (Number(a.id || 0) - Number(b.id || 0));
+    });
+    return list;
+};

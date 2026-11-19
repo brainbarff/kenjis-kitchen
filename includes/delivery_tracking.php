@@ -1736,6 +1736,12 @@ function kk_review_option1_tracking_link(PDO $conn, int $orderId, string $decisi
 
     $releasedToKitchen = false;
     if ($decision === 'verify') {
+        $cancelReqStmt = $conn->prepare("SELECT id FROM transaction_requests WHERE order_id = ? AND request_type IN ('Cancel Order', 'Cancel Delivery') AND status = 'Pending' LIMIT 1 FOR UPDATE");
+        $cancelReqStmt->execute([$orderId]);
+        if ($cancelReqStmt->fetchColumn()) {
+            throw new RuntimeException('Customer has requested to cancel this order. Review the cancellation request in Order Requests before approving tracking.');
+        }
+
         $validUrl = normalize_delivery_tracking_url((string)($order['delivery_tracking_url'] ?? ''));
         if ($validUrl === null) {
             throw new RuntimeException('Customer must submit a valid HTTPS courier tracking link before approval.');

@@ -508,6 +508,24 @@ include ROOT_PATH . '/includes/header.php';
         </button>
     </section>
 
+    <div class="kk-queue-toolbar" id="servingQueueToolbar">
+        <div class="kk-queue-pills" id="servingFilterPills" role="group" aria-label="Filter ready orders">
+            <button type="button" class="kk-queue-pill active" data-serving-pill="all">All</button>
+            <button type="button" class="kk-queue-pill" data-serving-pill="dine">Dine-In</button>
+            <button type="button" class="kk-queue-pill" data-serving-pill="takeout">Takeout</button>
+            <button type="button" class="kk-queue-pill" data-serving-pill="online-pickup">Online Pickup</button>
+        </div>
+        <label class="kk-queue-sort-wrap">
+            <span>Prioritize</span>
+            <select class="kk-queue-sort" id="servingSortSelect" aria-label="Prioritize ready orders">
+                <option value="fifo">First in, first out</option>
+                <option value="newest">Newest first</option>
+                <option value="pickup">Scheduled pickup time</option>
+                <option value="fewest">Fewest items first</option>
+            </select>
+        </label>
+    </div>
+
     <div id="serveError" hidden></div>
 
     <section class="serving-grid" id="servingGrid">

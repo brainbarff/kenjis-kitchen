@@ -62,7 +62,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // 1. Approve COD Order
     if ($action === 'approve_cod') {
         $orderId = (int)($_POST['order_id'] ?? 0);
-        $deliveredBy = !empty($_POST['delivered_by_user_id']) ? (int)$_POST['delivered_by_user_id'] : null;
         try {
             if ($orderId < 1) throw new RuntimeException('Select a COD order.');
             $conn->beginTransaction();
@@ -72,28 +71,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$ordInfo || $ordInfo['order_channel'] !== 'ONLINE' || $ordInfo['order_type'] !== 'ONLINE' || $ordInfo['status'] !== 'Pending' || $ordInfo['cod_approval_status'] !== 'Pending') {
                 throw new RuntimeException('This COD delivery is no longer awaiting approval.');
             }
+            $cancelReqStmt = $conn->prepare("SELECT id FROM transaction_requests WHERE order_id = ? AND request_type IN ('Cancel Order', 'Cancel Delivery') AND status = 'Pending' LIMIT 1 FOR UPDATE");
+            $cancelReqStmt->execute([$orderId]);
+            if ($cancelReqStmt->fetchColumn()) {
+                throw new RuntimeException('Customer has requested to cancel this order. Review the cancellation request in Order Requests before approving COD.');
+            }
             $paymentStmt = $conn->prepare('SELECT payment_method, payment_status FROM payments WHERE order_id = ? ORDER BY id DESC LIMIT 1 FOR UPDATE');
             $paymentStmt->execute([$orderId]);
             $payment = $paymentStmt->fetch();
             if (!$payment || $payment['payment_method'] !== 'Cash on Delivery' || $payment['payment_status'] !== 'Pending') {
                 throw new RuntimeException('This delivery is no longer an unpaid COD order.');
             }
-            if ($deliveredBy !== null) {
-                $riderStmt = $conn->prepare("
-                    SELECT COUNT(*)
-                    FROM users u
-                    JOIN roles r ON r.id = u.role_id
-                    WHERE u.id = ?
-                      AND u.status = 'Active'
-                      AND u.is_archived = 0
-                      AND u.deleted_at IS NULL
-                      AND r.role_name IN ('Admin', 'Cashier', 'Kitchen Staff', 'Inventory Staff')
-                ");
-                $riderStmt->execute([$deliveredBy]);
-                if ((int)$riderStmt->fetchColumn() !== 1) throw new RuntimeException('Choose an active delivery staff member.');
-            }
-            $update = $conn->prepare("UPDATE orders SET cod_approval_status = 'Approved', cod_approved_by = ?, delivered_by_user_id = ?, kitchen_queued_at = NOW() WHERE id = ? AND status = 'Pending' AND cod_approval_status = 'Pending'");
-            $update->execute([$userId, $deliveredBy, $orderId]);
+            $update = $conn->prepare("UPDATE orders SET cod_approval_status = 'Approved', cod_approved_by = ?, delivered_by_user_id = NULL, kitchen_queued_at = NOW() WHERE id = ? AND status = 'Pending' AND cod_approval_status = 'Pending'");
+            $update->execute([$userId, $orderId]);
             if ($update->rowCount() !== 1) throw new RuntimeException('COD order changed during approval.');
             log_audit($conn, 'cod_order_approved', 'order', (string)$orderId, "COD order approved by {$currentUser['username']}");
             $conn->commit();
@@ -133,12 +123,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ((int)$order['inventory_deducted'] === 1) {
                 $itemsStmt = $conn->prepare('SELECT menu_item_id, SUM(quantity - voided_quantity) AS qty FROM order_items WHERE order_id = ? GROUP BY menu_item_id');
                 $itemsStmt->execute([$orderId]);
-                $restock = $conn->prepare("UPDATE menu_items SET availability = CASE WHEN availability = 'Unavailable' AND stock = 0 THEN 'Available' ELSE availability END, stock = stock + ? WHERE id = ?");
+                $restock = $conn->prepare("UPDATE menu_items SET availability = CASE WHEN availability = 'Unavailable' AND is_archived = 0 AND (stock + ?) > 0 THEN 'Available' ELSE availability END, stock = stock + ? WHERE id = ?");
                 $stockLog = $conn->prepare("INSERT INTO inventory_logs (inventory_id, menu_item_id, user_id, action, quantity, remarks) VALUES (NULL, ?, ?, 'Stock In', ?, ?)");
                 foreach ($itemsStmt->fetchAll() as $item) {
                     $qty = (int)$item['qty'];
                     if ($qty < 1) continue;
-                    $restock->execute([$qty, (int)$item['menu_item_id']]);
+                    $restock->execute([$qty, $qty, (int)$item['menu_item_id']]);
                     if ($restock->rowCount() !== 1) throw new RuntimeException('Unable to restore COD stock.');
                     $stockLog->execute([(int)$item['menu_item_id'], $userId, $qty, 'Declined COD order ' . $order['order_no']]);
                 }
@@ -348,21 +338,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Active staff for delivery assignment
-$activeStaff = $conn->query("
-    SELECT u.id, u.full_name, u.username
-    FROM users u
-    JOIN roles r ON r.id = u.role_id
-    WHERE u.status = 'Active'
-      AND u.is_archived = 0
-      AND u.deleted_at IS NULL
-      AND r.role_name IN ('Admin', 'Cashier', 'Kitchen Staff', 'Inventory Staff')
-    ORDER BY u.full_name ASC
-")->fetchAll();
-
 // Pending COD Approvals
 $pendingCod = $conn->query("
-    SELECT o.*, u.cod_fail_count, u.cod_blocked
+    SELECT o.*, u.cod_fail_count, u.cod_blocked,
+           EXISTS(SELECT 1 FROM transaction_requests tr WHERE tr.order_id = o.id AND tr.request_type IN ('Cancel Order', 'Cancel Delivery') AND tr.status = 'Pending') AS cancel_requested,
+           (SELECT tr.reason FROM transaction_requests tr WHERE tr.order_id = o.id AND tr.request_type IN ('Cancel Order', 'Cancel Delivery') AND tr.status = 'Pending' ORDER BY tr.id DESC LIMIT 1) AS cancel_reason_text
     FROM orders o
     LEFT JOIN users u ON u.id = o.user_id
     WHERE o.order_channel = 'ONLINE'
@@ -395,24 +375,46 @@ $pendingHandovers = $conn->query("
     ORDER BY cch.collected_at ASC
 ")->fetchAll();
 
+// Fetch ordered items for Pending & Dispatched COD cards
+$codOrderItemsMap = [];
+$allCodIds = array_values(array_unique(array_filter(array_map(
+    static fn($r) => (int)($r['id'] ?? 0),
+    array_merge($pendingCod, $dispatchedCod)
+))));
+if (!empty($allCodIds)) {
+    $placeholders = implode(',', array_fill(0, count($allCodIds), '?'));
+    $oiStmt = $conn->prepare("SELECT order_id, item_name, quantity, notes FROM order_items WHERE order_id IN ($placeholders) ORDER BY id ASC");
+    $oiStmt->execute($allCodIds);
+    foreach ($oiStmt->fetchAll() as $oiRow) {
+        $oidKey = (int)$oiRow['order_id'];
+        $codOrderItemsMap[$oidKey][] = $oiRow;
+    }
+}
+
 include ROOT_PATH . '/includes/header.php';
 ?>
 
 <div class="cod-page">
-<div class="page-head card" style="margin-bottom:20px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
-    <div>
-        <h1 style="display:flex;align-items:center;gap:10px;">
-            <i class="bi bi-cash-coin" style="color:var(--primary,#F2C12E);"></i> COD Approvals &amp; Cash Handover
-        </h1>
-        <p class="muted">Manage cash-on-delivery approval requests, track change requirements, and confirm collected cash into cashier shifts.</p>
+<div class="page-head card cod-hero-card">
+    <div class="cod-hero-main">
+        <span class="cod-hero-icon" aria-hidden="true"><i class="bi bi-cash-coin"></i></span>
+        <div>
+            <h1>COD Approvals &amp; Cash Handover</h1>
+            <p class="muted">Review cash-on-delivery orders, check change readiness, and confirm collected cash into shifts.</p>
+        </div>
     </div>
-    <div style="display:flex; gap:8px;">
-        <span class="badge" style="background:#fef3c7; color:#66500d; padding:8px 12px; font-size:14px;">
-            Pending Approvals: <strong><?= count($pendingCod) ?></strong>
+    <div class="cod-hero-metrics">
+        <span class="cod-metric-pill is-gold">
+            Pending Approvals <strong><?= count($pendingCod) ?></strong>
         </span>
-        <span class="badge" style="background:#f2f2ef; color:#343434; padding:8px 12px; font-size:14px;">
-            Uncollected Dispatch: <strong><?= count($dispatchedCod) ?></strong>
+        <span class="cod-metric-pill">
+            Awaiting Cash <strong><?= count($dispatchedCod) ?></strong>
         </span>
+        <?php if (!empty($pendingHandovers)): ?>
+        <span class="cod-metric-pill is-amber">
+            Cash Handovers <strong><?= count($pendingHandovers) ?></strong>
+        </span>
+        <?php endif; ?>
     </div>
 </div>
 
@@ -454,7 +456,7 @@ include ROOT_PATH . '/includes/header.php';
                             <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
                             <input type="hidden" name="action" value="confirm_handover">
                             <input type="hidden" name="handover_id" value="<?= $ph['id'] ?>">
-                            <button type="submit" class="btn btn-primary" style="font-size:14px; padding:5px 12px;" onclick="return confirm('Confirm receipt of ₱<?= number_format((float)$ph['amount_collected'], 2) ?> into shift #<?= $cashierShiftId ?>?');">
+                            <button type="submit" class="btn btn-primary" style="font-size:14px; padding:5px 12px;" data-confirm="Confirm receipt of ₱<?= number_format((float)$ph['amount_collected'], 2) ?> into shift #<?= $cashierShiftId ?>?">
                                 <i class="bi bi-check2"></i> Confirm into Shift #<?= $cashierShiftId ?>
                             </button>
                         </form>
@@ -471,82 +473,165 @@ include ROOT_PATH . '/includes/header.php';
 <?php endif; ?>
 
 <!-- Section 2: Pending COD Approvals Queue -->
-<h2 class="cod-section-title"><i class="bi bi-hourglass-split"></i> Awaiting approval</h2><p class="cod-section-description">Review customer details and change requirements before sending orders to the kitchen.</p>
+<div class="cod-section-head">
+    <div>
+        <h2 class="cod-section-title"><i class="bi bi-hourglass-split"></i> Awaiting approval</h2>
+        <p class="cod-section-description">Review customer details, items, and change requirements before sending orders to the kitchen.</p>
+    </div>
+</div>
 <?php if (empty($pendingCod)): ?>
-<div class="card" style="text-align:center; padding:32px 20px; margin-bottom:30px;">
+<div class="card cod-empty-card">
     <p class="muted" style="margin:0;"><span class="cod-empty-icon"><i class="bi bi-check2-circle"></i></span><strong class="cod-empty-title">No orders awaiting approval</strong>New cash-on-delivery requests will appear here.</p>
 </div>
 <?php else: ?>
-<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, 360px), 1fr)); gap:20px; margin-bottom:30px;">
+<div class="kk-queue-toolbar" id="codQueueToolbar" style="margin-bottom:16px;">
+    <div class="kk-queue-pills" id="codFilterPills" role="group" aria-label="Filter COD approvals">
+        <button type="button" class="kk-queue-pill active" data-cod-filter="all">All</button>
+        <button type="button" class="kk-queue-pill" data-cod-filter="change">Needs Change</button>
+        <button type="button" class="kk-queue-pill" data-cod-filter="exact">Exact Amount</button>
+        <button type="button" class="kk-queue-pill" data-cod-filter="risk">Risk Warning</button>
+    </div>
+    <label class="kk-queue-sort-wrap">
+        <span>Prioritize</span>
+        <select class="kk-queue-sort" id="codSortSelect" aria-label="Prioritize COD approvals">
+            <option value="fifo">First in, first out</option>
+            <option value="newest">Newest first</option>
+            <option value="highest">Highest amount (₱)</option>
+            <option value="fewest">Fewest items first</option>
+        </select>
+    </label>
+</div>
+<div id="codFilterEmptyState" class="card cod-empty-card" style="display:none; margin-bottom:20px;">
+    <p class="muted" style="margin:0;"><strong class="cod-empty-title" style="margin-bottom:4px;">No matching COD requests</strong>Try selecting another filter pill above.</p>
+</div>
+<div id="codPendingGrid" class="cod-cards-grid" style="margin-bottom:30px;">
     <?php foreach ($pendingCod as $ord):
-        $changeNeeded = ((float)$ord['change_for'] > 0) ? ((float)$ord['change_for'] - (float)$ord['total']) : 0;
+        $changeNeeded = ((float)$ord['change_for'] > 0) ? max(0.0, (float)$ord['change_for'] - (float)$ord['total']) : 0.0;
+        $needsChange = ((float)$ord['change_for'] > 0 && $changeNeeded > 0);
+        $isOutsideCod = strtoupper((string)($ord['fulfillment_mode'] ?? '')) === 'OUTSIDE';
+        $codCoverage = $isOutsideCod ? 'outside' : 'within';
+        $codCreatedTs = strtotime((string)($ord['created_at'] ?? '')) ?: 0;
+        $waitMins = $codCreatedTs > 0 ? max(0, (int)floor((time() - $codCreatedTs) / 60)) : 0;
+        $waitLabel = $waitMins >= 60 ? ((int)floor($waitMins / 60) . 'h ' . ($waitMins % 60) . 'm ago') : ($waitMins . 'm ago');
+        $ordItems = $codOrderItemsMap[(int)$ord['id']] ?? [];
+        $ordItemCount = 0;
+        foreach ($ordItems as $oi) {
+            $ordItemCount += max(1, (int)($oi['quantity'] ?? 1));
+        }
+        $ordItemCount = max(1, $ordItemCount);
+        $hasRisk = ((int)($ord['cod_fail_count'] ?? 0) > 0);
+        $hasCancelRequest = !empty($ord['cancel_requested']);
+        $coverageText = $isOutsideCod ? 'Outside Lagro · Third-Party' : 'Within Lagro · Store Rider';
     ?>
-    <section class="card" style="display:flex; flex-direction:column; justify-content:space-between;">
+    <section class="card cod-ticket-card cod-pending-card<?= $hasCancelRequest ? ' cod-ticket-cancel-pending' : '' ?>"
+        data-coverage="<?= e($codCoverage) ?>"
+        data-needs-change="<?= $needsChange ? '1' : '0' ?>"
+        data-risk="<?= $hasRisk ? '1' : '0' ?>"
+        data-created-ts="<?= (int)$codCreatedTs ?>"
+        data-items="<?= (int)$ordItemCount ?>"
+        data-total="<?= e((string)((float)$ord['total'])) ?>"
+        <?= $hasCancelRequest ? 'style="border:1.5px solid #ef4444;"' : '' ?>>
         <div>
-            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px;">
+            <div class="cod-ticket-strip">
+                <span><i class="bi bi-cash-coin" aria-hidden="true"></i> <?= e($coverageText) ?></span>
+                <span class="cod-wait-chip"><i class="bi bi-clock" aria-hidden="true"></i> <?= e($waitLabel) ?></span>
+            </div>
+
+            <div class="cod-ticket-head">
                 <div>
-                    <h3 style="margin:0 0 2px; font-size:17px;"><?= e($ord['order_no']) ?></h3>
-                    <span class="badge" style="background:#fef3c7; color:#66500d;"><?= e($ord['fulfillment_mode']) ?></span>
+                    <h3 class="cod-ticket-no"><?= e($ord['order_no']) ?></h3>
+                    <?php if (!empty($ord['queue_no'])): ?>
+                    <span class="cod-ticket-queue">Queue #<?= e($ord['queue_no']) ?></span>
+                    <?php endif; ?>
                 </div>
-                <div style="text-align:right;">
-                    <strong style="font-size:18px; color:var(--text);">₱<?= number_format((float)$ord['total'], 2) ?></strong>
-                    <div style="font-size:13px; color:var(--muted);">(Food ₱<?= number_format((float)$ord['subtotal'], 2) ?> + Fee ₱<?= number_format((float)$ord['delivery_fee'], 2) ?>)</div>
+                <div class="cod-ticket-amount">
+                    <strong>₱<?= number_format((float)$ord['total'], 2) ?></strong>
+                    <small>Food ₱<?= number_format((float)$ord['subtotal'], 2) ?> + Fee ₱<?= number_format((float)$ord['delivery_fee'], 2) ?></small>
                 </div>
             </div>
 
-            <!-- Customer Details & Anti-Abuse Risk Signals -->
-            <div style="background:var(--soft); border-radius:8px; padding:10px 12px; margin-bottom:12px; font-size:14px; line-height:1.5;">
-                <div>Customer: <strong><?= e($ord['customer_name']) ?></strong></div>
-                <div>Phone: <strong><?= e($ord['customer_phone']) ?></strong></div>
+            <div class="cod-info-box">
+                <div class="cod-info-line"><i class="bi bi-person-fill" aria-hidden="true"></i> <span>Customer: <strong><?= e($ord['customer_name']) ?></strong></span></div>
+                <div class="cod-info-line"><i class="bi bi-telephone-fill" aria-hidden="true"></i> <span>Phone: <strong><?= e($ord['customer_phone']) ?></strong></span></div>
                 <?php if ($ord['delivery_address']): ?>
-                <div>Address: <?= e($ord['delivery_address']) ?></div>
+                <div class="cod-info-line"><i class="bi bi-geo-alt-fill" aria-hidden="true"></i> <span><?= e($ord['delivery_address']) ?></span></div>
                 <?php endif; ?>
                 <?php if ($ord['landmark']): ?>
-                <div>Landmark: <em><?= e($ord['landmark']) ?></em></div>
+                <div class="cod-info-line"><i class="bi bi-signpost-2-fill" aria-hidden="true"></i> <span>Landmark: <em><?= e($ord['landmark']) ?></em></span></div>
                 <?php endif; ?>
 
-                <!-- Change Calculation (Requirement 6.2) -->
-                <div style="margin-top:6px; padding-top:6px; border-top:1px dashed #cbd5e1;">
+                <div class="cod-change-row">
                     <?php if ((float)$ord['change_for'] > 0): ?>
-                        <div>Bill handed: <strong>₱<?= number_format((float)$ord['change_for'], 2) ?></strong></div>
-                        <div style="color:#66500d; font-weight:700;">Prepare Change: ₱<?= number_format($changeNeeded, 2) ?></div>
+                        <span class="cod-change-pill is-prepare"><i class="bi bi-cash-stack" aria-hidden="true"></i> Bill ₱<?= number_format((float)$ord['change_for'], 2) ?> · Prepare Change: ₱<?= number_format($changeNeeded, 2) ?></span>
                     <?php else: ?>
-                        <div style="color:var(--success,#10b981); font-weight:700;"><i class="bi bi-check-circle"></i> Exact Amount (No change needed)</div>
+                        <span class="cod-change-pill is-exact"><i class="bi bi-check-circle-fill" aria-hidden="true"></i> Exact Amount (No change needed)</span>
                     <?php endif; ?>
                 </div>
 
-                <!-- Anti-Abuse History Badge (Requirement 6.6) -->
+                <?php if ($hasCancelRequest): ?>
+                <div style="background:#fee2e2; color:#991b1b; padding:10px 12px; border-radius:8px; font-size:12.5px; font-weight:700; margin-top:10px; line-height:1.45;">
+                    <i class="bi bi-exclamation-octagon-fill" aria-hidden="true"></i> CUSTOMER REQUESTED CANCELLATION: Approval is blocked until this request is reviewed.
+                    <?php if (!empty($ord['cancel_reason_text'])): ?>
+                        <div style="font-weight:500; margin-top:4px;">Reason: <?= e((string)$ord['cancel_reason_text']) ?></div>
+                    <?php endif; ?>
+                    <div style="margin-top:6px;"><a href="<?= e(BASE_URL . '/modules/transactions/index.php') ?>" style="color:#7f1d1d; text-decoration:underline;">Review in Order Requests →</a></div>
+                </div>
+                <?php endif; ?>
+
                 <?php if ((int)$ord['cod_fail_count'] > 0): ?>
-                <div style="margin-top:6px; background:#fee2e2; color:#991b1b; padding:4px 8px; border-radius:4px; font-size:13px; font-weight:700;">
-                    <i class="bi bi-exclamation-triangle-fill"></i> Warning: Customer has <?= $ord['cod_fail_count'] ?> past failed COD deliveries!
+                <div class="cod-risk-alert">
+                    <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i> Customer has <?= (int)$ord['cod_fail_count'] ?> past failed COD deliver<?= (int)$ord['cod_fail_count'] === 1 ? 'y' : 'ies' ?>
                 </div>
                 <?php endif; ?>
             </div>
+
+            <?php if (!empty($ordItems)): ?>
+            <div class="cod-items-box">
+                <div class="cod-items-head">
+                    <span>Order Items</span>
+                    <strong><?= $ordItemCount ?> item<?= $ordItemCount === 1 ? '' : 's' ?></strong>
+                </div>
+                <ul class="cod-items-list">
+                    <?php foreach (array_slice($ordItems, 0, 4) as $oi): ?>
+                    <li><span class="cod-item-qty"><?= (int)$oi['quantity'] ?>x</span> <span><?= e($oi['item_name']) ?></span></li>
+                    <?php endforeach; ?>
+                    <?php if (count($ordItems) > 4): ?>
+                    <li class="muted" style="font-size:12px;">+<?= count($ordItems) - 4 ?> more item(s)…</li>
+                    <?php endif; ?>
+                </ul>
+            </div>
+            <?php endif; ?>
         </div>
 
-        <form method="POST">
+        <form method="POST" class="cod-ticket-form">
             <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
             <input type="hidden" name="order_id" value="<?= $ord['id'] ?>">
 
-            <?php if ($ord['fulfillment_mode'] === 'LAGRO' || ($ord['delivery_mode'] ?? 'LAGRO_FREE') === 'LAGRO_FREE'): ?>
-            <div style="margin-bottom:10px;">
-                <label style="font-size:14px; font-weight:700;">Assign Delivery Staff:</label>
-                <select name="delivered_by_user_id" class="search-input" style="width:100%; padding:6px; font-size:14px;">
-                    <option value="">-- Choose Staff Rider --</option>
-                    <?php foreach ($activeStaff as $st): ?>
-                        <option value="<?= $st['id'] ?>"><?= e($st['full_name']) ?> (@<?= e($st['username']) ?>)</option>
-                    <?php endforeach; ?>
-                </select>
+            <?php if (!$isOutsideCod): ?>
+            <div class="cod-outside-note">
+                <i class="bi bi-bicycle" aria-hidden="true"></i>
+                <span>Store rider handoff is managed in <strong>Delivery Status</strong> after Kitchen prep.</span>
+            </div>
+            <?php else: ?>
+            <div class="cod-outside-note">
+                <i class="bi bi-box-seam" aria-hidden="true"></i>
+                <span>Third-party courier booking is managed in <strong>Delivery Status</strong> after approval.</span>
             </div>
             <?php endif; ?>
 
-            <div style="display:flex; gap:8px;">
-                <button type="button" class="btn btn-outline" style="flex:1; color:#dc2626; border-color:#fca5a5; font-size:14px;" onclick="openDeclineModal(<?= $ord['id'] ?>, '<?= e($ord['order_no']) ?>')">
-                    Decline
+            <div class="cod-ticket-actions">
+                <button type="button" class="btn cod-btn-decline" onclick="openDeclineModal(<?= $ord['id'] ?>, '<?= e($ord['order_no']) ?>')">
+                    <i class="bi bi-x-circle" aria-hidden="true"></i> Decline
                 </button>
-                <button type="submit" name="action" value="approve_cod" class="btn btn-primary" style="flex:1; font-size:14px;">
-                    <i class="bi bi-check2"></i> Approve &amp; Cook
+                <?php if ($hasCancelRequest): ?>
+                <a href="<?= e(BASE_URL . '/modules/transactions/index.php') ?>" class="btn cod-btn-approve" style="background:#fee2e2; color:#991b1b; border:1px solid #fca5a5; text-decoration:none;">
+                    <i class="bi bi-slash-circle-fill" aria-hidden="true"></i> Review Cancellation
+                </a>
+                <?php else: ?>
+                <button type="submit" name="action" value="approve_cod" class="btn cod-btn-approve">
+                    <i class="bi bi-check2-circle" aria-hidden="true"></i> Approve &amp; Cook
                 </button>
+                <?php endif; ?>
             </div>
         </form>
     </section>
@@ -555,57 +640,69 @@ include ROOT_PATH . '/includes/header.php';
 <?php endif; ?>
 
 <!-- Section 3: Dispatched Orders Awaiting Cash Collection -->
-<h2 class="cod-section-title"><i class="bi bi-bicycle"></i> Awaiting cash collection</h2><p class="cod-section-description">Track dispatched orders, record collected cash, or resolve a failed delivery.</p>
+<div class="cod-section-head">
+    <div>
+        <h2 class="cod-section-title"><i class="bi bi-bicycle"></i> Awaiting cash collection</h2>
+        <p class="cod-section-description">Track dispatched orders, record collected cash, or resolve a failed delivery.</p>
+    </div>
+</div>
 <?php if (empty($dispatchedCod)): ?>
-<div class="card" style="text-align:center; padding:32px 20px;">
+<div class="card cod-empty-card">
     <p class="muted" style="margin:0;"><span class="cod-empty-icon"><i class="bi bi-cash-stack"></i></span><strong class="cod-empty-title">No cash collections pending</strong>Dispatched COD orders will appear here when cash needs to be recorded.</p>
 </div>
 <?php else: ?>
-<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, 360px), 1fr)); gap:20px;">
+<div class="cod-cards-grid">
     <?php foreach ($dispatchedCod as $ord):
-        $changeNeeded = ((float)$ord['change_for'] > 0) ? ((float)$ord['change_for'] - (float)$ord['total']) : 0;
+        $changeNeeded = ((float)$ord['change_for'] > 0) ? max(0.0, (float)$ord['change_for'] - (float)$ord['total']) : 0.0;
+        $isFailedDispatch = ($ord['dispatch_status'] ?? '') === 'Failed';
+        $isOutsideDisp = strtoupper((string)($ord['fulfillment_mode'] ?? '')) === 'OUTSIDE';
     ?>
-    <section class="card" style="display:flex; flex-direction:column; justify-content:space-between;">
+    <section class="card cod-ticket-card <?= $isFailedDispatch ? 'is-danger-strip' : 'is-success-strip' ?>">
         <div>
-            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px;">
+            <div class="cod-ticket-strip">
+                <span><i class="bi bi-<?= $isFailedDispatch ? 'exclamation-triangle' : 'truck' ?>" aria-hidden="true"></i> <?= e($ord['dispatch_status'] ?? $ord['status']) ?> · <?= $isOutsideDisp ? 'Outside Lagro' : 'Within Lagro' ?></span>
+                <?php if (!empty($ord['queue_no'])): ?><span class="cod-ticket-queue">Queue #<?= e($ord['queue_no']) ?></span><?php endif; ?>
+            </div>
+            <div class="cod-ticket-head">
                 <div>
-                    <h3 style="margin:0 0 2px; font-size:17px;"><?= e($ord['order_no']) ?></h3>
-                    <span class="badge <?= ($ord['dispatch_status'] ?? '') === 'Failed' ? 'badge-danger' : 'badge-info' ?>"><?= e($ord['dispatch_status'] ?? $ord['status']) ?> · <?= e($ord['fulfillment_mode']) ?></span>
+                    <h3 class="cod-ticket-no"><?= e($ord['order_no']) ?></h3>
                 </div>
-                <div style="text-align:right;">
-                    <strong style="font-size:18px;">₱<?= number_format((float)$ord['total'], 2) ?></strong>
+                <div class="cod-ticket-amount">
+                    <strong>₱<?= number_format((float)$ord['total'], 2) ?></strong>
+                    <small>Expected Cash</small>
                 </div>
             </div>
 
-            <div style="background:var(--soft); border-radius:8px; padding:10px 12px; margin-bottom:12px; font-size:14px; line-height:1.5;">
-                <div>Customer: <strong><?= e($ord['customer_name']) ?></strong> (<?= e($ord['customer_phone']) ?>)</div>
-                <div>Address: <?= e($ord['delivery_address'] ?: 'Pickup at counter') ?></div>
+            <div class="cod-info-box">
+                <div class="cod-info-line"><i class="bi bi-person-fill" aria-hidden="true"></i> <span><strong><?= e($ord['customer_name']) ?></strong> (<?= e($ord['customer_phone']) ?>)</span></div>
+                <div class="cod-info-line"><i class="bi bi-geo-alt-fill" aria-hidden="true"></i> <span><?= e($ord['delivery_address'] ?: 'Pickup at counter') ?></span></div>
                 <?php if ($ord['delivering_staff_name']): ?>
-                <div>Rider/Staff: <strong><?= e($ord['delivering_staff_name']) ?></strong></div>
+                <div class="cod-info-line"><i class="bi bi-bicycle" aria-hidden="true"></i> <span>Rider / Staff: <strong><?= e($ord['delivering_staff_name']) ?></strong></span></div>
                 <?php endif; ?>
                 <?php if (!empty($ord['dispatch_notes'])): ?>
-                <div>Dispatch Note: <em><?= e($ord['dispatch_notes']) ?></em></div>
+                <div class="cod-info-line"><i class="bi bi-chat-left-text" aria-hidden="true"></i> <span><em><?= e($ord['dispatch_notes']) ?></em></span></div>
                 <?php endif; ?>
-                <div style="margin-top:6px; font-weight:700; color:#66500d;">
-                    Expected Cash: ₱<?= number_format((float)$ord['total'], 2) ?>
+                <div class="cod-change-row">
                     <?php if ((float)$ord['change_for'] > 0): ?>
-                        (Bill: ₱<?= number_format((float)$ord['change_for'], 2) ?>, Change: ₱<?= number_format($changeNeeded, 2) ?>)
+                        <span class="cod-change-pill is-prepare"><i class="bi bi-cash-stack" aria-hidden="true"></i> Collect ₱<?= number_format((float)$ord['total'], 2) ?> (Bill ₱<?= number_format((float)$ord['change_for'], 2) ?>, Change ₱<?= number_format($changeNeeded, 2) ?>)</span>
+                    <?php else: ?>
+                        <span class="cod-change-pill is-exact"><i class="bi bi-cash-coin" aria-hidden="true"></i> Expected Cash: ₱<?= number_format((float)$ord['total'], 2) ?></span>
                     <?php endif; ?>
                 </div>
             </div>
         </div>
 
-        <div style="display:flex; gap:8px;">
-            <button type="button" class="btn btn-outline" style="flex:1; color:#dc2626; border-color:#fca5a5; font-size:14px;" onclick="openFailedModal(<?= $ord['id'] ?>, '<?= e($ord['order_no']) ?>')">
-                <i class="bi bi-x-octagon"></i> Failed / No-Show
+        <div class="cod-ticket-actions">
+            <button type="button" class="btn cod-btn-decline" onclick="openFailedModal(<?= $ord['id'] ?>, '<?= e($ord['order_no']) ?>')">
+                <i class="bi bi-x-octagon" aria-hidden="true"></i> Failed / No-Show
             </button>
             <?php if (($ord['dispatch_status'] ?? '') === 'Out for Delivery'): ?>
-            <button type="button" class="btn btn-primary" style="flex:1; font-size:14px;" onclick="openCollectModal(<?= $ord['id'] ?>, '<?= e($ord['order_no']) ?>', <?= (float)$ord['total'] ?>)">
-                <i class="bi bi-cash-stack"></i> Cash Collected
+            <button type="button" class="btn cod-btn-approve" onclick="openCollectModal(<?= $ord['id'] ?>, '<?= e($ord['order_no']) ?>', <?= (float)$ord['total'] ?>)">
+                <i class="bi bi-cash-stack" aria-hidden="true"></i> Cash Collected
             </button>
             <?php else: ?>
-            <a class="btn btn-secondary" style="flex:1; font-size:14px; text-align:center;" href="<?= BASE_URL ?>/modules/delivery/index.php">
-                <i class="bi bi-truck"></i> Reassign in Dispatch
+            <a class="btn btn-secondary" style="flex:1; font-size:13.5px; text-align:center;" href="<?= BASE_URL ?>/modules/delivery/index.php">
+                <i class="bi bi-truck" aria-hidden="true"></i> Reassign in Dispatch
             </a>
             <?php endif; ?>
         </div>
@@ -694,29 +791,81 @@ include ROOT_PATH . '/includes/header.php';
 </div>
 <style>
 
-.cod-page .page-head { padding:24px; }
-.cod-page .page-head h1 { font-size:28px; line-height:1.3; margin:0 0 10px; }
-.cod-page .page-head p { font-size:15px; line-height:1.6; margin:0; }
-.cod-page .page-head > div:last-child { flex-wrap:wrap; }
-.cod-page .page-head .badge { display:inline-flex; gap:6px; border-radius:9px; }
-.cod-page .card { border-radius:16px; box-shadow:0 3px 14px rgba(0,0,0,.025); }
-.cod-page .cod-section-title { display:flex; align-items:center; gap:10px; font-size:24px; margin:28px 0 6px; color:#242424; }
-.cod-page .cod-section-title i { font-size:21px; }
-.cod-page .cod-section-description { font-size:15px; line-height:1.6; color:#646464; margin:0 0 16px; }
-.cod-empty-icon { display:flex; align-items:center; justify-content:center; width:56px; height:56px; margin:0 auto 14px; background:#fff3c4; color:#242424; border-radius:16px; font-size:26px; }
-.cod-empty-title { display:block; font-size:18px; color:#242424; margin-bottom:6px; }
-.cod-page section.card { padding:22px; overflow-wrap:anywhere; }
-.cod-page .btn { min-height:42px; border-radius:9px; }
-.cod-page .btn-primary:not([style*="background:#dc2626"]) { background:#f7c62f; border-color:#e8b720; color:#242424; }
+.cod-page .cod-hero-card { padding:20px 24px; margin-bottom:20px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px; border:1px solid #e6dfd0; border-top:4px solid #f2c12e; background:#fffdf8; }
+.cod-page .cod-hero-main { display:flex; align-items:center; gap:14px; flex:1 1 320px; min-width:0; }
+.cod-page .cod-hero-icon { width:48px; height:48px; border-radius:14px; background:#fff3c4; border:1px solid #eed98a; color:#775600; display:grid; place-items:center; font-size:22px; flex-shrink:0; }
+.cod-page .cod-hero-card h1 { font-size:23px; line-height:1.25; margin:0 0 4px; color:#1f2328; }
+.cod-page .cod-hero-card p { font-size:13.5px; line-height:1.5; margin:0; color:#655c4c; }
+.cod-page .cod-hero-metrics { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.cod-page .cod-metric-pill { display:inline-flex; align-items:center; gap:6px; padding:7px 12px; border-radius:999px; background:#ffffff; border:1px solid #e6dfd0; color:#4b4539; font-size:13px; font-weight:600; }
+.cod-page .cod-metric-pill strong { color:#1f2328; font-size:14px; }
+.cod-page .cod-metric-pill.is-gold { background:#fff5d6; border-color:#d9c582; color:#594113; }
+.cod-page .cod-metric-pill.is-amber { background:#fef3c7; border-color:#f59e0b; color:#92400e; }
+
+.cod-page .cod-section-head { margin:24px 0 12px; }
+.cod-page .cod-section-title { display:flex; align-items:center; gap:9px; font-size:20px; margin:0 0 4px; color:#1f2328; }
+.cod-page .cod-section-title i { font-size:18px; color:#93630c; }
+.cod-page .cod-section-description { font-size:13.5px; line-height:1.5; color:#655c4c; margin:0; }
+.cod-page .cod-empty-card { text-align:center; padding:32px 20px; margin-bottom:26px; background:#fffdf8; border:1px solid #e6dfd0; }
+.cod-empty-icon { display:flex; align-items:center; justify-content:center; width:52px; height:52px; margin:0 auto 12px; background:#fff3c4; color:#775600; border-radius:14px; font-size:23px; }
+.cod-empty-title { display:block; font-size:16.5px; color:#1f2328; margin-bottom:4px; }
+
+.cod-cards-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, 380px), 1fr)); gap:18px; }
+.cod-page .card { border-radius:16px; box-shadow:0 3px 14px rgba(48,38,0,.04); }
+.cod-page section.cod-ticket-card { display:flex; flex-direction:column; justify-content:space-between; overflow:hidden; padding:0 18px 18px; background:#fffdf8; border:1px solid #e6dfd0; border-top:4px solid #f2c12e; overflow-wrap:anywhere; }
+.cod-page section.cod-ticket-card.is-success-strip { border-top-color:#3c8d5d; }
+.cod-page section.cod-ticket-card.is-danger-strip { border-top-color:#dc2626; }
+.cod-ticket-strip { margin:0 -18px 14px; padding:9px 18px; background:#fff8df; border-bottom:1px solid #f0e6c5; display:flex; justify-content:space-between; align-items:center; gap:10px; font-size:11.5px; font-weight:800; color:#756022; text-transform:uppercase; letter-spacing:.5px; }
+.is-success-strip .cod-ticket-strip { background:#edf7ef; border-bottom-color:#cde8d4; color:#28603c; }
+.is-danger-strip .cod-ticket-strip { background:#fef2f2; border-bottom-color:#fecaca; color:#991b1b; }
+.cod-wait-chip { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:999px; background:#fff3c4; border:1px solid #eed98a; color:#775600; font-size:11px; font-weight:800; text-transform:none; letter-spacing:0; white-space:nowrap; }
+.cod-ticket-head { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:12px; }
+.cod-ticket-no { margin:0 0 2px; font-size:17px; font-weight:800; color:#1f2328; }
+.cod-ticket-queue { font-size:12px; font-weight:700; color:#655c4c; }
+.cod-ticket-amount { text-align:right; }
+.cod-ticket-amount strong { display:block; font-size:19px; font-weight:800; color:#1f2328; line-height:1.15; }
+.cod-ticket-amount small { display:block; margin-top:2px; font-size:12px; color:#655c4c; }
+
+.cod-info-box { background:#fcfbf7; border:1px solid #ece6d8; border-radius:12px; padding:11px 13px; margin-bottom:12px; font-size:13.5px; line-height:1.5; color:#29251f; display:flex; flex-direction:column; gap:4px; }
+.cod-info-line { display:flex; align-items:flex-start; gap:8px; }
+.cod-info-line i { color:#866018; font-size:13px; margin-top:3px; flex-shrink:0; }
+.cod-change-row { margin-top:6px; padding-top:8px; border-top:1px dashed #e2d9c2; }
+.cod-change-pill { display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:999px; font-size:12.5px; font-weight:700; }
+.cod-change-pill.is-exact { background:#edf7ef; border:1px solid #cde8d4; color:#1e6a3d; }
+.cod-change-pill.is-prepare { background:#fff3c4; border:1px solid #eed98a; color:#694c00; }
+.cod-risk-alert { margin-top:6px; background:#fee2e2; border:1px solid #fecaca; color:#991b1b; padding:6px 10px; border-radius:8px; font-size:12.5px; font-weight:700; display:flex; align-items:center; gap:6px; }
+
+.cod-items-box { background:#ffffff; border:1px solid #ece6d8; border-radius:12px; padding:10px 12px; margin-bottom:12px; }
+.cod-items-head { display:flex; justify-content:space-between; align-items:center; font-size:11px; text-transform:uppercase; letter-spacing:.8px; font-weight:700; color:#7a705d; padding-bottom:6px; border-bottom:1px dashed #e6dfd0; margin-bottom:6px; }
+.cod-items-head strong { text-transform:none; letter-spacing:0; color:#594113; }
+.cod-items-list { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:5px; font-size:13px; font-weight:600; color:#1f2328; }
+.cod-items-list li { display:flex; align-items:center; gap:7px; }
+.cod-item-qty { min-width:26px; padding:1px 6px; border-radius:6px; background:#fff2bf; color:#594113; font-size:12px; font-weight:800; text-align:center; }
+
+.cod-ticket-form { margin-top:auto; }
+.cod-rider-field { margin-bottom:12px; }
+.cod-rider-field label { display:block; font-size:12.5px; font-weight:700; color:#594113; margin-bottom:5px; }
+.cod-rider-select { width:100%; min-height:40px; height:auto; padding:8px 12px; line-height:1.3; font-size:13.5px; font-weight:600; color:#1f2328; background:#ffffff; border:1px solid #dfd8c8; border-radius:10px; cursor:pointer; }
+.cod-rider-select:focus { outline:none; border-color:#d6a81f; box-shadow:0 0 0 3px rgba(242,193,46,.2); }
+.cod-outside-note { margin-bottom:12px; padding:9px 11px; border-radius:10px; background:#fffaf0; border:1px dashed #e5d5a7; color:#5e5440; font-size:12.5px; line-height:1.45; display:flex; align-items:flex-start; gap:8px; }
+.cod-outside-note i { color:#866018; margin-top:2px; flex-shrink:0; }
+
+.cod-ticket-actions { display:flex; gap:8px; margin-top:auto; }
+.cod-page .btn { min-height:40px; border-radius:10px; font-weight:700; }
+.cod-btn-decline { flex:1; background:#fff5f4; color:#b42318; border:1px solid #efc8c4; font-size:13.5px; display:inline-flex; align-items:center; justify-content:center; gap:6px; }
+.cod-btn-decline:hover { background:#fee4e2; border-color:#db8d86; }
+.cod-btn-approve { flex:1.25; background:#f2c12e; color:#1f2328; border:1px solid #dfaf1e; font-size:13.5px; display:inline-flex; align-items:center; justify-content:center; gap:6px; }
+.cod-btn-approve:hover { background:#e5b420; border-color:#c69814; }
+.cod-page .btn-primary:not([style*="background:#dc2626"]) { background:#f2c12e; border-color:#dfaf1e; color:#1f2328; }
 .cod-page .btn-primary[style*="background:#dc2626"] { color:#fff; }
-.cod-page .search-input { min-height:44px; border:1px solid #d7d7d2; border-radius:9px; margin-top:6px; }
+.cod-page .search-input { min-height:42px; height:auto; border:1px solid #dfd8c8; border-radius:10px; padding:8px 12px; line-height:1.3; margin-top:6px; }
 .cod-page .search-input:focus { outline:2px solid #b48b12; outline-offset:2px; }
-.cod-page .modal-overlay > div { border-radius:18px!important; padding:28px!important; max-height:90vh; overflow:auto; }
-.cod-page .modal-overlay h3 { font-size:24px; line-height:1.3; }
+.cod-page .modal-overlay > div { border-radius:18px!important; border-top:4px solid #f2c12e; background:#fffdf8!important; padding:26px!important; max-height:90vh; overflow:auto; }
+.cod-page .modal-overlay h3 { font-size:21px; line-height:1.3; color:#1f2328; }
 .cod-page .modal-overlay label { line-height:1.5; }
 .cod-page input[type=checkbox] { accent-color:#d8a900; flex-shrink:0; }
 .cod-page table th, .cod-page table td { padding:14px 16px; font-size:14px; line-height:1.5; }
-@media(max-width:600px) { .cod-page .page-head { padding:18px; } .cod-page .page-head h1 { font-size:24px; } .cod-page .cod-section-title { font-size:22px; } }
+@media(max-width:600px) { .cod-page .cod-hero-card { padding:18px; } .cod-page .cod-hero-card h1 { font-size:20px; } .cod-page .cod-section-title { font-size:19px; } }
 
 </style>
 <script>
@@ -739,6 +888,74 @@ function openFailedModal(id, no) {
 function closeModal(id) {
     document.getElementById(id).style.display = 'none';
 }
+(function initCodQueueControls() {
+    const grid = document.getElementById('codPendingGrid');
+    const pillsEl = document.getElementById('codFilterPills');
+    const sortEl = document.getElementById('codSortSelect');
+    const emptyEl = document.getElementById('codFilterEmptyState');
+    if (!grid) return;
+
+    let codFilter = localStorage.getItem('kk_cod_filter') || 'all';
+    if (!['all', 'change', 'exact', 'risk'].includes(codFilter)) {
+        codFilter = 'all';
+        localStorage.setItem('kk_cod_filter', 'all');
+    }
+    let codSort = localStorage.getItem('kk_cod_sort') || 'fifo';
+
+    function applyCodFilterAndSort() {
+        const cards = Array.from(grid.querySelectorAll('.cod-pending-card'));
+        cards.sort((a, b) => {
+            const ca = Number(a.dataset.createdTs || 0);
+            const cb = Number(b.dataset.createdTs || 0);
+            if (codSort === 'newest') return cb - ca;
+            if (codSort === 'highest') {
+                return (Number(b.dataset.total || 0) - Number(a.dataset.total || 0)) || (ca - cb);
+            }
+            if (codSort === 'fewest') {
+                return (Number(a.dataset.items || 1) - Number(b.dataset.items || 1)) || (ca - cb);
+            }
+            return ca - cb;
+        });
+        let visibleCount = 0;
+        cards.forEach(card => {
+            let show = true;
+            if (codFilter === 'change') {
+                show = card.dataset.needsChange === '1';
+            } else if (codFilter === 'exact') {
+                show = card.dataset.needsChange === '0';
+            } else if (codFilter === 'risk') {
+                show = card.dataset.risk === '1';
+            }
+            card.style.display = show ? 'flex' : 'none';
+            if (show) visibleCount++;
+            grid.appendChild(card);
+        });
+        if (emptyEl) emptyEl.style.display = visibleCount === 0 ? 'block' : 'none';
+    }
+
+    if (pillsEl) {
+        pillsEl.querySelectorAll('[data-cod-filter]').forEach(btn => {
+            btn.classList.toggle('active', btn.getAttribute('data-cod-filter') === codFilter);
+        });
+        pillsEl.addEventListener('click', e => {
+            const btn = e.target.closest('[data-cod-filter]');
+            if (!btn) return;
+            codFilter = btn.getAttribute('data-cod-filter') || 'all';
+            localStorage.setItem('kk_cod_filter', codFilter);
+            pillsEl.querySelectorAll('[data-cod-filter]').forEach(b => b.classList.toggle('active', b === btn));
+            applyCodFilterAndSort();
+        });
+    }
+    if (sortEl) {
+        sortEl.value = codSort;
+        sortEl.addEventListener('change', () => {
+            codSort = sortEl.value || 'fifo';
+            localStorage.setItem('kk_cod_sort', codSort);
+            applyCodFilterAndSort();
+        });
+    }
+    applyCodFilterAndSort();
+})();
 </script>
 
 <?php include ROOT_PATH . '/includes/footer.php'; ?>

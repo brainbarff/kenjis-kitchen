@@ -28,6 +28,7 @@
             <a class="<?= active_link('payment_verification') ?>" href="<?= BASE_URL ?>/modules/pos/payment_verification.php"><i class="bi bi-qr-code-scan"></i>QR Verification</a>
             <a class="<?= active_link('cod_approvals') ?>" href="<?= BASE_URL ?>/modules/pos/cod_approvals.php"><i class="bi bi-cash-coin"></i>COD Approvals</a>
             <a class="<?= active_link('delivery') ?>" href="<?= BASE_URL ?>/modules/delivery/index.php"><i class="bi bi-truck"></i>Delivery Status</a>
+            <a class="<?= active_link('transactions') ?>" href="<?= BASE_URL ?>/modules/transactions/index.php"><i class="bi bi-arrow-counterclockwise"></i>Order Requests</a>
         <?php endif; ?>
 
         <?php if (can_access(['admin', 'kitchen'])): ?>

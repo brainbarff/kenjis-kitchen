@@ -182,6 +182,7 @@ require_once dirname(__DIR__) . '/includes/storefront_bestsellers.php';
         </div>
 
         <div id="cartMinOrderBanner" role="status" aria-live="polite" hidden style="margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: #FFFBEB; border: 1px solid #FCD34D; color: #92400E; font-size: 0.84rem; line-height: 1.45;"></div>
+        <div id="cartBilaoAdvanceBanner" role="alert" aria-live="polite" hidden style="margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: #FEF2F2; border: 1px solid #FECACA; color: #991B1B; font-size: 0.84rem; line-height: 1.45;"></div>
 
         <button class="btn-primary" id="btnProceedCheckout" style="margin-top: 18px;" onclick="proceedToCheckout()">
           Proceed to Order Verification →
@@ -389,6 +390,7 @@ require_once dirname(__DIR__) . '/includes/storefront_bestsellers.php';
         <section id="authRecovery" style="display:none;" aria-labelledby="authRecoveryTitle">
           <h3 id="authRecoveryTitle" class="auth-otp-title">Forgot Password?</h3>
           <p class="auth-sub" id="recoveryHelp">Enter your registered email to receive a 6-digit reset code.</p>
+          <div id="recoveryErrorBanner" class="auth-recovery-error" role="alert" hidden style="margin-bottom:12px; padding:10px 12px; border-radius:8px; background:#fef2f2; border:1px solid #fecaca; color:#991b1b; font-size:0.85rem; line-height:1.45;"></div>
 
           <form id="recoveryEmailForm" onsubmit="event.preventDefault(); requestRecoveryCode();">
             <div class="auth-field">

@@ -66,13 +66,13 @@ function checkout_discard_proof(?string $path, bool $commitAttempted): void
 }
 
 /** Calendar-day pickup slots in Philippine time; Sunday is entirely closed. */
-function kk_pickup_slots(?DateTimeImmutable $now = null): array
+function kk_pickup_slots(?DateTimeImmutable $now = null, int $minLeadMinutes = 30, int $dayCount = 2): array
 {
     $tz = new DateTimeZone('Asia/Manila');
     $now = ($now ?? new DateTimeImmutable('now', $tz))->setTimezone($tz);
-    $earliest = $now->modify('+30 minutes');
+    $earliest = $now->modify('+' . max(30, $minLeadMinutes) . ' minutes');
     $days = [];
-    for ($offset = 0; $offset < 2; $offset++) {
+    for ($offset = 0; $offset < max(2, min(7, $dayCount)); $offset++) {
         $date = $now->setTime(0, 0)->modify('+' . $offset . ' days');
         $dow = (int)$date->format('N');
         $slots = [];
@@ -84,19 +84,25 @@ function kk_pickup_slots(?DateTimeImmutable $now = null): array
                 $slots[] = ['value' => $at->format('Y-m-d H:i:s'), 'label' => $at->format('g:i A')];
             }
         }
-        $days[] = ['date' => $date->format('Y-m-d'), 'label' => $offset === 0 ? 'Today' : 'Tomorrow', 'slots' => $slots];
+        $label = $offset === 0 ? 'Today' : ($offset === 1 ? 'Tomorrow' : $date->format('D, M j'));
+        $days[] = ['date' => $date->format('Y-m-d'), 'label' => $label, 'slots' => $slots];
     }
     return $days;
 }
 
-function kk_validate_pickup_time($value, ?DateTimeImmutable $now = null): string
+function kk_validate_pickup_time($value, ?DateTimeImmutable $now = null, bool $requiresAdvance = false): string
 {
+    $minLeadMinutes = $requiresAdvance ? 1440 : 30;
+    $dayCount = $requiresAdvance ? 4 : 2;
     if (is_string($value)) {
-        foreach (kk_pickup_slots($now) as $day) {
+        foreach (kk_pickup_slots($now, $minLeadMinutes, $dayCount) as $day) {
             foreach ($day['slots'] as $slot) {
                 if ($slot['value'] === $value) return $value;
             }
         }
+    }
+    if ($requiresAdvance) {
+        throw new InvalidArgumentException('Bilao Medium, Large, and Extra Large sizes require 1 to 2 days advance reservation. Choose an advance pickup slot at least 24 hours ahead.');
     }
     throw new InvalidArgumentException('Choose an available pickup time for today or tomorrow. Allow at least 30 minutes for preparation.');
 }

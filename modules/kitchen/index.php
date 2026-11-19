@@ -461,6 +461,25 @@ include ROOT_PATH . '/includes/header.php';
         </div>
     </header>
 
+    <div class="kk-queue-toolbar" id="kdsQueueToolbar">
+        <div class="kk-queue-pills" id="kdsFilterPills" role="group" aria-label="Filter kitchen orders">
+            <button type="button" class="kk-queue-pill active" data-kds-filter="all">All</button>
+            <button type="button" class="kk-queue-pill" data-kds-filter="dine-in">Dine-In</button>
+            <button type="button" class="kk-queue-pill" data-kds-filter="takeout">Takeout</button>
+            <button type="button" class="kk-queue-pill" data-kds-filter="pickup">Pickup</button>
+            <button type="button" class="kk-queue-pill" data-kds-filter="delivery">Delivery</button>
+        </div>
+        <label class="kk-queue-sort-wrap">
+            <span>Prioritize</span>
+            <select class="kk-queue-sort" id="kdsSortSelect" aria-label="Prioritize kitchen orders">
+                <option value="fifo">First in, first out</option>
+                <option value="newest">Newest first</option>
+                <option value="pickup">Scheduled pickup time</option>
+                <option value="fewest">Fewest items first</option>
+            </select>
+        </label>
+    </div>
+
     <!-- 3 Main Columns: New Orders, Preparing, To Be Served (Ready) -->
     <main class="kds-board">
         <!-- Column 1: New Orders (Pending) -->

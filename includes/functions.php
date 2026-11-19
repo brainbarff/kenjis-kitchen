@@ -490,6 +490,7 @@ function kk_sidebar_badge_counts(PDO $conn, int $actorId = 0): array
         'delivery' => 0,
         'kitchen' => 0,
         'serving' => 0,
+        'transactions' => 0,
         'approvals' => 0,
     ];
 
@@ -590,7 +591,8 @@ function kk_sidebar_badge_counts(PDO $conn, int $actorId = 0): array
             FROM transaction_requests
             WHERE status = 'Pending'
         ")->fetchColumn();
-        $counts['approvals'] = $appReqCount + $cancelReqCount;
+        $counts['transactions'] = $cancelReqCount;
+        $counts['approvals'] = $appReqCount;
     } catch (Throwable $t) {}
 
     return $counts;
@@ -610,6 +612,7 @@ function kk_module_notifications(PDO $conn, string $module, int $actorId = 0): a
         'payment_verification' => 'QR Verification',
         'cod_approvals' => 'COD Approvals',
         'delivery' => 'Delivery Status',
+        'transactions' => 'Order Requests',
         'kitchen' => 'Kitchen Queue',
         'serving' => 'Serving Queue',
         'approvals' => 'Approvals',
@@ -773,6 +776,90 @@ function kk_module_notifications(PDO $conn, string $module, int $actorId = 0): a
                     'url' => BASE_URL . '/modules/pos/cod_approvals.php',
                 ];
             }
+        } elseif ($module === 'transactions') {
+            $pendingTx = $conn->query("
+                SELECT tr.id, tr.request_type, tr.reason, tr.created_at,
+                       o.order_no, o.order_channel, o.customer_name, o.total,
+                       o.payment_verification_status, o.cod_approval_status,
+                       u.full_name AS requester_name,
+                       (SELECT p.payment_method FROM payments p WHERE p.order_id = o.id ORDER BY p.id DESC LIMIT 1) AS payment_method
+                FROM transaction_requests tr
+                JOIN orders o ON o.id = tr.order_id
+                LEFT JOIN users u ON u.id = tr.requested_by
+                WHERE tr.status = 'Pending'
+                ORDER BY (tr.request_type = 'Cancel Order') DESC, tr.created_at ASC, tr.id ASC
+                LIMIT 10
+            ")->fetchAll();
+            foreach ($pendingTx as $tx) {
+                $rType = (string)($tx['request_type'] ?? 'Request');
+                $tagMap = [
+                    'Cancel Order' => 'Customer Cancel',
+                    'Refund' => 'Refund Pending',
+                    'Void' => 'Void Pending',
+                    'Cancel Delivery' => 'Failed COD Cancel',
+                ];
+                $tag = $tagMap[$rType] ?? $rType;
+                $who = (string)($tx['customer_name'] ?: ($tx['requester_name'] ?: 'Staff'));
+                $payMethod = trim((string)($tx['payment_method'] ?? ''));
+                $locksPayment = $rType === 'Cancel Order' && (
+                    ($tx['payment_verification_status'] ?? '') === 'Awaiting Verification'
+                    || ($tx['cod_approval_status'] ?? '') === 'Pending'
+                );
+                $detailParts = [$who . ' · ₱' . number_format((float)$tx['total'], 2)];
+                if ($payMethod !== '') {
+                    $detailParts[] = $payMethod;
+                }
+                if ($locksPayment) {
+                    $detailParts[] = 'Payment confirmation locked';
+                }
+                $reasonText = trim((string)($tx['reason'] ?? ''));
+                if ($reasonText !== '') {
+                    $detailParts[] = mb_strimwidth($reasonText, 0, 48, '…');
+                }
+                $items[] = [
+                    'title' => '#' . (int)$tx['id'] . ' · ' . $rType . ' · ' . (string)$tx['order_no'],
+                    'detail' => implode(' · ', $detailParts),
+                    'tag' => $tag,
+                    'url' => BASE_URL . '/modules/transactions/index.php#pendingRequests',
+                ];
+            }
+
+            $recentTxDecisions = $conn->query("
+                SELECT tr.id, tr.request_type, tr.status, tr.stock_returned, tr.refund_method,
+                       tr.refund_reference, tr.review_notes, tr.reviewed_at,
+                       o.order_no, o.customer_name,
+                       r.full_name AS reviewer_name
+                FROM transaction_requests tr
+                JOIN orders o ON o.id = tr.order_id
+                LEFT JOIN users r ON r.id = tr.reviewed_by
+                WHERE tr.status IN ('Approved', 'Rejected')
+                  AND tr.reviewed_at >= (NOW() - INTERVAL 1 DAY)
+                ORDER BY tr.reviewed_at DESC, tr.id DESC
+                LIMIT 6
+            ")->fetchAll();
+            foreach ($recentTxDecisions as $td) {
+                $dStatus = (string)$td['status'];
+                $dType = (string)$td['request_type'];
+                $parts = [$dStatus . ' by ' . ((string)($td['reviewer_name'] ?: 'Admin'))];
+                if ($dStatus === 'Approved') {
+                    if (!empty($td['refund_method'])) {
+                        $parts[] = $td['refund_method'] . (!empty($td['refund_reference']) ? ' Ref ' . $td['refund_reference'] : '');
+                    } elseif ((int)($td['stock_returned'] ?? 0) === 1) {
+                        $parts[] = 'Stock returned';
+                    }
+                } elseif (!empty($td['review_notes'])) {
+                    $parts[] = mb_strimwidth(trim((string)$td['review_notes']), 0, 48, '…');
+                }
+                if (!empty($td['reviewed_at'])) {
+                    $parts[] = date('M j, g:i A', strtotime((string)$td['reviewed_at']));
+                }
+                $items[] = [
+                    'title' => '#' . (int)$td['id'] . ' · ' . (string)$td['order_no'] . ' (' . $dType . ')',
+                    'detail' => implode(' · ', $parts),
+                    'tag' => $dStatus,
+                    'url' => BASE_URL . '/modules/transactions/index.php',
+                ];
+            }
         } elseif ($module === 'pos') {
             $hour = (int)date('G');
             if ($hour >= 9 && $hour < 21) {
@@ -825,17 +912,25 @@ function kk_module_notifications(PDO $conn, string $module, int $actorId = 0): a
             }
 
             $rows = $conn->query("
-                SELECT order_no, customer_name, status, total
-                FROM orders
-                WHERE order_channel = 'ONLINE' AND status IN ('Pending', 'Preparing', 'Ready')
-                ORDER BY created_at DESC
+                SELECT o.order_no, o.customer_name, o.status, o.total,
+                       o.order_type, o.fulfillment_mode, o.delivery_mode,
+                       (SELECT p.payment_method FROM payments p WHERE p.order_id = o.id ORDER BY p.id DESC LIMIT 1) AS payment_method
+                FROM orders o
+                WHERE o.order_channel = 'ONLINE' AND o.status IN ('Pending', 'Preparing', 'Ready')
+                ORDER BY o.created_at DESC
                 LIMIT 12
             ")->fetchAll();
             foreach ($rows as $r) {
+                $isDeliv = ($r['order_type'] ?? '') === 'ONLINE';
+                $isOutside = ($r['fulfillment_mode'] ?? '') === 'OUTSIDE' || ($r['delivery_mode'] ?? '') === 'CUSTOMER_BOOKED';
+                $typeLabel = $isDeliv
+                    ? ($isOutside ? 'Online Delivery (Outside Lagro)' : 'Online Delivery (Within Lagro)')
+                    : 'Online Pickup';
+                $payLabel = trim((string)($r['payment_method'] ?? ''));
                 $items[] = [
                     'title' => (string)$r['order_no'],
-                    'detail' => (string)($r['customer_name'] ?: 'Online Customer') . ' · ₱' . number_format((float)$r['total'], 2),
-                    'tag' => (string)$r['status'],
+                    'detail' => $typeLabel . ($payLabel !== '' ? ' · ' . $payLabel : '') . ' · ' . (string)($r['customer_name'] ?: 'Online Customer') . ' · ₱' . number_format((float)$r['total'], 2),
+                    'tag' => $typeLabel . ' · ' . (string)$r['status'],
                     'url' => BASE_URL . '/modules/pos/index.php',
                 ];
             }
@@ -1168,6 +1263,7 @@ function kk_module_notifications(PDO $conn, string $module, int $actorId = 0): a
                 'payment_verification' => ['QR Verification', BASE_URL . '/modules/pos/payment_verification.php', ['admin', 'cashier'], 'Pending GCash verification'],
                 'cod_approvals' => ['COD Approvals', BASE_URL . '/modules/pos/cod_approvals.php', ['admin', 'cashier'], 'Pending COD approval'],
                 'delivery' => ['Delivery Status', BASE_URL . '/modules/delivery/index.php', ['admin', 'cashier'], 'Needs delivery action'],
+                'transactions' => ['Order Requests', BASE_URL . '/modules/transactions/index.php', ['admin', 'cashier'], 'Pending cancellation / void / refund'],
                 'kitchen' => ['Kitchen Queue', BASE_URL . '/modules/kitchen/index.php', ['admin', 'kitchen'], 'Active kitchen orders'],
                 'serving' => ['Serving Queue', BASE_URL . '/modules/serving/index.php', ['admin', 'cashier', 'kitchen'], 'Ready to serve'],
                 'inventory' => ['Inventory Alerts', BASE_URL . '/modules/inventory/index.php', ['admin', 'inventory'], 'Low or out of stock'],

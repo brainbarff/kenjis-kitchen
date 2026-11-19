@@ -105,6 +105,7 @@ textarea {
     color: #e2e8f0; /* White / clean text */
     font-size: 0.9rem;
     font-weight: 500;
+    white-space: nowrap;
     transition: all 0.18s ease;
 }
 
@@ -2395,34 +2396,84 @@ body.pos-page .kk-toast-container {
     color: #b91c1c;
 }
 
-/* 200px POS Sidebar Width Specification */
-body.pos-page .sidebar {
-    width: 200px !important;
-}
+/* Keep POS sidebar and nav typography identical to all other modules */
 
-body.pos-page .content {
-    margin-left: 200px !important;
-    width: calc(100% - 200px) !important;
-}
-
-body.pos-page .sidebar .nav a {
-    padding: 8px 12px;
-    font-size: 0.85rem;
+/* Shared Staff Queue Filter & Prioritization Toolbar */
+.kk-queue-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     gap: 10px;
+    flex-wrap: wrap;
+    padding: 10px 14px;
+    background: #fffdf8;
+    border: 1px solid #e6dfd0;
+    border-radius: 12px;
 }
 
-body.pos-page .sidebar-header {
-    padding: 14px 12px;
+.kk-queue-pills {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
 }
 
-@media (max-width: 900px) {
-    body.pos-page .sidebar {
-        width: 240px !important;
-    }
-    body.pos-page .content {
-        margin-left: 0 !important;
-        width: 100% !important;
-    }
+.kk-queue-pill {
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid #e5dcc4;
+    background: #ffffff;
+    color: #594113;
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.kk-queue-pill:hover {
+    background: #fff8e1;
+    border-color: #d6a81f;
+}
+
+.kk-queue-pill.active {
+    background: #f2c12e;
+    border-color: #dfa910;
+    color: #1f2328;
+}
+
+.kk-queue-sort-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+    flex-shrink: 0;
+    font-size: 12.5px;
+    font-weight: 700;
+    color: #655c4c;
+    white-space: nowrap;
+}
+
+.kk-queue-sort {
+    width: auto;
+    min-height: 36px;
+    height: auto;
+    padding: 7px 12px;
+    line-height: 1.3;
+    border-radius: 9px;
+    border: 1px solid #e5dcc4;
+    background: #ffffff;
+    color: #1f2328;
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.kk-queue-sort:focus {
+    outline: none;
+    border-color: #d6a81f;
+    box-shadow: 0 0 0 3px rgba(242, 193, 46, 0.2);
 }
 
 

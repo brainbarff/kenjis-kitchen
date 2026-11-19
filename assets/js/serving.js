@@ -1,4 +1,5 @@
-let servingFilter = "all";
+let servingFilter = localStorage.getItem('kk_serving_filter') || "all";
+let servingSort = localStorage.getItem('kk_serving_sort') || "fifo";
 const servingGrid =
     document.getElementById('servingGrid');
 
@@ -247,7 +248,16 @@ function renderEmptyState() {
 function renderOrders() {
     updateSummary();
 
-    const visibleOrders = readyOrders.filter(order => servingFilter === 'all' || (servingFilter === 'dine' ? order.order_type === 'DINE-IN' : order.order_type !== 'DINE-IN'));
+    const filteredOrders = readyOrders.filter(order => {
+        if (servingFilter === 'dine') return order.order_type === 'DINE-IN';
+        if (servingFilter === 'takeout') return order.order_channel !== 'ONLINE' && order.order_type === 'TAKE-OUT';
+        if (servingFilter === 'online-pickup') return order.order_channel === 'ONLINE' && order.order_type !== 'DINE-IN';
+        if (servingFilter === 'pickup') return order.order_type !== 'DINE-IN';
+        return true;
+    });
+    const visibleOrders = window.kkSortOrders
+        ? window.kkSortOrders(filteredOrders, servingSort, { timeField: 'ready_at' })
+        : filteredOrders;
     if (!visibleOrders.length) {
         renderEmptyState();
         return;
@@ -749,10 +759,41 @@ setInterval(
     5000
 );
 
+function syncServingFilterControls() {
+    document.querySelectorAll('[data-serving-filter]').forEach(other => {
+        other.setAttribute('aria-pressed', String(other.dataset.servingFilter === servingFilter));
+    });
+    document.querySelectorAll('[data-serving-pill]').forEach(pill => {
+        pill.classList.toggle('active', pill.getAttribute('data-serving-pill') === servingFilter);
+    });
+}
+
 document.querySelectorAll('[data-serving-filter]').forEach(button => {
-button.addEventListener('click', () => {
-servingFilter = button.dataset.servingFilter;
-document.querySelectorAll('[data-serving-filter]').forEach(other => other.setAttribute('aria-pressed', String(other === button)));
-renderOrders();
+    button.addEventListener('click', () => {
+        servingFilter = button.dataset.servingFilter || 'all';
+        localStorage.setItem('kk_serving_filter', servingFilter);
+        syncServingFilterControls();
+        renderOrders();
+    });
 });
+
+document.getElementById('servingFilterPills')?.addEventListener('click', event => {
+    const pill = event.target.closest('[data-serving-pill]');
+    if (!pill) return;
+    servingFilter = pill.getAttribute('data-serving-pill') || 'all';
+    localStorage.setItem('kk_serving_filter', servingFilter);
+    syncServingFilterControls();
+    renderOrders();
 });
+
+const servingSortEl = document.getElementById('servingSortSelect');
+if (servingSortEl) {
+    servingSortEl.value = servingSort;
+    servingSortEl.addEventListener('change', () => {
+        servingSort = servingSortEl.value || 'fifo';
+        localStorage.setItem('kk_serving_sort', servingSort);
+        renderOrders();
+    });
+}
+
+syncServingFilterControls();

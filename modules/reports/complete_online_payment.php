@@ -44,6 +44,12 @@ try {
         throw new RuntimeException('Cancelled orders cannot be marked as paid.');
     }
 
+    $cancelReqStmt = $conn->prepare("SELECT id FROM transaction_requests WHERE order_id = ? AND request_type = 'Cancel Order' AND status = 'Pending' LIMIT 1 FOR UPDATE");
+    $cancelReqStmt->execute([$orderId]);
+    if ($cancelReqStmt->fetchColumn()) {
+        throw new RuntimeException('Customer has requested to cancel this order. Review the cancellation request in Order Requests before confirming payment.');
+    }
+
     $paymentStmt = $conn->prepare("SELECT id, payment_method, payment_reference, payment_status FROM payments WHERE order_id = ? ORDER BY id DESC LIMIT 1 FOR UPDATE");
     $paymentStmt->execute([$orderId]);
     $payment = $paymentStmt->fetch();

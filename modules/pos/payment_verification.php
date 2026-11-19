@@ -171,11 +171,15 @@ expire_overdue_gcash_orders($conn, $userId);
 // Fetch Pending Queue (Oldest First)
 $queueSql = "
     SELECT o.id, o.order_no, o.queue_no, o.customer_name, o.customer_phone, o.total, o.created_at,
+           o.order_type,
            o.fulfillment_mode, o.delivery_mode, o.courier_booking_by, o.delivery_tracking_url,
            o.courier_tracking_status, o.delivery_address, o.notes, o.qr_submission_count,
            o.locked_by_user_id, o.locked_at,
+           (SELECT COALESCE(SUM(oi.quantity), 0) FROM order_items oi WHERE oi.order_id = o.id) AS item_count,
            pp.id AS proof_id, pp.method_code, pp.reference_number, pp.image_hash, pp.amount_declared, pp.submitted_at,
-           u_lock.username AS locked_by_name
+           u_lock.username AS locked_by_name,
+           EXISTS(SELECT 1 FROM transaction_requests tr WHERE tr.order_id = o.id AND tr.request_type = 'Cancel Order' AND tr.status = 'Pending') AS cancel_requested,
+           (SELECT tr.reason FROM transaction_requests tr WHERE tr.order_id = o.id AND tr.request_type = 'Cancel Order' AND tr.status = 'Pending' ORDER BY tr.id DESC LIMIT 1) AS cancel_reason_text
     FROM orders o
     JOIN payment_proofs pp ON pp.order_id = o.id AND pp.verification_status = 'pending' AND pp.payment_type = 'food'
     LEFT JOIN users u_lock ON u_lock.id = o.locked_by_user_id
@@ -260,7 +264,30 @@ include ROOT_PATH . '/includes/header.php';
 </div>
 <?php else: ?>
 <?php $serverNowTs = time(); ?>
-<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, 360px), 1fr)); gap:20px;">
+<div class="kk-queue-toolbar" id="qrQueueToolbar" style="margin-bottom:16px;">
+    <div class="kk-queue-pills" id="qrFilterPills" role="group" aria-label="Filter QR verification queue">
+        <button type="button" class="kk-queue-pill active" data-qr-filter="all">All</button>
+        <button type="button" class="kk-queue-pill" data-qr-filter="within">Within Lagro</button>
+        <button type="button" class="kk-queue-pill" data-qr-filter="outside">Outside Lagro</button>
+        <button type="button" class="kk-queue-pill" data-qr-filter="pickup">Pickup</button>
+        <button type="button" class="kk-queue-pill" data-qr-filter="dupe">Duplicate Warning</button>
+    </div>
+    <label class="kk-queue-sort-wrap">
+        <span>Prioritize</span>
+        <select class="kk-queue-sort" id="qrSortSelect" aria-label="Prioritize QR verification queue">
+            <option value="fifo">First in, first out</option>
+            <option value="newest">Newest first</option>
+            <option value="pickup">Scheduled pickup time</option>
+            <option value="fewest">Fewest items first</option>
+            <option value="highest">Highest amount (₱)</option>
+        </select>
+    </label>
+</div>
+<div id="qrFilterEmptyState" class="card qr-empty" style="display:none; text-align:center; padding:36px 20px; margin-bottom:16px;">
+    <h3 style="margin:0 0 6px;">No matching QR payments</h3>
+    <p class="muted" style="margin:0;">Try selecting another filter pill above.</p>
+</div>
+<div id="qrPendingGrid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, 360px), 1fr)); gap:20px;">
     <?php foreach ($pendingList as $item):
         $createdTs = strtotime((string)$item['created_at']) ?: $serverNowTs;
         $diffSecs = max(0, $serverNowTs - $createdTs);
@@ -277,9 +304,25 @@ include ROOT_PATH . '/includes/header.php';
         $hasDupeHash = ($dupeHashStmt->fetchColumn() > 0);
 
         $isLocked = !empty($item['locked_by_user_id']) && (int)$item['locked_by_user_id'] !== $userId && (strtotime($item['locked_at']) > time() - 300);
+        $hasCancelRequest = !empty($item['cancel_requested']);
         $qrCoverageLabel = ($item['fulfillment_mode'] ?? '') === 'OUTSIDE' ? 'Outside Lagro' : 'Within Lagro';
+        $qrCoverageKey = ($item['fulfillment_mode'] ?? '') === 'OUTSIDE' ? 'outside' : 'within';
+        $qrPickupTs = 0;
+        if (!empty($item['notes']) && preg_match('/\[Pickup:\s*([^\]]+?)(?:\s+Philippine time)?\]/i', (string)$item['notes'], $pm)) {
+            $qrPickupTs = strtotime(trim($pm[1])) ?: 0;
+        }
+        $qrItemCount = max(1, (int)($item['item_count'] ?? 1));
     ?>
-    <section class="card qr-payment-card" style="display:flex; flex-direction:column; justify-content:space-between; border:1.5px solid <?= ($hasDupeRef || $hasDupeHash) ? '#ef4444' : '#e6dfd0' ?>; background:#ffffff;">
+    <section class="card qr-payment-card"
+        data-coverage="<?= e($qrCoverageKey) ?>"
+        data-fulfillment-mode="<?= e((string)($item['fulfillment_mode'] ?? '')) ?>"
+        data-order-type="<?= e((string)($item['order_type'] ?? 'ONLINE')) ?>"
+        data-created-ts="<?= (int)$createdTs ?>"
+        data-pickup-ts="<?= (int)$qrPickupTs ?>"
+        data-items="<?= (int)$qrItemCount ?>"
+        data-total="<?= e((string)((float)$item['total'])) ?>"
+        data-dupe="<?= ($hasDupeRef || $hasDupeHash) ? '1' : '0' ?>"
+        style="display:flex; flex-direction:column; justify-content:space-between; border:1.5px solid <?= ($hasCancelRequest || $hasDupeRef || $hasDupeHash) ? '#ef4444' : '#e6dfd0' ?>; background:#ffffff;">
         <div>
             <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:12px;">
                 <div>
@@ -317,7 +360,16 @@ include ROOT_PATH . '/includes/header.php';
                 <?php endif; ?>
             </div>
 
-            <!-- Duplicate Warnings -->
+            <!-- Duplicate & Cancellation Warnings -->
+            <?php if ($hasCancelRequest): ?>
+            <div style="background:#fee2e2; color:#991b1b; padding:10px 12px; border-radius:8px; font-size:12.5px; font-weight:700; margin-bottom:10px; line-height:1.45;">
+                <i class="bi bi-exclamation-octagon-fill"></i> CUSTOMER REQUESTED CANCELLATION: Payment cannot be confirmed while this request is pending.
+                <?php if (!empty($item['cancel_reason_text'])): ?>
+                    <div style="font-weight:500; margin-top:4px;">Reason: <?= e((string)$item['cancel_reason_text']) ?></div>
+                <?php endif; ?>
+                <div style="margin-top:6px;"><a href="<?= e(BASE_URL . '/modules/transactions/index.php') ?>" style="color:#7f1d1d; text-decoration:underline;">Review in Order Requests →</a></div>
+            </div>
+            <?php endif; ?>
             <?php if ($hasDupeRef): ?>
             <div style="background:#fee2e2; color:#991b1b; padding:8px 10px; border-radius:6px; font-size:12px; font-weight:700; margin-bottom:10px;">
                 <i class="bi bi-exclamation-octagon-fill"></i> WARNING: This reference number was already used on another order!
@@ -339,7 +391,11 @@ include ROOT_PATH . '/includes/header.php';
         </div>
 
         <div>
-            <?php if ($isLocked): ?>
+            <?php if ($hasCancelRequest): ?>
+                <div style="background:#fff1f2; color:#9f1239; font-size:12.5px; padding:10px; border-radius:8px; border:1px solid #fecdd3; text-align:center; font-weight:700;">
+                    <i class="bi bi-slash-circle-fill"></i> Verification locked — <a href="<?= e(BASE_URL . '/modules/transactions/index.php') ?>" style="color:#9f1239; text-decoration:underline;">resolve cancellation request</a> first.
+                </div>
+            <?php elseif ($isLocked): ?>
                 <div style="background:#fef3c7; color:#92400e; font-size:12px; padding:8px; border-radius:6px; text-align:center; font-weight:700;">
                     <i class="bi bi-lock-fill"></i> Being reviewed by <?= e($item['locked_by_name'] ?? 'another staff') ?>
                 </div>
@@ -482,6 +538,74 @@ function openRejectModal(orderId, proofId, orderNo) {
 function closeModal(id) {
     document.getElementById(id).style.display = 'none';
 }
+(function initQrQueueControls() {
+    const grid = document.getElementById('qrPendingGrid');
+    const pillsEl = document.getElementById('qrFilterPills');
+    const sortEl = document.getElementById('qrSortSelect');
+    const emptyEl = document.getElementById('qrFilterEmptyState');
+    if (!grid) return;
+
+    let qrFilter = localStorage.getItem('kk_qr_filter') || 'all';
+    let qrSort = localStorage.getItem('kk_qr_sort') || 'fifo';
+
+    function applyQrFilterAndSort() {
+        const cards = Array.from(grid.querySelectorAll('.qr-payment-card'));
+        const sortVal = qrSort;
+        cards.sort((a, b) => {
+            const ca = Number(a.dataset.createdTs || 0);
+            const cb = Number(b.dataset.createdTs || 0);
+            if (sortVal === 'newest') return cb - ca;
+            if (sortVal === 'pickup') {
+                const pa = Number(a.dataset.pickupTs || 0) || Number.POSITIVE_INFINITY;
+                const pb = Number(b.dataset.pickupTs || 0) || Number.POSITIVE_INFINITY;
+                return (pa - pb) || (ca - cb);
+            }
+            if (sortVal === 'fewest') {
+                return (Number(a.dataset.items || 1) - Number(b.dataset.items || 1)) || (ca - cb);
+            }
+            if (sortVal === 'highest') {
+                return (Number(b.dataset.total || 0) - Number(a.dataset.total || 0)) || (ca - cb);
+            }
+            return ca - cb;
+        });
+
+        let visibleCount = 0;
+        cards.forEach(card => {
+            let show = true;
+            if (qrFilter === 'within') show = card.dataset.orderType === 'ONLINE' && card.dataset.coverage === 'within';
+            else if (qrFilter === 'outside') show = card.dataset.orderType === 'ONLINE' && card.dataset.coverage === 'outside';
+            else if (qrFilter === 'pickup') show = card.dataset.fulfillmentMode === 'PICKUP' || card.dataset.orderType === 'TAKE-OUT';
+            else if (qrFilter === 'dupe') show = card.dataset.dupe === '1';
+            card.style.display = show ? 'flex' : 'none';
+            if (show) visibleCount++;
+            grid.appendChild(card);
+        });
+        if (emptyEl) emptyEl.style.display = visibleCount === 0 ? 'block' : 'none';
+    }
+
+    if (pillsEl) {
+        pillsEl.querySelectorAll('[data-qr-filter]').forEach(btn => {
+            btn.classList.toggle('active', btn.getAttribute('data-qr-filter') === qrFilter);
+        });
+        pillsEl.addEventListener('click', e => {
+            const btn = e.target.closest('[data-qr-filter]');
+            if (!btn) return;
+            qrFilter = btn.getAttribute('data-qr-filter') || 'all';
+            localStorage.setItem('kk_qr_filter', qrFilter);
+            pillsEl.querySelectorAll('[data-qr-filter]').forEach(b => b.classList.toggle('active', b === btn));
+            applyQrFilterAndSort();
+        });
+    }
+    if (sortEl) {
+        sortEl.value = qrSort;
+        sortEl.addEventListener('change', () => {
+            qrSort = sortEl.value || 'fifo';
+            localStorage.setItem('kk_qr_sort', qrSort);
+            applyQrFilterAndSort();
+        });
+    }
+    applyQrFilterAndSort();
+})();
 </script>
 
 <?php include ROOT_PATH . '/includes/footer.php'; ?>

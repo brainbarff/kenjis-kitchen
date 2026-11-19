@@ -744,6 +744,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     syncCustomerSession(),
     loadOnlineGcashSettings()
   ]);
+
+  setInterval(() => {
+    if (!document.hidden) loadMenuItems({ silent: true });
+  }, 4000);
+
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+      loadMenuItems({ silent: true });
+    }
+  });
 });
 
 async function loadOnlineGcashSettings() {
@@ -959,31 +969,50 @@ function setupUIEventListeners() {
   });
 }
 
+let menuSyncInflight = false;
+let lastMenuStockSignature = null;
+
 /**
  * Load Menu Items from API
  */
-async function loadMenuItems() {
+async function loadMenuItems({ silent = false } = {}) {
+  if (silent && menuSyncInflight) return;
+  menuSyncInflight = true;
+
   const grid = document.getElementById('foodGrid');
-  if (grid) {
+  if (!silent && grid) {
     grid.innerHTML = '<div style="grid-column: 1/-1; text-align:center; padding: 40px; color: var(--muted);">Loading menu items...</div>';
   }
 
   try {
-    const res = await fetch(`${API_ROOT}/menu.php?action=items`);
+    const res = await fetch(`${API_ROOT}/menu.php?action=items`, { cache: 'no-store' });
     const data = await res.json();
     if (!res.ok || data.status !== 'success' || !Array.isArray(data.data)) throw new Error('Menu API returned an error');
+
+    const signature = data.data
+      .map(i => `${i.id}:${Math.max(0, Math.floor(Number(i.stock ?? 0)))}:${i.availability || 'Available'}:${i.price ?? ''}:${i.promo_price ?? ''}`)
+      .join('|');
+    if (silent && lastMenuStockSignature !== null && signature === lastMenuStockSignature) {
+      return;
+    }
+
+    lastMenuStockSignature = signature;
     appState.menuItems = data.data;
     appState.bilaoServerGroups = data.bilao_groups || null;
     appState.drinkVariantInfo = data.drink_variant_info || null;
     appState.menuLoadError = '';
     reconcileCartWithMenuStock();
+    filterAndRenderMenu();
   } catch (_) {
-    appState.menuItems = [];
-    appState.menuLoadError = 'The live menu could not be loaded. Check that MySQL is running in XAMPP, then try again.';
-    console.warn('Menu API unavailable.');
+    if (!silent) {
+      appState.menuItems = [];
+      appState.menuLoadError = 'The live menu could not be loaded. Check that MySQL is running in XAMPP, then try again.';
+      console.warn('Menu API unavailable.');
+      filterAndRenderMenu();
+    }
+  } finally {
+    menuSyncInflight = false;
   }
-
-  filterAndRenderMenu();
 }
 
 /**
@@ -2148,6 +2177,25 @@ function renderCartDrawerItems(totalAmount) {
       minBanner.hidden = true;
     }
   }
+
+  const advBanner = document.getElementById('cartBilaoAdvanceBanner');
+  const proceedBtn = document.getElementById('btnProceedCheckout');
+  const advCheck = validateCartAdvancePrep();
+  if (advBanner) {
+    if (advCheck.hasAdvanceBilao) {
+      advBanner.textContent = advCheck.message;
+      advBanner.hidden = false;
+      advBanner.style.background = advCheck.mixedConflict ? '#FEF2F2' : '#FFFBEB';
+      advBanner.style.borderColor = advCheck.mixedConflict ? '#FECACA' : '#FCD34D';
+      advBanner.style.color = advCheck.mixedConflict ? '#991B1B' : '#92400E';
+    } else {
+      advBanner.textContent = '';
+      advBanner.hidden = true;
+    }
+  }
+  if (proceedBtn) {
+    proceedBtn.disabled = Boolean(advCheck.mixedConflict);
+  }
 }
 
 function handleCartQtyInput(index, inputEl) {
@@ -2359,6 +2407,13 @@ async function proceedToCheckout() {
     return;
   }
 
+  const advCheck = validateCartAdvancePrep();
+  if (!advCheck.ok) {
+    renderCartDrawerItems();
+    window.kkNotify(advCheck.message, 'warning', { title: 'Separate Order Required' });
+    return;
+  }
+
   closeCartDrawer();
 
   // Verify live session so stale localStorage doesn't open checkout without an active PHP session
@@ -2502,16 +2557,27 @@ function setCheckoutValidationError(message) {
 }
 
 function selectCheckoutFulfillment(mode) {
+  const advCheck = validateCartAdvancePrep();
+  if (advCheck.hasAdvanceBilao && mode === 'delivery') {
+    window.kkNotify('Medium, Large, and Extra Large Bilao platters require scheduled Pickup 1–2 days in advance.', 'warning', { title: 'Advance Pickup Required' });
+    mode = 'pickup';
+  }
   const normalized = (mode === 'delivery' || mode === 'pickup') ? mode : '';
   appState.fulfillmentMode = normalized;
   document.querySelectorAll('#checkoutFulfillmentGroup .fulfillment-btn').forEach(btn => {
+    const isDeliveryBtn = btn.dataset.mode === 'delivery';
+    const disabledForAdvance = isDeliveryBtn && advCheck.hasAdvanceBilao;
+    btn.disabled = disabledForAdvance;
+    btn.title = disabledForAdvance ? 'Medium, Large, and XL Bilao platters require 1–2 days advance Pickup reservation.' : '';
     const isMatch = btn.dataset.mode === normalized;
     btn.classList.toggle('active', isMatch);
     btn.setAttribute('aria-checked', isMatch ? 'true' : 'false');
   });
   const helpText = document.getElementById('fulfillmentHelpText');
   if (helpText) {
-    if (normalized === 'delivery') {
+    if (advCheck.hasAdvanceBilao) {
+      helpText.textContent = 'Medium, Large, and Extra Large Bilao platters require Pickup scheduled 1–2 days in advance (same-day Delivery unavailable).';
+    } else if (normalized === 'delivery') {
       helpText.textContent = 'Delivery selected. Enter your delivery address and select your exact destination on the map.';
     } else if (normalized === 'pickup') {
       helpText.textContent = 'Pickup selected. You will pick up your order at Kenji\'s Kitchen.';
@@ -3437,6 +3503,48 @@ function validateOnlineOrderMinimum() {
   return { ok: true, subtotal, minItems, minAmount, remaining: 0, message: '' };
 }
 
+function isAdvancePrepBilaoLine(line) {
+  if (!line) return false;
+  const item = appState.menuItems.find(m => Number(m.id) === Number(line.id));
+  const isBilao = Boolean(
+    line.packaging ||
+    line.is_bilao ||
+    (item && (Number(item.category_id) === 6 || String(item.category_name || '').toLowerCase() === 'bilao favorites'))
+  );
+  if (!isBilao) return false;
+  const sz = String(line.variantSize || (typeof getCartVariantSize === 'function' ? getCartVariantSize(line) : '') || item?.bilao_size || '').toUpperCase();
+  return ['M', 'L', 'XL'].includes(sz);
+}
+
+function validateCartAdvancePrep() {
+  if (!Array.isArray(appState.cart) || !appState.cart.length) {
+    return { ok: true, mixedConflict: false, hasAdvanceBilao: false, message: '' };
+  }
+  let hasAdvanceBilao = false;
+  let hasImmediateItem = false;
+  for (const line of appState.cart) {
+    if (isAdvancePrepBilaoLine(line)) {
+      hasAdvanceBilao = true;
+    } else {
+      hasImmediateItem = true;
+    }
+  }
+  if (hasAdvanceBilao && hasImmediateItem) {
+    return {
+      ok: false,
+      mixedConflict: true,
+      hasAdvanceBilao: true,
+      message: 'Medium, Large, and Extra Large Bilao platters require 1–2 days advance reservation and cannot be checked out together with regular same-day items (e.g. Pastilsilog or Bilao Small). Please place separate orders.'
+    };
+  }
+  return {
+    ok: true,
+    mixedConflict: false,
+    hasAdvanceBilao,
+    message: hasAdvanceBilao ? 'Advance reservation required: Medium, Large, and Extra Large Bilao platters require Pickup scheduled at least 1–2 days ahead.' : ''
+  };
+}
+
 function evaluateLagroDeliveryArea() {
   handleDeliveryAddressInput();
   return appState.deliveryCoverage;
@@ -3604,11 +3712,18 @@ function openCheckoutModal() {
     radio.checked = false;
   });
   const prepEl = document.getElementById('checkoutPrepEstimateText');
+  const advCheck = validateCartAdvancePrep();
   if (prepEl) {
-    prepEl.textContent = computeEstimatedPrepTime(appState.cart);
+    prepEl.textContent = advCheck.hasAdvanceBilao
+      ? '1–2 days advance reservation required'
+      : computeEstimatedPrepTime(appState.cart);
   }
   setCheckoutValidationError('');
-  updateFulfillmentDetails();
+  if (advCheck.hasAdvanceBilao) {
+    selectCheckoutFulfillment('pickup');
+  } else {
+    selectCheckoutFulfillment(appState.fulfillmentMode || '');
+  }
   document.getElementById('checkoutModal').classList.add('active');
   if (appState.fulfillmentMode === 'delivery') {
     setTimeout(() => {
@@ -3667,6 +3782,20 @@ async function submitOrder() {
   if (!minCheck.ok) {
     setCheckoutValidationError(minCheck.message);
     window.kkNotify(minCheck.message, 'warning');
+    return;
+  }
+
+  const advCheck = validateCartAdvancePrep();
+  if (!advCheck.ok) {
+    setCheckoutValidationError(advCheck.message);
+    window.kkNotify(advCheck.message, 'warning', { title: 'Separate Order Required' });
+    return;
+  }
+  if (advCheck.hasAdvanceBilao && appState.fulfillmentMode !== 'pickup') {
+    const msg = 'Medium, Large, and Extra Large Bilao platters require scheduled Pickup 1–2 days in advance and cannot use same-day Delivery.';
+    setCheckoutValidationError(msg);
+    window.kkNotify(msg, 'warning');
+    selectCheckoutFulfillment('pickup');
     return;
   }
 
@@ -4083,21 +4212,28 @@ function buildOption1TrackingWidget(order, isClosed, context = 'panel') {
 let pickupDays = [];
 let pickupDayIndex = -1;
 let pickupLoading = false;
+let pickupAdvanceMode = null;
 function pickupControlFocused() {
   const active = document.activeElement;
   return active?.id === 'pickupTime' || Boolean(active?.closest?.('#pickupDayChoices'));
 }
 async function loadPickupSlots() {
   if (pickupLoading || pickupControlFocused()) return;
+  const requiresAdvance = validateCartAdvancePrep().hasAdvanceBilao;
   pickupLoading = true;
   try {
-    const response = await fetch(API_ROOT + '/orders.php?action=pickup_slots', {credentials:'same-origin', cache:'no-store'});
+    const response = await fetch(API_ROOT + '/orders.php?action=pickup_slots&advance=' + (requiresAdvance ? '1' : '0'), {credentials:'same-origin', cache:'no-store'});
     const result = await response.json();
-    if (!response.ok || result.status !== 'success' || !Array.isArray(result.days) || result.days.length !== 2) throw new Error();
+    if (!response.ok || result.status !== 'success' || !Array.isArray(result.days) || result.days.length < 2) throw new Error();
     // A request may finish after the customer opens the native picker.
     if (pickupControlFocused()) return;
-    if (JSON.stringify(pickupDays) !== JSON.stringify(result.days)) {
+    if (pickupAdvanceMode !== requiresAdvance || JSON.stringify(pickupDays) !== JSON.stringify(result.days)) {
+      pickupAdvanceMode = requiresAdvance;
       pickupDays = result.days;
+      if (pickupDayIndex < 0 || pickupDayIndex >= pickupDays.length || !(pickupDays[pickupDayIndex]?.slots?.length)) {
+        const firstOpenIdx = pickupDays.findIndex(d => Array.isArray(d.slots) && d.slots.length > 0);
+        if (firstOpenIdx >= 0) pickupDayIndex = firstOpenIdx;
+      }
       renderPickupSlots();
     }
   } catch (_) {
@@ -4115,6 +4251,7 @@ function selectPickupDay(index) {
 function renderPickupSlots() {
   const select = document.getElementById('pickupTime');
   if (!select) return;
+  const requiresAdvance = validateCartAdvancePrep().hasAdvanceBilao;
   const old = select.value;
   const day = pickupDays[pickupDayIndex];
   document.getElementById('pickupDayChoices').innerHTML = pickupDays.map((d,i) => '<button type="button" aria-pressed="' + (i === pickupDayIndex) + '" onclick="selectPickupDay(' + i + ')">' + d.label + (!d.slots.length ? ' · Unavailable' : '') + '</button>').join('');
@@ -4122,7 +4259,16 @@ function renderPickupSlots() {
   select.innerHTML = '<option value="">Choose a time</option>' + (day?.slots || []).map(slot => '<option value="' + slot.value + '">' + slot.label + '</option>').join('');
   if ((day?.slots || []).some(slot => slot.value === old)) select.value = old;
   select.disabled = !day?.slots.length;
-  document.getElementById('pickupScheduleHelp').textContent = !day ? 'Choose Today or Tomorrow first.' : day.slots.length ? 'Available times only · at least 30 minutes needed for preparation' : new Date(day.date + 'T12:00:00+08:00').getUTCDay() === 0 ? 'Closed on Sunday. Please choose another day.' : 'No pickup times left for this day. Please choose another day.';
+  const leadCopy = requiresAdvance
+    ? 'Advance reservation (1–2 days ahead) · Medium, Large & XL Bilao require at least 24 hours preparation'
+    : 'Available times only · at least 30 minutes needed for preparation';
+  document.getElementById('pickupScheduleHelp').textContent = !day
+    ? 'Choose an available pickup day first.'
+    : day.slots.length
+      ? leadCopy
+      : new Date(day.date + 'T12:00:00+08:00').getUTCDay() === 0
+        ? 'Closed on Sunday. Please choose another day.'
+        : (requiresAdvance ? 'No advance-reservation slots on this day. Select Tomorrow or a later day.' : 'No pickup times left for this day. Please choose another day.');
 }
 setInterval(() => {
   if (appState.fulfillmentMode === 'pickup' && document.getElementById('checkoutModal')?.classList.contains('active')) loadPickupSlots();
@@ -6103,7 +6249,15 @@ function openPasswordRecovery() {
   _recovery.timer = setInterval(updateRecoveryControls, 1000);
 }
 
+function setRecoveryError(msg = '') {
+  const el = document.getElementById('recoveryErrorBanner');
+  if (!el) return;
+  el.textContent = msg || '';
+  el.hidden = !msg;
+}
+
 function showRecoveryEmail() {
+  setRecoveryError('');
   // Ignore replies from a previous email step after the customer navigates back.
   _recovery.version++;
   document.getElementById('recoveryEmailForm').style.display = 'block';
@@ -6143,6 +6297,7 @@ function backToRecoverySignIn() {
 
 async function requestRecoveryCode(resend = false) {
   if (!_recovery.active || _recovery.busy) return;
+  setRecoveryError('');
   const form = document.getElementById('recoveryEmailForm');
   if (!resend && !form.reportValidity()) return;
   const email = resend ? _recovery.email : document.getElementById('recoveryEmail').value.trim().toLowerCase();
@@ -6167,13 +6322,17 @@ async function requestRecoveryCode(resend = false) {
       if (!_recovery.active || version !== _recovery.version) return;
       document.getElementById('recoveryCode').value = '';
       showRecoveryReset();
-      window.kkNotify('If this email belongs to an active customer account, a 6-digit reset code has been sent. Check your inbox and spam folder.', 'success', {title: 'Check your email', duration: 9000});
+      window.kkNotify(data.message || 'A 6-digit reset code has been sent to your email. Check your inbox and spam folder.', 'success', {title: 'Check your email', duration: 9000});
     } else if (_recovery.active && version === _recovery.version) {
-      window.kkNotify(data.message || 'Could not send the reset code. Please try again.', 'error');
+      const errMsg = data.message || 'Could not send the reset code. Please check your email and try again.';
+      setRecoveryError(errMsg);
+      window.kkNotify(errMsg, 'error');
     }
   } catch (_) {
     if (_recovery.active && version === _recovery.version) {
-      window.kkNotify('Network error. Please try again.', 'error');
+      const errMsg = 'Network error. Please try again.';
+      setRecoveryError(errMsg);
+      window.kkNotify(errMsg, 'error');
     }
   } finally {
     _recovery.busy = false;
@@ -6993,19 +7152,21 @@ async function pollCustomerNotifications() {
   if (!appState.currentUser || custNotifState.inflight || document.hidden) return;
   custNotifState.inflight = true;
   try {
-    const res = await fetch('./api/orders.php?action=list', {
+    const res = await fetch('./api/orders.php?action=history', {
       credentials: 'same-origin',
       cache: 'no-store'
     });
     if (!res.ok) return;
     const data = await res.json();
-    if (!data || data.status !== 'success' || !Array.isArray(data.orders)) return;
+    const orderRows = Array.isArray(data?.data) ? data.data : (Array.isArray(data?.orders) ? data.orders : null);
+    if (!data || data.status !== 'success' || !orderRows) return;
 
     const nextItems = [];
     const nextMap = new Map();
     if (!appState.ordersById) appState.ordersById = {};
 
-    data.orders.forEach(order => {
+    let shouldRefreshMenuStock = false;
+    orderRows.forEach(order => {
       appState.ordersById[Number(order.id)] = order;
       const desc = buildCustomerNotifDescriptor(order);
       if (!desc) return;
@@ -7015,6 +7176,7 @@ async function pollCustomerNotifications() {
       if (custNotifState.initialized) {
         const prevFp = custNotifState.lastMap.get(desc.id);
         if (prevFp && prevFp !== desc.fingerprint) {
+          shouldRefreshMenuStock = true;
           window.kkNotify?.(desc.detail, desc.toastType || 'info', {
             title: desc.title,
             dedupeKey: `cust-ord-${desc.seenKey}`
@@ -7022,6 +7184,10 @@ async function pollCustomerNotifications() {
         }
       }
     });
+
+    if (shouldRefreshMenuStock) {
+      loadMenuItems({ silent: true });
+    }
 
     // Sort Action Needed items to top
     nextItems.sort((a, b) => Number(b.isAction) - Number(a.isAction));

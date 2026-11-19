@@ -135,13 +135,22 @@ try {
         $availStock = max(0, (int)$item['stock']);
         if ($availStock < $totalRequestedQty) {
             $conn->rollBack();
+            $freshStmt = $conn->prepare("SELECT id, stock, availability FROM menu_items WHERE id IN (" . implode(',', array_fill(0, count($requestedByMenuId), '?')) . ")");
+            $freshStmt->execute(array_keys($requestedByMenuId));
+            $freshUpdates = array_map(static function (array $r): array {
+                return [
+                    'id' => (int)$r['id'],
+                    'stock' => max(0, (int)$r['stock']),
+                    'availability' => (string)$r['availability'],
+                ];
+            }, $freshStmt->fetchAll(PDO::FETCH_ASSOC));
             $msg = $availStock <= 0
-                ? ($item['item_name'] . ' is currently out of stock.')
-                : ('Only ' . $availStock . ' pcs of ' . $item['item_name'] . ' are available.');
+                ? ($item['item_name'] . ' is currently out of stock — remaining stock was claimed by an earlier walk-in or online order.')
+                : ('Only ' . $availStock . ' pcs of ' . $item['item_name'] . ' remain (remaining stock was claimed by an earlier walk-in or online order).');
             echo json_encode([
                 'ok' => false,
                 'msg' => $msg,
-                'stock_updates' => [['id' => $itemId, 'stock' => $availStock, 'availability' => (string)$item['availability']]]
+                'stock_updates' => $freshUpdates ?: [['id' => $itemId, 'stock' => $availStock, 'availability' => (string)$item['availability']]]
             ]);
             exit;
         }
@@ -338,7 +347,20 @@ try {
 
         if ($deduct->rowCount() !== 1) {
             $conn->rollBack();
-            echo json_encode(['ok' => false, 'msg' => 'Stock changed while the order was being processed. Please review the order and try again.']);
+            $freshStmt = $conn->prepare("SELECT id, stock, availability FROM menu_items WHERE id IN (" . implode(',', array_fill(0, count($requestedByMenuId), '?')) . ")");
+            $freshStmt->execute(array_keys($requestedByMenuId));
+            $freshUpdates = array_map(static function (array $r): array {
+                return [
+                    'id' => (int)$r['id'],
+                    'stock' => max(0, (int)$r['stock']),
+                    'availability' => (string)$r['availability'],
+                ];
+            }, $freshStmt->fetchAll(PDO::FETCH_ASSOC));
+            echo json_encode([
+                'ok' => false,
+                'msg' => 'Stock changed while the order was being processed (an earlier order claimed the remaining stock). Your cart has been synced.',
+                'stock_updates' => $freshUpdates
+            ]);
             exit;
         }
 

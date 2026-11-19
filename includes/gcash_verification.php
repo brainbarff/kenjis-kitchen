@@ -17,6 +17,11 @@ function verify_online_gcash_payment(PDO $conn, int $orderId, ?int $proofId, int
     if (!$order || $order['status'] !== 'Pending' || $order['payment_verification_status'] !== 'Awaiting Verification') {
         throw new RuntimeException('This order is not awaiting GCash verification.');
     }
+    $cancelReqStmt = $conn->prepare("SELECT id, reason FROM transaction_requests WHERE order_id = ? AND request_type = 'Cancel Order' AND status = 'Pending' LIMIT 1 FOR UPDATE");
+    $cancelReqStmt->execute([$orderId]);
+    if ($cancelReqStmt->fetch(PDO::FETCH_ASSOC)) {
+        throw new RuntimeException('Customer has requested to cancel this order. Review the cancellation request in Order Requests before confirming payment.');
+    }
 
     $paymentStmt = $conn->prepare('SELECT * FROM payments WHERE order_id = ? ORDER BY id DESC LIMIT 1 FOR UPDATE');
     $paymentStmt->execute([$orderId]);
@@ -96,13 +101,13 @@ function cancel_pending_gcash_order(PDO $conn, int $orderId, string $reason, ?in
     if ((int)$order['inventory_deducted'] === 1) {
         $itemsStmt = $conn->prepare('SELECT menu_item_id, SUM(quantity - voided_quantity) AS qty FROM order_items WHERE order_id = ? GROUP BY menu_item_id ORDER BY menu_item_id');
         $itemsStmt->execute([$orderId]);
-        $restock = $conn->prepare("UPDATE menu_items SET availability = CASE WHEN availability = 'Unavailable' AND stock = 0 THEN 'Available' ELSE availability END, stock = stock + ? WHERE id = ?");
+        $restock = $conn->prepare("UPDATE menu_items SET availability = CASE WHEN availability = 'Unavailable' AND is_archived = 0 AND (stock + ?) > 0 THEN 'Available' ELSE availability END, stock = stock + ? WHERE id = ?");
         $stockLog = $conn->prepare("INSERT INTO inventory_logs (inventory_id, menu_item_id, user_id, action, quantity, remarks) VALUES (NULL, ?, ?, 'Stock In', ?, ?)");
         foreach ($itemsStmt->fetchAll(PDO::FETCH_ASSOC) as $item) {
             $qty = (int)$item['qty'];
             if ($qty < 1) continue;
             $menuId = (int)$item['menu_item_id'];
-            $restock->execute([$qty, $menuId]);
+            $restock->execute([$qty, $qty, $menuId]);
             if ($restock->rowCount() !== 1) throw new RuntimeException('Unable to restore stock for cancelled order.');
             $stockLog->execute([$menuId, $staffId, $qty, $reason . ' for order ' . $order['order_no']]);
         }
