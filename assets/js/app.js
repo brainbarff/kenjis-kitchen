@@ -595,3 +595,123 @@ window.addEventListener('pageshow', function (event) {
         window.location.reload();
     }
 });
+
+// Real-time module bell notifications + sidebar badges across all staff modules
+(function initRealtimeStaffNotifications() {
+    const sidebar = document.getElementById('sidebar');
+    const bellWrap = document.getElementById('kkHeaderNotifWrap');
+    const bellBtn = document.getElementById('kkHeaderNotifBtn');
+    const bellMenu = document.getElementById('kkHeaderNotifMenu');
+    const bellCount = document.getElementById('kkHeaderNotifCount');
+    const bellTitle = document.getElementById('kkHeaderNotifTitle');
+    const bellPill = document.getElementById('kkHeaderNotifPill');
+    const bellList = document.getElementById('kkHeaderNotifList');
+
+    const baseUrl = bellWrap?.dataset?.countsUrl || sidebar?.dataset?.sidebarCountsUrl || '';
+    const currentModule = bellWrap?.dataset?.module || 'dashboard';
+    if (!baseUrl) return;
+
+    function renderBellNotifications(notifData) {
+        if (!notifData || !bellCount || !bellList) return;
+        const count = Math.max(0, Number(notifData.count) || 0);
+        bellCount.textContent = count > 99 ? '99+' : String(count);
+        bellCount.hidden = count <= 0;
+        if (bellTitle && notifData.label) bellTitle.textContent = String(notifData.label);
+        if (bellPill) bellPill.textContent = `${count} pending`;
+
+        bellList.replaceChildren();
+        const items = Array.isArray(notifData.items) ? notifData.items : [];
+        if (!items.length) {
+            const empty = document.createElement('div');
+            empty.className = 'kk-notif-empty';
+            empty.textContent = 'You’re all caught up. No pending notifications here.';
+            bellList.appendChild(empty);
+            return;
+        }
+        items.forEach(item => {
+            const link = document.createElement('a');
+            link.className = 'kk-notif-item';
+            link.setAttribute('role', 'menuitem');
+            link.href = typeof item.url === 'string' && item.url ? item.url : '#';
+
+            const top = document.createElement('div');
+            top.className = 'kk-notif-item-top';
+            const title = document.createElement('strong');
+            title.textContent = String(item.title || '');
+            const tag = document.createElement('span');
+            tag.className = 'kk-notif-tag';
+            tag.textContent = String(item.tag || '');
+            top.append(title, tag);
+
+            const detail = document.createElement('div');
+            detail.className = 'kk-notif-item-detail';
+            detail.textContent = String(item.detail || '');
+
+            link.append(top, detail);
+            bellList.appendChild(link);
+        });
+    }
+
+    if (bellBtn && bellMenu) {
+        const closeBellMenu = () => {
+            bellMenu.hidden = true;
+            bellBtn.setAttribute('aria-expanded', 'false');
+        };
+        bellBtn.addEventListener('click', event => {
+            event.stopPropagation();
+            const opening = bellMenu.hidden;
+            bellMenu.hidden = !opening;
+            bellBtn.setAttribute('aria-expanded', opening ? 'true' : 'false');
+        });
+        document.addEventListener('click', event => {
+            if (!bellMenu.hidden && bellWrap && !bellWrap.contains(event.target)) {
+                closeBellMenu();
+            }
+        });
+        document.addEventListener('keydown', event => {
+            if (event.key === 'Escape' && !bellMenu.hidden) {
+                closeBellMenu();
+                bellBtn.focus();
+            }
+        });
+    }
+
+    let inflight = false;
+    async function refreshNotifications() {
+        if (inflight || document.hidden) return;
+        inflight = true;
+        try {
+            const sep = baseUrl.includes('?') ? '&' : '?';
+            const res = await fetch(`${baseUrl}${sep}module=${encodeURIComponent(currentModule)}`, {
+                credentials: 'same-origin',
+                cache: 'no-store'
+            });
+            if (!res.ok) return;
+            const data = await res.json();
+            if (!data || !data.ok) return;
+
+            if (data.counts && sidebar) {
+                Object.entries(data.counts).forEach(([key, rawVal]) => {
+                    const count = Math.max(0, Number(rawVal) || 0);
+                    sidebar.querySelectorAll(`[data-sidebar-badge-count="${key}"]`).forEach(badge => {
+                        badge.textContent = String(count);
+                        badge.hidden = count <= 0;
+                    });
+                });
+            }
+            if (data.notifications) {
+                renderBellNotifications(data.notifications);
+            }
+        } catch (_) {
+            // Silently ignore transient polling failures
+        } finally {
+            inflight = false;
+        }
+    }
+
+    window.kkRefreshSidebarBadges = refreshNotifications;
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) refreshNotifications();
+    });
+    setInterval(refreshNotifications, 4000);
+})();

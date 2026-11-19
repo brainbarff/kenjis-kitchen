@@ -24,67 +24,10 @@
         <?php endif; ?>
 
         <?php if (can_access(['admin', 'cashier'])): ?>
-            <?php
-            $sidebarPendingQr = 0;
-            $sidebarPendingCod = 0;
-            if (isset($conn)) {
-                try {
-                    require_once ROOT_PATH . '/includes/gcash_verification.php';
-                    expire_overdue_gcash_orders($conn, (int)(current_user()['id'] ?? 0) ?: null);
-                    $sidebarPendingQr = (int)$conn->query("
-                        SELECT COUNT(*) 
-                        FROM orders o 
-                        JOIN payment_proofs pp ON pp.order_id = o.id AND pp.verification_status = 'pending' AND pp.payment_type = 'food'
-                        WHERE o.payment_verification_status = 'Awaiting Verification' AND o.status = 'Pending'
-                    ")->fetchColumn();
-                } catch (Throwable $t) {}
-                try {
-                    $sidebarPendingCod = (int)$conn->query("
-                        SELECT COUNT(*) 
-                        FROM orders 
-                        WHERE order_channel = 'ONLINE' AND cod_approval_status = 'Pending' AND status = 'Pending'
-                    ")->fetchColumn();
-                } catch (Throwable $t) {}
-            }
-            ?>
             <a class="<?= active_link('pos') ?>" href="<?= BASE_URL ?>/modules/pos/index.php"><i class="bi bi-receipt"></i>POS</a>
-            <a class="<?= active_link('payment_verification') ?>" href="<?= BASE_URL ?>/modules/pos/payment_verification.php">
-                <i class="bi bi-qr-code-scan"></i>QR Verification
-                <?php if ($sidebarPendingQr > 0): ?>
-                    <span class="badge badge-warning" style="margin-left:auto; font-size:0.72rem; padding:2px 7px; border-radius:10px; background:#f59e0b; color:#111; font-weight:700;"><?= $sidebarPendingQr ?></span>
-                <?php endif; ?>
-            </a>
-            <a class="<?= active_link('cod_approvals') ?>" href="<?= BASE_URL ?>/modules/pos/cod_approvals.php">
-                <i class="bi bi-cash-coin"></i>COD Approvals
-                <?php if ($sidebarPendingCod > 0): ?>
-                    <span class="badge badge-warning" style="margin-left:auto; font-size:0.72rem; padding:2px 7px; border-radius:10px; background:#f59e0b; color:#111; font-weight:700;"><?= $sidebarPendingCod ?></span>
-                <?php endif; ?>
-            </a>
-            <?php
-            $sidebarDeliveryActionCount = 0;
-            if (isset($conn)) {
-                try {
-                    $sidebarDeliveryActionCount = (int)$conn->query("
-                        SELECT COUNT(*)
-                        FROM orders o
-                        LEFT JOIN delivery_dispatches d ON d.order_id = o.id
-                        WHERE o.order_channel = 'ONLINE'
-                          AND o.order_type = 'ONLINE'
-                          AND o.status IN ('Pending', 'Preparing', 'Ready')
-                          AND (
-                              o.status = 'Ready'
-                              OR (o.fulfillment_mode = 'OUTSIDE' AND (o.courier_tracking_status = 'Pending' OR o.courier_booking_by = 'STORE'))
-                          )
-                    ")->fetchColumn();
-                } catch (Throwable $t) {}
-            }
-            ?>
-            <a class="<?= active_link('delivery') ?>" href="<?= BASE_URL ?>/modules/delivery/index.php">
-                <i class="bi bi-truck"></i>Delivery Status
-                <?php if ($sidebarDeliveryActionCount > 0): ?>
-                    <span class="badge badge-warning" style="margin-left:auto; font-size:0.72rem; padding:2px 7px; border-radius:10px; background:#f59e0b; color:#111; font-weight:700;"><?= $sidebarDeliveryActionCount ?></span>
-                <?php endif; ?>
-            </a>
+            <a class="<?= active_link('payment_verification') ?>" href="<?= BASE_URL ?>/modules/pos/payment_verification.php"><i class="bi bi-qr-code-scan"></i>QR Verification</a>
+            <a class="<?= active_link('cod_approvals') ?>" href="<?= BASE_URL ?>/modules/pos/cod_approvals.php"><i class="bi bi-cash-coin"></i>COD Approvals</a>
+            <a class="<?= active_link('delivery') ?>" href="<?= BASE_URL ?>/modules/delivery/index.php"><i class="bi bi-truck"></i>Delivery Status</a>
         <?php endif; ?>
 
         <?php if (can_access(['admin', 'kitchen'])): ?>
@@ -96,21 +39,8 @@
         <?php endif; ?>
 
         <?php if (can_access('admin')): ?>
-            <?php
-            $sidebarPendingApprovals = 0;
-            if (isset($conn)) {
-                try {
-                    $sidebarPendingApprovals = (int)$conn->query("SELECT COUNT(*) FROM approval_requests WHERE status = 'Pending'")->fetchColumn();
-                } catch (Throwable $t) {}
-            }
-            ?>
             <a class="<?= active_link('reports') ?>" href="<?= BASE_URL ?>/modules/reports/index.php"><i class="bi bi-file-earmark-bar-graph"></i>Reports Hub</a>
-            <a class="<?= active_link('approvals') ?>" href="<?= BASE_URL ?>/modules/approvals/index.php">
-                <i class="bi bi-shield-check"></i>Approvals
-                <?php if ($sidebarPendingApprovals > 0): ?>
-                    <span class="badge badge-danger" style="margin-left:auto; font-size:0.72rem; padding:2px 7px; border-radius:10px;"><?= $sidebarPendingApprovals ?></span>
-                <?php endif; ?>
-            </a>
+            <a class="<?= active_link('approvals') ?>" href="<?= BASE_URL ?>/modules/approvals/index.php"><i class="bi bi-shield-check"></i>Approvals</a>
             <a class="<?= active_link('payments') ?>" href="<?= BASE_URL ?>/modules/settings/payments.php"><i class="bi bi-gear"></i>Payment Settings</a>
         <?php endif; ?>
 

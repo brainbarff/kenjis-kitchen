@@ -474,4 +474,646 @@ if (!function_exists('kk_delete_customer_avatar_file')) {
         }
     }
 }
+
+/**
+ * Compute live actionable notification counts for all staff sidebar modules.
+ *
+ * @return array<string, int>
+ */
+function kk_sidebar_badge_counts(PDO $conn, int $actorId = 0): array
+{
+    $counts = [
+        'inventory' => 0,
+        'pos' => 0,
+        'payment_verification' => 0,
+        'cod_approvals' => 0,
+        'delivery' => 0,
+        'kitchen' => 0,
+        'serving' => 0,
+        'approvals' => 0,
+    ];
+
+    try {
+        $counts['inventory'] = (int)$conn->query("
+            SELECT COUNT(*)
+            FROM menu_items
+            WHERE COALESCE(is_archived, 0) = 0
+              AND (stock <= 5 OR availability <> 'Available')
+        ")->fetchColumn();
+    } catch (Throwable $t) {}
+
+    try {
+        $counts['pos'] = (int)$conn->query("
+            SELECT COUNT(*)
+            FROM orders
+            WHERE order_channel = 'ONLINE'
+              AND status IN ('Pending', 'Preparing', 'Ready')
+        ")->fetchColumn();
+    } catch (Throwable $t) {}
+
+    try {
+        require_once ROOT_PATH . '/includes/gcash_verification.php';
+        expire_overdue_gcash_orders($conn, $actorId > 0 ? $actorId : null);
+        $foodQrCount = (int)$conn->query("
+            SELECT COUNT(*)
+            FROM orders o
+            JOIN payment_proofs pp ON pp.order_id = o.id AND pp.verification_status = 'pending' AND pp.payment_type = 'food'
+            WHERE o.payment_verification_status = 'Awaiting Verification'
+              AND o.status = 'Pending'
+        ")->fetchColumn();
+        $courierQrCount = (int)$conn->query("
+            SELECT COUNT(*)
+            FROM orders o
+            JOIN payment_proofs pp ON pp.order_id = o.id AND pp.verification_status = 'pending' AND pp.payment_type = 'courier_fee'
+        ")->fetchColumn();
+        $counts['payment_verification'] = $foodQrCount + $courierQrCount;
+    } catch (Throwable $t) {}
+
+    try {
+        $counts['cod_approvals'] = (int)$conn->query("
+            SELECT COUNT(*)
+            FROM orders
+            WHERE order_channel = 'ONLINE'
+              AND cod_approval_status = 'Pending'
+              AND status = 'Pending'
+        ")->fetchColumn();
+    } catch (Throwable $t) {}
+
+    try {
+        $counts['delivery'] = (int)$conn->query("
+            SELECT COUNT(*)
+            FROM orders o
+            LEFT JOIN delivery_dispatches d ON d.order_id = o.id
+            WHERE o.order_channel = 'ONLINE'
+              AND o.order_type = 'ONLINE'
+              AND o.status IN ('Pending', 'Preparing', 'Ready')
+              AND (
+                  o.status = 'Ready'
+                  OR (o.fulfillment_mode = 'OUTSIDE' AND (o.courier_tracking_status = 'Pending' OR o.courier_booking_by = 'STORE'))
+              )
+        ")->fetchColumn();
+    } catch (Throwable $t) {}
+
+    try {
+        require_once ROOT_PATH . '/includes/delivery_tracking.php';
+        $option1Gate = kk_kitchen_option1_gate_sql('o');
+        $counts['kitchen'] = (int)$conn->query("
+            SELECT COUNT(*)
+            FROM orders o
+            WHERE o.status IN ('Pending', 'Preparing')
+              AND o.kitchen_queued_at IS NOT NULL
+              AND (o.order_channel <> 'ONLINE' OR EXISTS (
+                  SELECT 1 FROM payments p
+                  WHERE p.order_id = o.id
+                    AND (p.payment_method <> 'GCash' OR p.payment_status = 'Paid')
+              ))
+              AND {$option1Gate}
+        ")->fetchColumn();
+    } catch (Throwable $t) {}
+
+    try {
+        $counts['serving'] = (int)$conn->query("
+            SELECT COUNT(*)
+            FROM orders
+            WHERE status = 'Ready'
+        ")->fetchColumn();
+    } catch (Throwable $t) {}
+
+    try {
+        $appReqCount = (int)$conn->query("
+            SELECT COUNT(*)
+            FROM approval_requests
+            WHERE status = 'Pending'
+        ")->fetchColumn();
+        $cancelReqCount = (int)$conn->query("
+            SELECT COUNT(*)
+            FROM transaction_requests
+            WHERE status = 'Pending'
+        ")->fetchColumn();
+        $counts['approvals'] = $appReqCount + $cancelReqCount;
+    } catch (Throwable $t) {}
+
+    return $counts;
+}
+
+/**
+ * Return module-scoped notifications for the upper-right navbar bell.
+ *
+ * @return array{module: string, label: string, count: int, items: array<int, array{title: string, detail: string, tag: string, url: string}>}
+ */
+function kk_module_notifications(PDO $conn, string $module, int $actorId = 0): array
+{
+    $module = trim($module) !== '' ? trim($module) : 'dashboard';
+    $labels = [
+        'inventory' => 'Inventory Alerts',
+        'pos' => 'Online Orders (POS)',
+        'payment_verification' => 'QR Verification',
+        'cod_approvals' => 'COD Approvals',
+        'delivery' => 'Delivery Status',
+        'kitchen' => 'Kitchen Queue',
+        'serving' => 'Serving Queue',
+        'approvals' => 'Approvals',
+        'reports' => 'Revenue & Payments',
+        'users' => 'User & Account Activity',
+        'menu' => 'Menu & Pricing Alerts',
+        'payments' => 'GCash & Payment Config',
+    ];
+    $label = $labels[$module] ?? 'Notifications';
+    $items = [];
+    $counts = kk_sidebar_badge_counts($conn, $actorId);
+    $totalCount = (int)($counts[$module] ?? 0);
+
+    try {
+        if ($module === 'delivery') {
+            $rows = $conn->query("
+                SELECT o.id, o.order_no, o.customer_name, o.status AS order_status,
+                       o.fulfillment_mode, o.delivery_mode, o.courier_booking_by,
+                       o.courier_tracking_status, d.status AS dispatch_status,
+                       tpd.delivery_fee AS tp_fee, tpd.fee_paid
+                FROM orders o
+                LEFT JOIN delivery_dispatches d ON d.order_id = o.id
+                LEFT JOIN thirdparty_deliveries tpd ON tpd.order_id = o.id
+                WHERE o.order_channel = 'ONLINE'
+                  AND o.order_type = 'ONLINE'
+                  AND o.status IN ('Pending', 'Preparing', 'Ready')
+                  AND (
+                      o.status = 'Ready'
+                      OR (o.fulfillment_mode = 'OUTSIDE' AND (o.courier_tracking_status = 'Pending' OR o.courier_booking_by = 'STORE'))
+                  )
+                ORDER BY o.created_at DESC
+                LIMIT 12
+            ")->fetchAll();
+            foreach ($rows as $r) {
+                $isOutside = ($r['fulfillment_mode'] ?? '') === 'OUTSIDE';
+                $tag = 'Action Needed';
+                $detail = (string)($r['customer_name'] ?: 'Online Customer');
+                if (($r['dispatch_status'] ?? '') === 'Failed') {
+                    $tag = 'Delivery Failed';
+                    $detail .= ' · Delivery failed, retry handoff needed';
+                } elseif (($r['dispatch_status'] ?? '') === 'Out for Delivery') {
+                    $tag = 'Out for Delivery';
+                    $detail .= ' · Confirm delivery when completed';
+                } elseif (($r['courier_tracking_status'] ?? '') === 'Pending') {
+                    $tag = 'Approve Link';
+                    $detail .= ' · Customer tracking link awaiting review';
+                } elseif ($isOutside && strtoupper((string)($r['courier_booking_by'] ?? '')) === 'STORE' && (float)($r['tp_fee'] ?? 0) <= 0) {
+                    $tag = 'Quote Fee';
+                    $detail .= ' · Enter third-party courier fee quote';
+                } elseif ($isOutside && strtoupper((string)($r['courier_booking_by'] ?? '')) === 'STORE' && empty($r['fee_paid'])) {
+                    $tag = 'Fee Unpaid';
+                    $detail .= ' · Awaiting customer courier fee payment';
+                } elseif (($r['order_status'] ?? '') === 'Ready') {
+                    $tag = 'Ready for Handoff';
+                    $detail .= ' · Ready for dispatch';
+                }
+                $items[] = [
+                    'title' => (string)$r['order_no'],
+                    'detail' => $detail,
+                    'tag' => $tag,
+                    'url' => BASE_URL . '/modules/delivery/index.php' . ($isOutside ? '?filter=outside' : ''),
+                ];
+            }
+            $cancelDeliveryRows = $conn->query("
+                SELECT o.order_no, o.customer_name, o.fulfillment_mode
+                FROM transaction_requests tr
+                JOIN orders o ON o.id = tr.order_id
+                WHERE tr.status = 'Pending'
+                  AND tr.request_type = 'Cancel Delivery'
+                ORDER BY tr.created_at DESC
+                LIMIT 6
+            ")->fetchAll();
+            foreach ($cancelDeliveryRows as $cr) {
+                $isOut = ($cr['fulfillment_mode'] ?? '') === 'OUTSIDE';
+                $items[] = [
+                    'title' => (string)$cr['order_no'],
+                    'detail' => (string)($cr['customer_name'] ?: 'Online Customer') . ' · Cancellation requested',
+                    'tag' => 'Cancel Request',
+                    'url' => BASE_URL . '/modules/delivery/index.php' . ($isOut ? '?filter=outside' : ''),
+                ];
+            }
+            $totalCount = max($totalCount, count($items));
+        } elseif ($module === 'kitchen') {
+            require_once ROOT_PATH . '/includes/delivery_tracking.php';
+            $option1Gate = kk_kitchen_option1_gate_sql('o');
+            $rows = $conn->query("
+                SELECT o.order_no, o.customer_name, o.status, o.order_type
+                FROM orders o
+                WHERE o.status IN ('Pending', 'Preparing')
+                  AND o.kitchen_queued_at IS NOT NULL
+                  AND (o.order_channel <> 'ONLINE' OR EXISTS (
+                      SELECT 1 FROM payments p
+                      WHERE p.order_id = o.id
+                        AND (p.payment_method <> 'GCash' OR p.payment_status = 'Paid')
+                  ))
+                  AND {$option1Gate}
+                ORDER BY o.kitchen_queued_at ASC
+                LIMIT 12
+            ")->fetchAll();
+            foreach ($rows as $r) {
+                $items[] = [
+                    'title' => (string)$r['order_no'],
+                    'detail' => (string)($r['customer_name'] ?: 'Walk-in Customer') . ' · ' . (string)$r['order_type'],
+                    'tag' => $r['status'] === 'Pending' ? 'New Order' : 'Preparing',
+                    'url' => BASE_URL . '/modules/kitchen/index.php',
+                ];
+            }
+        } elseif ($module === 'serving') {
+            $rows = $conn->query("
+                SELECT order_no, customer_name, order_type, table_no
+                FROM orders
+                WHERE status = 'Ready'
+                ORDER BY updated_at DESC, created_at DESC
+                LIMIT 12
+            ")->fetchAll();
+            foreach ($rows as $r) {
+                $place = $r['order_type'] === 'DINE-IN' && !empty($r['table_no']) ? 'Table ' . $r['table_no'] : (string)$r['order_type'];
+                $items[] = [
+                    'title' => (string)$r['order_no'],
+                    'detail' => (string)($r['customer_name'] ?: 'Walk-in Customer') . ' · ' . $place,
+                    'tag' => 'Ready to Serve',
+                    'url' => BASE_URL . '/modules/serving/index.php',
+                ];
+            }
+        } elseif ($module === 'payment_verification') {
+            $rows = $conn->query("
+                SELECT o.order_no, o.customer_name, o.total, pp.payment_type, tpd.delivery_fee AS tp_fee
+                FROM orders o
+                JOIN payment_proofs pp ON pp.order_id = o.id AND pp.verification_status = 'pending'
+                LEFT JOIN thirdparty_deliveries tpd ON tpd.order_id = o.id
+                WHERE (
+                    (pp.payment_type = 'food' AND o.payment_verification_status = 'Awaiting Verification' AND o.status = 'Pending')
+                    OR pp.payment_type = 'courier_fee'
+                )
+                ORDER BY pp.created_at ASC
+                LIMIT 12
+            ")->fetchAll();
+            foreach ($rows as $r) {
+                $isCourierFee = ($r['payment_type'] ?? '') === 'courier_fee';
+                $amt = $isCourierFee ? (float)($r['tp_fee'] ?? 0) : (float)$r['total'];
+                $items[] = [
+                    'title' => (string)$r['order_no'],
+                    'detail' => (string)($r['customer_name'] ?: 'Online Customer') . ' · ₱' . number_format($amt, 2),
+                    'tag' => $isCourierFee ? 'Courier Fee QR' : 'Verify GCash',
+                    'url' => BASE_URL . ($isCourierFee ? '/modules/delivery/index.php?filter=outside' : '/modules/pos/payment_verification.php'),
+                ];
+            }
+        } elseif ($module === 'cod_approvals') {
+            $rows = $conn->query("
+                SELECT order_no, customer_name, total
+                FROM orders
+                WHERE order_channel = 'ONLINE' AND cod_approval_status = 'Pending' AND status = 'Pending'
+                ORDER BY created_at ASC
+                LIMIT 12
+            ")->fetchAll();
+            foreach ($rows as $r) {
+                $items[] = [
+                    'title' => (string)$r['order_no'],
+                    'detail' => (string)($r['customer_name'] ?: 'Online Customer') . ' · ₱' . number_format((float)$r['total'], 2),
+                    'tag' => 'COD Pending',
+                    'url' => BASE_URL . '/modules/pos/cod_approvals.php',
+                ];
+            }
+        } elseif ($module === 'pos') {
+            $hour = (int)date('G');
+            if ($hour >= 9 && $hour < 21) {
+                $shiftWindowLabel = 'First Shift (9:00 AM - 9:00 PM)';
+                $isStoreHours = true;
+            } elseif ($hour >= 21 || $hour < 3) {
+                $shiftWindowLabel = 'Closing Shift (9:00 PM - 3:00 AM)';
+                $isStoreHours = true;
+            } else {
+                $shiftWindowLabel = 'Store Closed (Opens 9:00 AM)';
+                $isStoreHours = false;
+            }
+
+            $openShift = $conn->query("
+                SELECT cs.id, cs.opened_at, u.full_name, u.username
+                FROM cashier_shifts cs
+                JOIN users u ON u.id = cs.user_id
+                WHERE cs.status = 'Open'
+                ORDER BY cs.opened_at DESC
+                LIMIT 1
+            ")->fetch();
+
+            if ($openShift) {
+                $cashierLabel = (string)($openShift['full_name'] ?: $openShift['username']);
+                $openedTs = strtotime((string)$openShift['opened_at']);
+                $openedTime = $openedTs ? date('g:i A', $openedTs) : '';
+                $openedHour = $openedTs ? (int)date('G', $openedTs) : $hour;
+                $needsHandover = ($hour >= 21 && $openedHour >= 9 && $openedHour < 21)
+                    || ($hour < 3 && $openedHour >= 9 && $openedHour < 21);
+
+                $items[] = [
+                    'title' => 'Shift Open: ' . $cashierLabel,
+                    'detail' => $shiftWindowLabel . ($openedTime ? ' · Opened ' . $openedTime : ''),
+                    'tag' => $needsHandover ? 'Shift Handover' : 'Active Shift',
+                    'url' => BASE_URL . '/modules/pos/index.php',
+                ];
+                if ($needsHandover) {
+                    $totalCount++;
+                }
+            } else {
+                $items[] = [
+                    'title' => 'No Active Cashier Shift',
+                    'detail' => $shiftWindowLabel . ($isStoreHours ? ' · Start shift before taking POS orders' : ''),
+                    'tag' => $isStoreHours ? 'Action Needed' : 'Closed',
+                    'url' => BASE_URL . '/modules/pos/index.php',
+                ];
+                if ($isStoreHours) {
+                    $totalCount++;
+                }
+            }
+
+            $rows = $conn->query("
+                SELECT order_no, customer_name, status, total
+                FROM orders
+                WHERE order_channel = 'ONLINE' AND status IN ('Pending', 'Preparing', 'Ready')
+                ORDER BY created_at DESC
+                LIMIT 12
+            ")->fetchAll();
+            foreach ($rows as $r) {
+                $items[] = [
+                    'title' => (string)$r['order_no'],
+                    'detail' => (string)($r['customer_name'] ?: 'Online Customer') . ' · ₱' . number_format((float)$r['total'], 2),
+                    'tag' => (string)$r['status'],
+                    'url' => BASE_URL . '/modules/pos/index.php',
+                ];
+            }
+        } elseif ($module === 'inventory') {
+            $rows = $conn->query("
+                SELECT item_name, stock, availability
+                FROM menu_items
+                WHERE COALESCE(is_archived, 0) = 0
+                  AND (stock <= 5 OR availability <> 'Available')
+                ORDER BY stock ASC, item_name ASC
+                LIMIT 12
+            ")->fetchAll();
+            foreach ($rows as $r) {
+                $stock = (int)$r['stock'];
+                $isOut = $stock <= 0 || ($r['availability'] ?? '') !== 'Available';
+                $items[] = [
+                    'title' => (string)$r['item_name'],
+                    'detail' => $isOut ? 'Currently out of stock / unavailable' : ('Remaining: ' . $stock . ' pcs left'),
+                    'tag' => $isOut ? 'Out of Stock' : 'Low Stock',
+                    'url' => BASE_URL . '/modules/inventory/index.php?stock_filter=' . ($isOut ? 'out' : 'low'),
+                ];
+            }
+        } elseif ($module === 'reports') {
+            $rows = $conn->query("
+                SELECT o.order_no, o.customer_name, p.payment_method, p.payment_status, o.total, COALESCE(p.paid_at, p.created_at) AS tx_time
+                FROM payments p
+                JOIN orders o ON o.id = p.order_id
+                WHERE p.payment_status = 'Paid'
+                  AND DATE(COALESCE(p.paid_at, p.created_at)) = CURDATE()
+                ORDER BY COALESCE(p.paid_at, p.created_at) DESC
+                LIMIT 12
+            ")->fetchAll();
+            $totalCount = (int)$conn->query("
+                SELECT COUNT(*)
+                FROM payments
+                WHERE payment_status = 'Paid'
+                  AND DATE(COALESCE(paid_at, created_at)) = CURDATE()
+            ")->fetchColumn();
+            foreach ($rows as $r) {
+                $timeStr = !empty($r['tx_time']) ? date('g:i A', strtotime((string)$r['tx_time'])) : '';
+                $items[] = [
+                    'title' => (string)$r['order_no'] . ' · ₱' . number_format((float)$r['total'], 2),
+                    'detail' => (string)($r['customer_name'] ?: 'Walk-in Customer') . ($timeStr ? ' · ' . $timeStr : ''),
+                    'tag' => (string)$r['payment_method'] . ' Paid',
+                    'url' => BASE_URL . '/modules/reports/index.php?tab=payments',
+                ];
+            }
+        } elseif ($module === 'users') {
+            $custRoleId = (int)$conn->query("SELECT id FROM roles WHERE LOWER(role_name) = 'customer' LIMIT 1")->fetchColumn();
+            if ($custRoleId > 0) {
+                $deactRows = $conn->query("
+                    SELECT full_name, username, email, customer_status, deleted_at
+                    FROM users
+                    WHERE role_id = {$custRoleId}
+                      AND (customer_status IN ('Archived', 'Deactivated') OR deleted_at IS NOT NULL OR COALESCE(is_archived, 0) = 1)
+                    ORDER BY COALESCE(deleted_at, created_at) DESC
+                    LIMIT 5
+                ")->fetchAll();
+                foreach ($deactRows as $r) {
+                    $items[] = [
+                        'title' => (string)($r['full_name'] ?: $r['username']),
+                        'detail' => (string)($r['email'] ?: $r['username']) . ' · Account deactivated or archived',
+                        'tag' => 'Deactivated',
+                        'url' => BASE_URL . '/modules/users/index.php',
+                    ];
+                }
+                $newCustRows = $conn->query("
+                    SELECT full_name, username, email, created_at
+                    FROM users
+                    WHERE role_id = {$custRoleId}
+                      AND COALESCE(is_archived, 0) = 0
+                      AND created_at >= (NOW() - INTERVAL 1 DAY)
+                    ORDER BY created_at DESC
+                    LIMIT 5
+                ")->fetchAll();
+                foreach ($newCustRows as $r) {
+                    $items[] = [
+                        'title' => (string)($r['full_name'] ?: $r['username']),
+                        'detail' => 'Registered ' . date('M j, g:i A', strtotime((string)$r['created_at'])),
+                        'tag' => 'New Customer',
+                        'url' => BASE_URL . '/modules/users/index.php',
+                    ];
+                }
+            }
+            $staffLogRows = $conn->query("
+                SELECT action, details, created_at
+                FROM audit_logs
+                WHERE target_type = 'user'
+                  AND created_at >= (NOW() - INTERVAL 1 DAY)
+                ORDER BY created_at DESC
+                LIMIT 5
+            ")->fetchAll();
+            foreach ($staffLogRows as $r) {
+                $items[] = [
+                    'title' => ucwords(str_replace('_', ' ', (string)$r['action'])),
+                    'detail' => mb_strimwidth((string)($r['details'] ?: 'Staff account updated'), 0, 75, '…'),
+                    'tag' => 'Account Change',
+                    'url' => BASE_URL . '/modules/users/index.php',
+                ];
+            }
+            $totalCount = count($items);
+        } elseif ($module === 'menu') {
+            $unavailRows = $conn->query("
+                SELECT item_name, stock, availability
+                FROM menu_items
+                WHERE COALESCE(is_archived, 0) = 0
+                  AND (availability <> 'Available' OR stock <= 0)
+                ORDER BY item_name ASC
+                LIMIT 6
+            ")->fetchAll();
+            foreach ($unavailRows as $r) {
+                $items[] = [
+                    'title' => (string)$r['item_name'],
+                    'detail' => 'Hidden or out of stock on customer menu',
+                    'tag' => 'Unavailable',
+                    'url' => BASE_URL . '/modules/menu/index.php',
+                ];
+            }
+            $priceRows = $conn->query("
+                SELECT item_name, old_price, new_price, created_at
+                FROM price_change_logs
+                WHERE created_at >= (NOW() - INTERVAL 1 DAY)
+                ORDER BY created_at DESC
+                LIMIT 6
+            ")->fetchAll();
+            foreach ($priceRows as $r) {
+                $items[] = [
+                    'title' => (string)$r['item_name'],
+                    'detail' => '₱' . number_format((float)$r['old_price'], 2) . ' → ₱' . number_format((float)$r['new_price'], 2),
+                    'tag' => 'Price Updated',
+                    'url' => BASE_URL . '/modules/menu/index.php',
+                ];
+            }
+            $totalCount = count($items);
+        } elseif ($module === 'payments') {
+            $cfg = $conn->query("
+                SELECT sps.gcash_account_name, sps.gcash_phone, sps.gcash_qr_image, sps.updated_at, u.username AS updated_by_name
+                FROM store_payment_settings sps
+                LEFT JOIN users u ON u.id = sps.updated_by
+                WHERE sps.id = 1
+                LIMIT 1
+            ")->fetch();
+            if (!$cfg || trim((string)($cfg['gcash_account_name'] ?? '')) === '' || trim((string)($cfg['gcash_phone'] ?? '')) === '') {
+                $items[] = [
+                    'title' => 'Missing GCash Account Details',
+                    'detail' => 'Set your GCash account name and 11-digit number for online checkout.',
+                    'tag' => 'Action Needed',
+                    'url' => BASE_URL . '/modules/settings/payments.php',
+                ];
+            }
+            if ($cfg && trim((string)($cfg['gcash_qr_image'] ?? '')) === '') {
+                $items[] = [
+                    'title' => 'No GCash QR Code Uploaded',
+                    'detail' => 'Upload a GCash QR image so customers can scan and pay easily.',
+                    'tag' => 'Optional QR',
+                    'url' => BASE_URL . '/modules/settings/payments.php',
+                ];
+            }
+            if ($cfg && !empty($cfg['updated_at'])) {
+                $by = !empty($cfg['updated_by_name']) ? (' by ' . $cfg['updated_by_name']) : '';
+                $items[] = [
+                    'title' => 'GCash Config Active',
+                    'detail' => 'Last updated ' . date('M j, g:i A', strtotime((string)$cfg['updated_at'])) . $by,
+                    'tag' => 'Active',
+                    'url' => BASE_URL . '/modules/settings/payments.php',
+                ];
+            }
+            $totalCount = count($items);
+        } elseif ($module === 'approvals') {
+            $rows = $conn->query("
+                SELECT id, request_type, target_name
+                FROM approval_requests
+                WHERE status = 'Pending'
+                ORDER BY created_at DESC
+                LIMIT 8
+            ")->fetchAll();
+            foreach ($rows as $r) {
+                $items[] = [
+                    'title' => (string)($r['request_type'] ?: 'Approval Request'),
+                    'detail' => (string)($r['target_name'] ?: ('Request #' . $r['id'])),
+                    'tag' => 'Pending',
+                    'url' => BASE_URL . '/modules/approvals/index.php',
+                ];
+            }
+            $txRows = $conn->query("
+                SELECT tr.id, tr.request_type, o.order_no, o.customer_name
+                FROM transaction_requests tr
+                LEFT JOIN orders o ON o.id = tr.order_id
+                WHERE tr.status = 'Pending'
+                ORDER BY tr.created_at DESC
+                LIMIT 8
+            ")->fetchAll();
+            foreach ($txRows as $tr) {
+                $items[] = [
+                    'title' => (string)($tr['request_type'] ?: 'Transaction Request') . (!empty($tr['order_no']) ? (' · ' . $tr['order_no']) : ''),
+                    'detail' => (string)($tr['customer_name'] ?: ('Request #' . $tr['id'])),
+                    'tag' => 'Needs Review',
+                    'url' => BASE_URL . '/modules/approvals/index.php',
+                ];
+            }
+        } else {
+            // Dashboard / general overview filtered by role
+            if ($module === 'dashboard' && can_access('admin')) {
+                $todayStats = $conn->query("
+                    SELECT COUNT(*) AS total_orders,
+                           SUM(CASE WHEN EXISTS (
+                               SELECT 1 FROM payments p WHERE p.order_id = orders.id AND p.payment_status = 'Paid'
+                           ) THEN 1 ELSE 0 END) AS paid_orders,
+                           COALESCE(SUM(CASE WHEN EXISTS (
+                               SELECT 1 FROM payments p WHERE p.order_id = orders.id AND p.payment_status = 'Paid'
+                           ) THEN total ELSE 0 END), 0) AS paid_sales
+                    FROM orders
+                    WHERE DATE(created_at) = CURDATE()
+                      AND status NOT IN ('Cancelled', 'Voided', 'Refunded')
+                ")->fetch();
+                $todayOrders = (int)($todayStats['total_orders'] ?? 0);
+                $paidOrders = (int)($todayStats['paid_orders'] ?? 0);
+                $paidSales = (float)($todayStats['paid_sales'] ?? 0);
+                $items[] = [
+                    'title' => 'Today’s Sales: ₱' . number_format($paidSales, 2),
+                    'detail' => $todayOrders . ' order' . ($todayOrders === 1 ? '' : 's') . ' today · ' . $paidOrders . ' paid',
+                    'tag' => 'Today',
+                    'url' => BASE_URL . '/modules/reports/index.php',
+                ];
+
+                $dashOpenShift = $conn->query("
+                    SELECT cs.opened_at, u.full_name, u.username
+                    FROM cashier_shifts cs
+                    JOIN users u ON u.id = cs.user_id
+                    WHERE cs.status = 'Open'
+                    ORDER BY cs.opened_at DESC
+                    LIMIT 1
+                ")->fetch();
+                $dashHour = (int)date('G');
+                $dashShiftWindow = ($dashHour >= 9 && $dashHour < 21)
+                    ? 'First Shift (9:00 AM - 9:00 PM)'
+                    : (($dashHour >= 21 || $dashHour < 3) ? 'Closing Shift (9:00 PM - 3:00 AM)' : 'Store Closed');
+                $items[] = [
+                    'title' => $dashOpenShift
+                        ? ('Cashier Shift: ' . (string)($dashOpenShift['full_name'] ?: $dashOpenShift['username']))
+                        : 'No Active Cashier Shift',
+                    'detail' => $dashShiftWindow,
+                    'tag' => $dashOpenShift ? 'Open' : 'Unopened',
+                    'url' => BASE_URL . '/modules/pos/index.php',
+                ];
+            }
+
+            $overviewMap = [
+                'payment_verification' => ['QR Verification', BASE_URL . '/modules/pos/payment_verification.php', ['admin', 'cashier'], 'Pending GCash verification'],
+                'cod_approvals' => ['COD Approvals', BASE_URL . '/modules/pos/cod_approvals.php', ['admin', 'cashier'], 'Pending COD approval'],
+                'delivery' => ['Delivery Status', BASE_URL . '/modules/delivery/index.php', ['admin', 'cashier'], 'Needs delivery action'],
+                'kitchen' => ['Kitchen Queue', BASE_URL . '/modules/kitchen/index.php', ['admin', 'kitchen'], 'Active kitchen orders'],
+                'serving' => ['Serving Queue', BASE_URL . '/modules/serving/index.php', ['admin', 'cashier', 'kitchen'], 'Ready to serve'],
+                'inventory' => ['Inventory Alerts', BASE_URL . '/modules/inventory/index.php', ['admin', 'inventory'], 'Low or out of stock'],
+                'approvals' => ['Approvals', BASE_URL . '/modules/approvals/index.php', ['admin'], 'Pending admin approval'],
+            ];
+            $totalCount = 0;
+            foreach ($overviewMap as $k => [$modName, $modUrl, $roles, $desc]) {
+                if (!can_access($roles)) continue;
+                $c = (int)($counts[$k] ?? 0);
+                if ($c > 0) {
+                    $totalCount += $c;
+                    $items[] = [
+                        'title' => $modName,
+                        'detail' => $desc,
+                        'tag' => (string)$c,
+                        'url' => $modUrl,
+                    ];
+                }
+            }
+        }
+    } catch (Throwable $t) {}
+
+    return [
+        'module' => $module,
+        'label' => $label,
+        'count' => $totalCount,
+        'items' => $items,
+    ];
+}
 ?>
