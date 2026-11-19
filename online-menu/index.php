@@ -274,7 +274,16 @@ require_once dirname(__DIR__) . '/includes/storefront_bestsellers.php';
   <!-- Unified Auth Modal: Sign In & Register with OTP Verification -->
   <div class="modal-overlay" id="authModal">
     <div class="modal-card auth-modal-card">
-      <button class="btn-close-modal" onclick="closeModal('authModal')">✕</button>
+      <div class="auth-brand-bar">
+        <div class="auth-brand-id">
+          <img src="../assets/img/logo.png" alt="Kenji's Kitchen" class="auth-brand-logo">
+          <div>
+            <strong>Kenji’s Kitchen</strong>
+            <span>Greater Lagro · Online Ordering</span>
+          </div>
+        </div>
+        <button type="button" class="btn-close-modal auth-close-btn" onclick="closeModal('authModal')" aria-label="Close dialog">✕</button>
+      </div>
 
       <!-- Dual Tab Bar -->
       <div class="auth-tabs">
@@ -352,39 +361,49 @@ require_once dirname(__DIR__) . '/includes/storefront_bestsellers.php';
         </div><!-- /authStep1 -->
 
         <!-- STEP 2: OTP Entry -->
-        <div id="authStep2" style="display:none;">
-          <div class="auth-otp-icon"><i class="bi bi-shield-lock-fill"></i></div>
+        <div id="authStep2" class="auth-otp-step" style="display:none;">
+          <div class="auth-otp-badge" aria-hidden="true">
+            <i class="bi bi-envelope-check-fill"></i>
+          </div>
+          <div class="auth-otp-eyebrow">Kenji’s Kitchen Account Verification</div>
           <h3 class="auth-otp-title">Check your <span id="authOtpChannel">email</span></h3>
-          <p class="auth-sub" style="text-align:center;">
-            We sent a 6-digit code to<br>
-            <strong id="authOtpTarget" style="color:var(--dark);"></strong>
-          </p>
+          <p class="auth-otp-intro">We sent a 6-digit verification code to:</p>
+          <div class="auth-otp-target-pill">
+            <i class="bi bi-envelope-fill" aria-hidden="true"></i>
+            <strong id="authOtpTarget"></strong>
+          </div>
 
           <!-- Individual digit input boxes -->
-          <div class="auth-otp-boxes" id="authOtpBoxes">
-            <input class="auth-otp-box" type="text" maxlength="1" inputmode="numeric" pattern="[0-9]">
-            <input class="auth-otp-box" type="text" maxlength="1" inputmode="numeric" pattern="[0-9]">
-            <input class="auth-otp-box" type="text" maxlength="1" inputmode="numeric" pattern="[0-9]">
-            <input class="auth-otp-box" type="text" maxlength="1" inputmode="numeric" pattern="[0-9]">
-            <input class="auth-otp-box" type="text" maxlength="1" inputmode="numeric" pattern="[0-9]">
-            <input class="auth-otp-box" type="text" maxlength="1" inputmode="numeric" pattern="[0-9]">
+          <div class="auth-otp-boxes" id="authOtpBoxes" role="group" aria-label="6-digit verification code">
+            <input class="auth-otp-box" type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" aria-label="Digit 1">
+            <input class="auth-otp-box" type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" aria-label="Digit 2">
+            <input class="auth-otp-box" type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" aria-label="Digit 3">
+            <input class="auth-otp-box" type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" aria-label="Digit 4">
+            <input class="auth-otp-box" type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" aria-label="Digit 5">
+            <input class="auth-otp-box" type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" aria-label="Digit 6">
           </div>
 
           <div class="auth-timer-row">
-            <i class="bi bi-clock"></i>
-            Expires in: <span id="authTimerDisplay" style="font-weight:800; color:var(--danger);">5:00</span>
+            <span class="auth-timer-pill">
+              <i class="bi bi-clock-fill" aria-hidden="true"></i>
+              Expires in <strong id="authTimerDisplay">5:00</strong>
+            </span>
           </div>
 
-          <button class="auth-btn-primary" id="btnVerify" onclick="verifyCode()">
-            <i class="bi bi-check-circle-fill"></i> Verify Code
+          <button class="auth-btn-primary auth-otp-verify-btn" id="btnVerify" onclick="verifyCode()">
+            <i class="bi bi-check-circle-fill"></i> Verify &amp; Create Account
           </button>
-          <button class="auth-btn-back" onclick="goBackToForm()">
-            <i class="bi bi-arrow-left"></i> Back
-          </button>
-          <p class="auth-resend-row">
-            Didn't receive it?
-            <button class="auth-resend-btn" id="btnResend" onclick="resendCode()" disabled>Resend code</button>
-          </p>
+
+          <div class="auth-otp-footer-actions">
+            <button type="button" class="auth-btn-back" onclick="goBackToForm()">
+              <i class="bi bi-arrow-left"></i> Edit details
+            </button>
+            <div class="auth-resend-row">
+              <span>Didn’t get it?</span>
+              <button type="button" class="auth-resend-btn" id="btnResend" onclick="resendCode()" disabled>Resend code</button>
+            </div>
+          </div>
+          <p class="auth-otp-spam-tip"><i class="bi bi-info-circle" aria-hidden="true"></i> Can’t see it in Inbox? Check your Spam or Promotions folder.</p>
         </div><!-- /authStep2 -->
 
         <section id="authRecovery" style="display:none;" aria-labelledby="authRecoveryTitle">
