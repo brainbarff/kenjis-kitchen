@@ -652,6 +652,8 @@ body.dark-mode .kk-tracking-ext-btn:hover {background:#f2c12e;border-color:#f2c1
 #courierFeeModal .courier-fee-cancel-btn {font-weight:700;}
 #courierFeeModal .courier-fee-submit-btn {font-weight:800;background:#f2c12e;color:#1f2328;border:1px solid #dfaf1e;box-shadow:none;}
 #courierFeeModal .courier-fee-submit-btn:hover:not(:disabled) {background:#e5b420;}
+#courierFeeError.checkout-validation-alert {padding:9px 12px;border-radius:9px;background:rgba(220,38,38,.09);border:1px solid rgba(220,38,38,.28);color:#b91c1c;font-size:0.81rem;font-weight:700;line-height:1.4;}
+body.dark-mode #courierFeeError.checkout-validation-alert {background:rgba(239,68,68,.18);border-color:rgba(239,68,68,.38);color:#fca5a5;}
 body.dark-mode #courierFeeModal .courier-fee-modal-card {background:#23262C;}
 body.dark-mode #courierFeeModal .courier-fee-summary-box,
 body.dark-mode #courierFeeModal .gcash-payment-panel {background:#252B33;border-color:#454F5B;}

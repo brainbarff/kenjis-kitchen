@@ -5214,13 +5214,17 @@ function buildCourierFeeInfo(order, isClosed = false) {
 
 function setCourierFeeError(message) {
   const el = document.getElementById('courierFeeError');
-  if (!el) return;
-  if (!message) {
-    el.style.display = 'none';
-    el.textContent = '';
-  } else {
-    el.style.display = 'block';
-    el.textContent = message;
+  if (el) {
+    if (!message) {
+      el.style.display = 'none';
+      el.textContent = '';
+    } else {
+      el.style.display = 'block';
+      el.textContent = message;
+    }
+  }
+  if (message) {
+    window.kkNotify?.(message, 'warning', { title: 'Courier Fee Payment', dedupeKey: 'courier-fee-err' });
   }
 }
 
