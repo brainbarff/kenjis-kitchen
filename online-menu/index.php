@@ -59,6 +59,21 @@ require_once dirname(__DIR__) . '/includes/storefront_bestsellers.php';
         <button class="nav-btn theme-toggle-btn" id="themeToggleBtn" onclick="toggleTheme()" title="Toggle Day/Night Mode">
           <i class="bi bi-moon" id="themeToggleIcon"></i>
         </button>
+        <div class="cust-notif-wrap" id="custNotifWrap" hidden>
+          <button type="button" class="nav-btn cust-notif-btn" id="custNotifBtn" aria-label="Order notifications" aria-expanded="false" aria-controls="custNotifMenu" title="Order Notifications">
+            <i class="bi bi-bell" aria-hidden="true"></i>
+            <span class="badge-counter cust-notif-badge" id="custNotifBadge" hidden>0</span>
+          </button>
+          <div class="cust-notif-dropdown" id="custNotifMenu" role="menu" hidden>
+            <div class="cust-notif-head">
+              <strong>Order Updates</strong>
+              <span class="cust-notif-pill" id="custNotifPill">0 updates</span>
+            </div>
+            <div class="cust-notif-list" id="custNotifList">
+              <div class="cust-notif-empty">No order updates yet.</div>
+            </div>
+          </div>
+        </div>
         <div id="navUserContainer">
           <button class="nav-btn" onclick="openOtpModal()" title="Customer Account"><i class="bi bi-person"></i></button>
         </div>

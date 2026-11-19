@@ -4286,6 +4286,7 @@ function updateUserUI() {
     btn.append(icon, document.createTextNode(' Sign In'));
     container.appendChild(btn);
   }
+  syncCustomerNotificationsUI();
 }
 
 function clearStaleCustomerSession() {
@@ -6611,3 +6612,328 @@ async function copyGcashNumber(id, button) {
   catch (_) { button.textContent = 'Select the number to copy'; }
   setTimeout(() => { button.textContent = 'Copy number'; }, 2500);
 }
+
+// Customer Real-Time Order Notifications Bell + Transition Toasts
+const custNotifState = {
+  timer: null,
+  inflight: false,
+  initialized: false,
+  lastMap: new Map(),
+  items: []
+};
+
+function getCustSeenUpdates() {
+  try {
+    const raw = localStorage.getItem('kk_cust_seen_updates');
+    const parsed = raw ? JSON.parse(raw) : {};
+    return (parsed && typeof parsed === 'object') ? parsed : {};
+  } catch (_) {
+    return {};
+  }
+}
+
+function markCustUpdatesSeen(items) {
+  try {
+    const seen = getCustSeenUpdates();
+    (items || []).forEach(it => {
+      if (!it.isAction && it.seenKey) seen[it.seenKey] = 1;
+    });
+    const keys = Object.keys(seen);
+    if (keys.length > 60) {
+      keys.slice(0, keys.length - 60).forEach(k => delete seen[k]);
+    }
+    localStorage.setItem('kk_cust_seen_updates', JSON.stringify(seen));
+  } catch (_) {}
+}
+
+function buildCustomerNotifDescriptor(order) {
+  const id = Number(order.id);
+  const status = String(order.status || 'Pending');
+  const deliveryStatus = String(order.delivery_status || '');
+  const payVer = String(order.payment_verification_status || '');
+  const payMethod = String(order.payment_method || '');
+  const trackStatus = String(order.courier_tracking_status || 'None');
+  const booker = String(order.resolved_courier_booking_by || order.courier_booking_by || 'CUSTOMER').toUpperCase();
+  const isOutside = order.order_type === 'ONLINE' && order.delivery_mode === 'CUSTOMER_BOOKED';
+  const tpFee = Number(order.tp_fee ?? order.third_party_fee ?? 0);
+  const feePaid = Number(order.tp_fee_paid ?? order.courier_fee_paid ?? 0) === 1;
+  const tpProofStatus = String(order.tp_fee_proof_status || '').toLowerCase();
+  const feePending = tpProofStatus === 'pending' || Number(order.courier_fee_pending_verification || 0) === 1;
+  const feeRejected = tpProofStatus === 'rejected';
+
+  const fingerprint = [status, deliveryStatus, payVer, trackStatus, tpFee, feePaid ? 1 : 0, tpProofStatus].join('|');
+  const seenKey = `${id}:${fingerprint}`;
+
+  // 1. Urgent / Action Needed states
+  if (payVer === 'Rejected') {
+    return {
+      id, orderNo: order.order_no, fingerprint, seenKey,
+      isAction: true, actionType: 'orders',
+      tag: 'Action Needed',
+      title: `${order.order_no} · Payment Rejected`,
+      detail: 'Please re-upload a valid GCash payment proof in My Orders.',
+      toastType: 'warning'
+    };
+  }
+  if (isOutside && booker === 'STORE' && tpFee > 0 && !feePaid && !feePending && !['Served', 'Cancelled', 'Voided', 'Refunded'].includes(status)) {
+    return {
+      id, orderNo: order.order_no, fingerprint, seenKey,
+      isAction: true, actionType: 'courier_fee',
+      tag: feeRejected ? 'Fee Rejected' : 'Pay Fee',
+      title: `${order.order_no} · ${feeRejected ? 'Courier Fee Rejected' : 'Courier Fee Quoted'}`,
+      detail: feeRejected
+        ? `Please re-upload your ${formatPeso(tpFee)} courier fee screenshot.`
+        : `Quoted fee: ${formatPeso(tpFee)}. Tap to pay via GCash QR.`,
+      toastType: 'warning'
+    };
+  }
+  if (isOutside && booker === 'CUSTOMER' && (trackStatus === 'None' || trackStatus === 'Rejected') && !['Served', 'Cancelled', 'Voided', 'Refunded'].includes(status)) {
+    return {
+      id, orderNo: order.order_no, fingerprint, seenKey,
+      isAction: true, actionType: 'orders',
+      tag: trackStatus === 'Rejected' ? 'Link Rejected' : 'Action Needed',
+      title: `${order.order_no} · ${trackStatus === 'Rejected' ? 'Tracking Link Rejected' : 'Tracking Link Needed'}`,
+      detail: 'Submit your Lalamove or GrabExpress link so Kitchen can start.',
+      toastType: 'warning'
+    };
+  }
+
+  // 2. Live status progress
+  if (deliveryStatus === 'Out for Delivery') {
+    return {
+      id, orderNo: order.order_no, fingerprint, seenKey,
+      isAction: false, actionType: 'orders',
+      tag: 'Out for Delivery',
+      title: `${order.order_no} · Out for Delivery`,
+      detail: 'Your order is on the way to you.',
+      toastType: 'info'
+    };
+  }
+  if (status === 'Ready') {
+    return {
+      id, orderNo: order.order_no, fingerprint, seenKey,
+      isAction: false, actionType: 'orders',
+      tag: 'Ready',
+      title: `${order.order_no} · Ready`,
+      detail: order.order_type === 'ONLINE' ? 'Prepared and ready for rider handoff.' : 'Your order is ready for store pickup.',
+      toastType: 'success'
+    };
+  }
+  if (status === 'Preparing') {
+    return {
+      id, orderNo: order.order_no, fingerprint, seenKey,
+      isAction: false, actionType: 'orders',
+      tag: 'Preparing',
+      title: `${order.order_no} · Preparing`,
+      detail: 'Kenji’s Kitchen is now cooking your order.',
+      toastType: 'info'
+    };
+  }
+  if (status === 'Served' || status === 'Picked Up') {
+    const refTime = new Date(String(order.delivered_at || order.served_at || order.created_at || '').replace(' ', 'T') + '+08:00').getTime();
+    if (Number.isFinite(refTime) && (Date.now() - refTime) <= 2 * 3600 * 1000) {
+      return {
+        id, orderNo: order.order_no, fingerprint, seenKey,
+        isAction: false, actionType: 'orders',
+        tag: status === 'Picked Up' ? 'Picked Up' : 'Delivered',
+        title: `${order.order_no} · ${status === 'Picked Up' ? 'Picked Up' : 'Delivered'}`,
+        detail: 'Completed! Tap to view your receipt or leave a review.',
+        toastType: 'success'
+      };
+    }
+    return null;
+  }
+  if (['Cancelled', 'Voided', 'Refunded'].includes(status)) {
+    return null;
+  }
+
+  // Pending initial state
+  let pendingDetail = 'Order received by Kenji’s Kitchen.';
+  if (payMethod === 'GCash' && payVer === 'Awaiting Verification') {
+    pendingDetail = 'Waiting for staff to verify your GCash payment.';
+  } else if (isOutside && booker === 'STORE' && tpFee <= 0) {
+    pendingDetail = 'Waiting for staff to post your courier fee quote.';
+  } else if (isOutside && booker === 'STORE' && feePending) {
+    pendingDetail = 'Waiting for staff to verify your courier fee payment.';
+  } else if (isOutside && booker === 'CUSTOMER' && trackStatus === 'Pending') {
+    pendingDetail = 'Tracking link submitted. Waiting for staff approval.';
+  }
+  return {
+    id, orderNo: order.order_no, fingerprint, seenKey,
+    isAction: false, actionType: 'orders',
+    tag: 'Pending',
+    title: `${order.order_no} · Pending`,
+    detail: pendingDetail,
+    toastType: 'info'
+  };
+}
+
+function renderCustomerNotifMenu() {
+  const badge = document.getElementById('custNotifBadge');
+  const pill = document.getElementById('custNotifPill');
+  const list = document.getElementById('custNotifList');
+  if (!badge || !list) return;
+
+  const seen = getCustSeenUpdates();
+  const items = custNotifState.items;
+  const unreadCount = items.reduce((sum, it) => sum + (it.isAction || !seen[it.seenKey] ? 1 : 0), 0);
+
+  badge.textContent = unreadCount > 99 ? '99+' : String(unreadCount);
+  badge.hidden = unreadCount <= 0;
+  if (pill) {
+    pill.textContent = items.length === 1 ? '1 update' : `${items.length} updates`;
+  }
+
+  list.replaceChildren();
+  if (!items.length) {
+    const empty = document.createElement('div');
+    empty.className = 'cust-notif-empty';
+    empty.textContent = 'No active order updates right now.';
+    list.appendChild(empty);
+    return;
+  }
+
+  items.forEach(item => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `cust-notif-item${item.isAction ? ' is-action' : ''}`;
+    btn.setAttribute('role', 'menuitem');
+    btn.addEventListener('click', () => {
+      const menu = document.getElementById('custNotifMenu');
+      const bell = document.getElementById('custNotifBtn');
+      if (menu) menu.hidden = true;
+      if (bell) bell.setAttribute('aria-expanded', 'false');
+      if (item.actionType === 'courier_fee') {
+        openCourierFeeModal(item.id);
+      } else {
+        openCustomerOrdersModal(item.id);
+      }
+    });
+
+    const top = document.createElement('div');
+    top.className = 'cust-notif-item-top';
+    const title = document.createElement('strong');
+    title.textContent = item.title;
+    const tag = document.createElement('span');
+    tag.className = 'cust-notif-tag';
+    tag.textContent = item.tag;
+    top.append(title, tag);
+
+    const detail = document.createElement('div');
+    detail.className = 'cust-notif-item-detail';
+    detail.textContent = item.detail;
+
+    btn.append(top, detail);
+    list.appendChild(btn);
+  });
+}
+
+async function pollCustomerNotifications() {
+  if (!appState.currentUser || custNotifState.inflight || document.hidden) return;
+  custNotifState.inflight = true;
+  try {
+    const res = await fetch('./api/orders.php?action=list', {
+      credentials: 'same-origin',
+      cache: 'no-store'
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data || data.status !== 'success' || !Array.isArray(data.orders)) return;
+
+    const nextItems = [];
+    const nextMap = new Map();
+    if (!appState.ordersById) appState.ordersById = {};
+
+    data.orders.forEach(order => {
+      appState.ordersById[Number(order.id)] = order;
+      const desc = buildCustomerNotifDescriptor(order);
+      if (!desc) return;
+      nextItems.push(desc);
+      nextMap.set(desc.id, desc.fingerprint);
+
+      if (custNotifState.initialized) {
+        const prevFp = custNotifState.lastMap.get(desc.id);
+        if (prevFp && prevFp !== desc.fingerprint) {
+          window.kkNotify?.(desc.detail, desc.toastType || 'info', {
+            title: desc.title,
+            dedupeKey: `cust-ord-${desc.seenKey}`
+          });
+        }
+      }
+    });
+
+    // Sort Action Needed items to top
+    nextItems.sort((a, b) => Number(b.isAction) - Number(a.isAction));
+    custNotifState.items = nextItems;
+    custNotifState.lastMap = nextMap;
+    custNotifState.initialized = true;
+    renderCustomerNotifMenu();
+  } catch (_) {
+    // Ignore transient network errors during background poll
+  } finally {
+    custNotifState.inflight = false;
+  }
+}
+
+function syncCustomerNotificationsUI() {
+  const wrap = document.getElementById('custNotifWrap');
+  const menu = document.getElementById('custNotifMenu');
+  const btn = document.getElementById('custNotifBtn');
+  if (!wrap) return;
+
+  if (!appState.currentUser) {
+    wrap.hidden = true;
+    if (menu) menu.hidden = true;
+    if (btn) btn.setAttribute('aria-expanded', 'false');
+    if (custNotifState.timer) {
+      clearInterval(custNotifState.timer);
+      custNotifState.timer = null;
+    }
+    custNotifState.initialized = false;
+    custNotifState.lastMap.clear();
+    custNotifState.items = [];
+    return;
+  }
+
+  wrap.hidden = false;
+  if (!custNotifState.timer) {
+    pollCustomerNotifications();
+    custNotifState.timer = setInterval(pollCustomerNotifications, 5000);
+  }
+}
+
+(function bindCustomerNotifEvents() {
+  const wrap = document.getElementById('custNotifWrap');
+  const btn = document.getElementById('custNotifBtn');
+  const menu = document.getElementById('custNotifMenu');
+  if (!wrap || !btn || !menu) return;
+
+  btn.addEventListener('click', event => {
+    event.stopPropagation();
+    const opening = menu.hidden;
+    menu.hidden = !opening;
+    btn.setAttribute('aria-expanded', opening ? 'true' : 'false');
+    if (opening) {
+      markCustUpdatesSeen(custNotifState.items);
+      renderCustomerNotifMenu();
+    }
+  });
+  document.addEventListener('click', event => {
+    if (!menu.hidden && !wrap.contains(event.target)) {
+      menu.hidden = true;
+      btn.setAttribute('aria-expanded', 'false');
+    }
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && !menu.hidden) {
+      menu.hidden = true;
+      btn.setAttribute('aria-expanded', 'false');
+      btn.focus();
+    }
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && appState.currentUser) {
+      pollCustomerNotifications();
+    }
+  });
+})();
