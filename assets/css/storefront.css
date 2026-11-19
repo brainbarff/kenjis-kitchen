@@ -605,6 +605,43 @@ body.dark-mode .account-avatar-remove {background:transparent;color:#ffadb5;}
 #customerOrdersModal .customer-order-actions {gap:8px;}
 #customerOrdersModal .btn-review-order {background:#fff8e1;border-color:#e2c567;color:#594113;}
 #customerOrdersModal .btn-review-order:hover {background:#f2c12e;border-color:#d6a81f;color:#24231e;}
+#customerOrdersModal .customer-orders-section-bar {display:flex;align-items:center;justify-content:flex-start;flex-wrap:wrap;gap:8px;padding-right:46px;margin-bottom:10px;}
+#customerOrdersModal .customer-orders-section-bar .customer-section-heading {margin:0;}
+#customerOrdersModal .customer-orders-count {display:inline-flex;align-items:center;padding:3px 9px;border-radius:999px;background:#fff3c4;border:1px solid #ead282;color:#694c00;font-size:11.5px;font-weight:800;}
+#customerOrdersModal .customer-orders-controls {display:flex;flex-direction:column;gap:8px;margin-bottom:12px;}
+#customerOrdersModal .customer-orders-toolbar {display:grid;grid-template-columns:1.45fr 1fr;gap:8px;}
+#customerOrdersModal .customer-orders-search-wrap {position:relative;display:flex;align-items:center;}
+#customerOrdersModal .customer-orders-search-wrap i {position:absolute;left:11px;font-size:13px;color:var(--muted);pointer-events:none;}
+#customerOrdersModal .customer-orders-toolbar input,
+#customerOrdersModal .customer-orders-toolbar select {width:100%;height:38px;border-radius:10px;border:1px solid #e5dcc4;background:#fffdf8;color:var(--text,#29251e);font:inherit;font-size:12.5px;font-weight:600;padding:0 10px;}
+#customerOrdersModal .customer-orders-toolbar input {padding-left:32px;}
+#customerOrdersModal .customer-orders-toolbar input:focus,
+#customerOrdersModal .customer-orders-toolbar select:focus {outline:none;border-color:#d6a81f;box-shadow:0 0 0 3px rgba(242,193,46,.2);background:#fff;}
+#customerOrdersModal .customer-orders-filter-row {display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;}
+#customerOrdersModal .customer-orders-filter-pills {display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+#customerOrdersModal .customer-orders-pill {padding:5px 12px;border-radius:999px;border:1px solid #e5dcc4;background:#fffdf8;color:#594113;font:inherit;font-size:12px;font-weight:700;cursor:pointer;transition:background .15s,border-color .15s,color .15s;}
+#customerOrdersModal .customer-orders-pill:hover {background:#fff8e1;border-color:#d6a81f;}
+#customerOrdersModal .customer-orders-pill.active {background:#f2c12e;border-color:#dfa910;color:#1f2328;}
+#customerOrdersModal .customer-orders-pagination {display:inline-flex;align-items:center;margin-left:auto;}
+#customerOrdersModal .customer-orders-page-btns {display:inline-flex;align-items:center;gap:4px;}
+#customerOrdersModal .customer-orders-page-btn {min-width:28px;height:28px;padding:0 6px;border-radius:8px;border:1px solid #e5dcc4;background:#fffdf8;color:#594113;font:inherit;font-size:11.5px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;transition:background .15s,border-color .15s;}
+#customerOrdersModal .customer-orders-page-btn:hover:not(:disabled) {background:#f2c12e;border-color:#dfa910;color:#1f2328;}
+#customerOrdersModal .customer-orders-page-btn:disabled {opacity:.38;cursor:not-allowed;}
+#customerOrdersModal .customer-orders-page-label {font-size:12px;font-weight:700;color:#594113;background:#fff5d6;border:1px solid #d9c582;border-radius:10px;padding:5px 11px;white-space:nowrap;}
+#customerOrdersModal .customer-orders-summary {margin-top:12px;padding:4px 0 0;background:none;border:none;text-align:center;font-size:12.5px;font-weight:700;color:#594113;}
+#customerOrdersModal .customer-orders-summary strong {font-weight:700;color:#594113;}
+body.dark-mode #customerOrdersModal .customer-orders-count {background:#38321e;border-color:#7d6219;color:#fde68a;}
+body.dark-mode #customerOrdersModal .customer-orders-summary {background:none;border:none;color:#fde68a;}
+body.dark-mode #customerOrdersModal .customer-orders-summary strong {color:#fde68a;}
+body.dark-mode #customerOrdersModal .customer-orders-page-label {background:#38321e;border-color:#7d6219;color:#fde68a;}
+body.dark-mode #customerOrdersModal .customer-orders-toolbar input,
+body.dark-mode #customerOrdersModal .customer-orders-toolbar select,
+body.dark-mode #customerOrdersModal .customer-orders-pill,
+body.dark-mode #customerOrdersModal .customer-orders-page-btn {background:#252B33;border-color:#454F5B;color:#F3F4F6;}
+body.dark-mode #customerOrdersModal .customer-orders-pill.active {background:#f2c12e;border-color:#f2c12e;color:#1f2328;}
+@media (max-width:640px) {
+  #customerOrdersModal .customer-orders-toolbar {grid-template-columns:1fr;}
+}
 .kk-courier-heading {font-size:0.84rem;font-weight:800;color:var(--text);margin-bottom:4px;}
 .kk-opt1-tracking-box {margin:8px 0 10px;padding:10px 12px;border-radius:10px;border:1px solid #e6e3d8;background:#fcfbf7;}
 .kk-opt1-tracking-status {display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700;line-height:1.4;padding:8px 11px;border-radius:8px;border:1px solid transparent;}

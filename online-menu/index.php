@@ -783,8 +783,36 @@ require_once dirname(__DIR__) . '/includes/storefront_bestsellers.php';
 
         <!-- Order History Section -->
         <div id="customerHistorySection" class="customer-orders-section">
-          <h3 class="customer-section-heading" id="orderHistoryHeading"><i class="bi bi-journal-text"></i> Order History</h3>
+          <div class="customer-orders-section-bar">
+            <h3 class="customer-section-heading" id="orderHistoryHeading"><i class="bi bi-journal-text"></i> Order History</h3>
+            <span class="customer-orders-count" id="customerOrdersCount"></span>
+          </div>
+          <div class="customer-orders-controls" id="customerOrdersControls" style="display:none;">
+            <div class="customer-orders-toolbar">
+              <div class="customer-orders-search-wrap">
+                <i class="bi bi-search" aria-hidden="true"></i>
+                <input type="search" id="customerOrdersSearch" placeholder="Search order or receipt #" aria-label="Search past orders">
+              </div>
+              <select id="customerOrdersSort" aria-label="Sort past orders">
+                <option value="newest">Newest first</option>
+                <option value="oldest">Oldest first (First order)</option>
+                <option value="highest">Highest total (₱)</option>
+                <option value="lowest">Lowest total (₱)</option>
+              </select>
+            </div>
+            <div class="customer-orders-filter-row">
+              <div class="customer-orders-filter-pills" id="customerOrdersFilterPills" role="group" aria-label="Filter past orders">
+                <button type="button" class="customer-orders-pill active" data-orders-filter="all">All</button>
+                <button type="button" class="customer-orders-pill" data-orders-filter="delivery">Delivery</button>
+                <button type="button" class="customer-orders-pill" data-orders-filter="pickup">Pickup</button>
+                <button type="button" class="customer-orders-pill" data-orders-filter="completed">Completed</button>
+                <button type="button" class="customer-orders-pill" data-orders-filter="cancelled">Cancelled</button>
+              </div>
+              <div id="customerOrdersPagination" class="customer-orders-pagination" style="display:none;"></div>
+            </div>
+          </div>
           <div id="customerOrdersList" class="customer-orders-list">Loading orders…</div>
+          <div id="customerOrdersSummary" class="customer-orders-summary" style="display:none;"></div>
         </div>
       </div>
     </div>

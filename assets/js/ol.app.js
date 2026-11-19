@@ -4805,6 +4805,7 @@ function openOrderReviewComposer(orderId) {
 function openOrdersModal(initialOrderId = null) {
   closeModal('customerAccountModal');
   closeOrderReviewComposer();
+  appState.historyPage = 1;
   const modal = document.getElementById('customerOrdersModal');
   if (modal) modal.classList.add('active');
   const list = document.getElementById('customerOrdersList');
@@ -5552,14 +5553,22 @@ async function loadOrderHistory(targetOrderId = null, showLoading = true) {
       if (activeList) activeList.innerHTML = '';
     }
 
-    // Render History Orders Section (below active orders)
+    // Render History Orders Section (below active orders) with search, filter, sort & responsive pagination
+    appState.historyOrders = historyOrders;
+    appState.renderOrderCardFn = renderCard;
     if (historyOrders.length > 0) {
       if (historySection) historySection.style.display = 'block';
       if (historyHeading) historyHeading.style.display = activeOrders.length > 0 ? 'flex' : 'none';
-      if (historyList) historyList.innerHTML = historyOrders.map(renderCard).join('');
+      const controlsEl = document.getElementById('customerOrdersControls');
+      if (controlsEl) controlsEl.style.display = historyOrders.length > 1 ? 'flex' : 'none';
+      renderCustomerOrderHistoryList(false);
     } else {
       if (historySection) historySection.style.display = 'none';
       if (historyList) historyList.innerHTML = '';
+      const controlsEl = document.getElementById('customerOrdersControls');
+      if (controlsEl) controlsEl.style.display = 'none';
+      const pagEl = document.getElementById('customerOrdersPagination');
+      if (pagEl) pagEl.style.display = 'none';
     }
 
     // Determine target order to track
@@ -5586,6 +5595,154 @@ async function loadOrderHistory(targetOrderId = null, showLoading = true) {
     }
   }
 }
+
+function getCustomerHistoryPageSize() {
+  return window.innerWidth < 768 ? 2 : 3;
+}
+
+function renderCustomerOrderHistoryList(preserveScroll = true) {
+  const historyList = document.getElementById('customerOrdersList');
+  const pagEl = document.getElementById('customerOrdersPagination');
+  const summaryEl = document.getElementById('customerOrdersSummary');
+  const countEl = document.getElementById('customerOrdersCount');
+  const modalBody = document.querySelector('#customerOrdersModal > .modal-body');
+  const prevScrollTop = preserveScroll && modalBody ? modalBody.scrollTop : null;
+  const allHistory = Array.isArray(appState.historyOrders) ? appState.historyOrders : [];
+  const renderCard = appState.renderOrderCardFn;
+  if (!historyList || typeof renderCard !== 'function') return;
+
+  const query = String(appState.historyQuery || '').trim().toLowerCase();
+  const filter = String(appState.historyFilter || 'all');
+  const sort = String(appState.historySort || 'newest');
+
+  let filtered = allHistory.filter(o => {
+    const status = String(o.status || '');
+    const displayStatus = customerOrderDisplayStatus(o).toLowerCase();
+    const isDelivery = o.order_type === 'ONLINE';
+    if (filter === 'completed' && !['Served', 'Picked Up'].includes(status)) return false;
+    if (filter === 'delivery' && !isDelivery) return false;
+    if (filter === 'pickup' && isDelivery) return false;
+    if (filter === 'cancelled' && !['Cancelled', 'Voided', 'Refunded'].includes(status)) return false;
+    if (query) {
+      const hay = [
+        o.order_no || '',
+        o.receipt_no || '',
+        displayStatus,
+        isDelivery ? 'delivery' : 'pickup'
+      ].join(' ').toLowerCase();
+      if (!hay.includes(query)) return false;
+    }
+    return true;
+  });
+
+  filtered = filtered.slice().sort((a, b) => {
+    if (sort === 'oldest') return Number(a.id) - Number(b.id);
+    if (sort === 'highest') return Number(b.total || 0) - Number(a.total || 0);
+    if (sort === 'lowest') return Number(a.total || 0) - Number(b.total || 0);
+    return Number(b.id) - Number(a.id);
+  });
+
+  const pageSize = getCustomerHistoryPageSize();
+  const totalItems = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const currentPage = Math.max(1, Math.min(Number(appState.historyPage) || 1, totalPages));
+  appState.historyPage = currentPage;
+  appState.lastHistoryPageSize = pageSize;
+
+  if (countEl) {
+    countEl.textContent = totalItems === allHistory.length
+      ? `${allHistory.length} order${allHistory.length === 1 ? '' : 's'}`
+      : `${totalItems} of ${allHistory.length}`;
+  }
+
+  if (!totalItems) {
+    historyList.innerHTML = '<p class="muted">No past orders match your search or filter.</p>';
+    if (pagEl) pagEl.style.display = 'none';
+    if (summaryEl) summaryEl.style.display = 'none';
+    if (prevScrollTop !== null && modalBody) modalBody.scrollTop = prevScrollTop;
+    return;
+  }
+
+  const startIdx = (currentPage - 1) * pageSize;
+  const pageItems = filtered.slice(startIdx, startIdx + pageSize);
+  historyList.innerHTML = pageItems.map(renderCard).join('');
+  const endIdx = Math.min(totalItems, startIdx + pageItems.length);
+
+  if (pagEl) {
+    if (totalPages > 1) {
+      pagEl.style.display = 'inline-flex';
+      pagEl.innerHTML = `
+        <div class="customer-orders-page-btns">
+          <button type="button" class="customer-orders-page-btn" data-orders-page="1" ${currentPage <= 1 ? 'disabled' : ''} aria-label="First page" title="First page"><i class="bi bi-chevron-double-left" aria-hidden="true"></i></button>
+          <button type="button" class="customer-orders-page-btn" data-orders-page="${currentPage - 1}" ${currentPage <= 1 ? 'disabled' : ''} aria-label="Previous page" title="Previous page"><i class="bi bi-chevron-left" aria-hidden="true"></i></button>
+          <span class="customer-orders-page-label">Page ${currentPage} of ${totalPages}</span>
+          <button type="button" class="customer-orders-page-btn" data-orders-page="${currentPage + 1}" ${currentPage >= totalPages ? 'disabled' : ''} aria-label="Next page" title="Next page"><i class="bi bi-chevron-right" aria-hidden="true"></i></button>
+          <button type="button" class="customer-orders-page-btn" data-orders-page="${totalPages}" ${currentPage >= totalPages ? 'disabled' : ''} aria-label="Last page" title="Last page"><i class="bi bi-chevron-double-right" aria-hidden="true"></i></button>
+        </div>
+      `;
+    } else {
+      pagEl.style.display = 'none';
+      pagEl.innerHTML = '';
+    }
+  }
+
+  if (summaryEl) {
+    if (totalPages > 1) {
+      summaryEl.style.display = 'block';
+      summaryEl.innerHTML = `Showing <strong>${startIdx + 1} - ${endIdx}</strong> of <strong>${totalItems}</strong> past orders`;
+    } else {
+      summaryEl.style.display = 'none';
+      summaryEl.innerHTML = '';
+    }
+  }
+
+  if (prevScrollTop !== null && modalBody) {
+    modalBody.scrollTop = prevScrollTop;
+  }
+}
+
+(function initCustomerOrdersControls() {
+  const searchEl = document.getElementById('customerOrdersSearch');
+  const filterPillsEl = document.getElementById('customerOrdersFilterPills');
+  const sortEl = document.getElementById('customerOrdersSort');
+  const pagEl = document.getElementById('customerOrdersPagination');
+
+  searchEl?.addEventListener('input', () => {
+    appState.historyQuery = searchEl.value || '';
+    appState.historyPage = 1;
+    renderCustomerOrderHistoryList(true);
+  });
+  filterPillsEl?.addEventListener('click', (e) => {
+    const pill = e.target.closest('[data-orders-filter]');
+    if (!pill) return;
+    const nextFilter = pill.getAttribute('data-orders-filter') || 'all';
+    appState.historyFilter = nextFilter;
+    appState.historyPage = 1;
+    filterPillsEl.querySelectorAll('[data-orders-filter]').forEach(p => {
+      p.classList.toggle('active', p === pill);
+    });
+    renderCustomerOrderHistoryList(true);
+  });
+  sortEl?.addEventListener('change', () => {
+    appState.historySort = sortEl.value || 'newest';
+    appState.historyPage = 1;
+    renderCustomerOrderHistoryList(true);
+  });
+  pagEl?.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-orders-page]');
+    if (!btn || btn.disabled) return;
+    appState.historyPage = Number(btn.getAttribute('data-orders-page')) || 1;
+    renderCustomerOrderHistoryList(true);
+  });
+  window.addEventListener('resize', () => {
+    const modal = document.getElementById('customerOrdersModal');
+    if (!modal || !modal.classList.contains('active')) return;
+    const nextSize = getCustomerHistoryPageSize();
+    if (appState.lastHistoryPageSize !== nextSize) {
+      renderCustomerOrderHistoryList(true);
+    }
+  });
+})();
 
 async function openCustomerReceiptModal(orderId) {
   const id = Number(orderId);
