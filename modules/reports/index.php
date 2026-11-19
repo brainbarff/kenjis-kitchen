@@ -73,6 +73,15 @@ $topSummary = $topSummaryStmt->fetch(PDO::FETCH_ASSOC) ?: [
     'avg_order_value' => 0, 'cash_revenue' => 0, 'gcash_revenue' => 0
 ];
 
+$globalInventorySummary = $conn->query("
+    SELECT
+        COUNT(*) AS total_items,
+        COALESCE(SUM(GREATEST(stock, 0)), 0) AS total_units,
+        COALESCE(SUM(GREATEST(stock, 0) * price), 0) AS total_value
+    FROM menu_items
+    WHERE is_archived = 0
+")->fetch(PDO::FETCH_ASSOC) ?: ['total_items' => 0, 'total_units' => 0, 'total_value' => 0];
+
 // -------------------------------------------------------------
 // EXCEL / CSV EXPORT HANDLER
 // -------------------------------------------------------------
@@ -877,7 +886,7 @@ include ROOT_PATH . '/includes/header.php';
 /* TOP KPI METRICS ROW (Olive Style) */
 .reports-kpi-grid {
     display: grid;
-    grid-template-columns: repeat(6, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
     gap: 1rem;
     margin-bottom: 1.25rem;
 }
@@ -891,6 +900,9 @@ include ROOT_PATH . '/includes/header.php';
     position: relative;
     overflow: hidden;
     transition: transform 0.15s ease, box-shadow 0.15s ease;
+    text-decoration: none;
+    color: inherit;
+    display: block;
 }
 
 .kpi-stat-card:hover {
@@ -914,6 +926,7 @@ include ROOT_PATH . '/includes/header.php';
 .kpi-stat-card.accent-amber::before { background: #f59e0b; }
 .kpi-stat-card.accent-purple::before { background: #8b5cf6; }
 .kpi-stat-card.accent-cyan::before { background: #06b6d4; }
+.kpi-stat-card.accent-emerald::before { background: #059669; }
 
 .kpi-stat-label {
     font-size: 0.76rem;
@@ -1173,6 +1186,7 @@ include ROOT_PATH . '/includes/header.php';
 
 /* MAIN REPORT DATA TABLE SURFACES */
 .report-content-panel {
+    scroll-margin-top: 84px;
     background: #ffffff;
     border: 1px solid #e2e8f0;
     border-radius: 18px;
@@ -1404,6 +1418,7 @@ include ROOT_PATH . '/includes/header.php';
     .kpi-stat-card,
     .chart-panel-card,
     .report-content-panel {
+    scroll-margin-top: 84px;
         box-shadow: none !important;
         border: 1px solid #ccc !important;
         break-inside: avoid;
@@ -1551,6 +1566,15 @@ include ROOT_PATH . '/includes/header.php';
             <div class="kpi-stat-value"><?= number_format($topSummary['total_orders']) ?></div>
             <div class="kpi-stat-hint">Within selected date range</div>
         </div>
+
+        <a href="?tab=inventory&from_date=<?= urlencode($fromDate) ?>&to_date=<?= urlencode($toDate) ?>#report-table-panel" class="kpi-stat-card accent-emerald" title="View per-product inventory valuation">
+            <div class="kpi-stat-label">
+                <span>Inventory Value</span>
+                <i class="bi bi-boxes" style="color:#059669;"></i>
+            </div>
+            <div class="kpi-stat-value"><?= money($globalInventorySummary['total_value']) ?></div>
+            <div class="kpi-stat-hint"><?= number_format((int)$globalInventorySummary['total_units']) ?> pcs across <?= number_format((int)$globalInventorySummary['total_items']) ?> items</div>
+        </a>
     </section>
 
     <!-- Report Categories / Navigation Tabs -->
@@ -1636,7 +1660,7 @@ include ROOT_PATH . '/includes/header.php';
     </section>
 
     <!-- ACTIVE REPORT TAB CONTENT -->
-    <main class="report-content-panel">
+    <main class="report-content-panel" id="report-table-panel">
         <!-- Pagination Controls -->
         <?php if ($activeCount > 0): ?>
             <footer class="report-pagination-bar">
@@ -2458,6 +2482,48 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+
+// Keep exact viewport scroll position when paginating report tables
+(function initInPlaceReportPagination() {
+    const panel = document.getElementById('report-table-panel');
+    if (!panel) return;
+    let activeController = null;
+
+    async function loadPage(url, pushHistory) {
+        if (activeController) activeController.abort();
+        activeController = new AbortController();
+        const prevY = window.scrollY;
+        const prevX = window.scrollX;
+        panel.style.opacity = '0.65';
+        try {
+            const res = await fetch(url, { signal: activeController.signal, credentials: 'same-origin' });
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            const html = await res.text();
+            const doc = new DOMParser().parseFromString(html, 'text/html');
+            const nextPanel = doc.getElementById('report-table-panel');
+            if (!nextPanel) throw new Error('Panel missing');
+            panel.innerHTML = nextPanel.innerHTML;
+            if (pushHistory) history.pushState({ reportsPanel: true }, '', url);
+            window.scrollTo(prevX, prevY);
+        } catch (err) {
+            if (err && err.name === 'AbortError') return;
+            window.location.href = url;
+        } finally {
+            panel.style.opacity = '';
+        }
+    }
+
+    panel.addEventListener('click', function (e) {
+        const link = e.target.closest('.report-pagination-bar a.page-num-btn');
+        if (!link || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+        e.preventDefault();
+        loadPage(link.href, true);
+    });
+
+    window.addEventListener('popstate', function () {
+        loadPage(window.location.href, false);
+    });
+})();
 </script>
 
 <?php include ROOT_PATH . '/includes/footer.php'; ?>

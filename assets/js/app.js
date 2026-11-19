@@ -721,3 +721,76 @@ window.addEventListener('pageshow', function (event) {
     });
     setInterval(refreshNotifications, 4000);
 })();
+
+// Preserve exact viewport scroll position when clicking any .kk-pagination button
+(function initInPlaceStaffPagination() {
+    let activeController = null;
+
+    function getCleanUrl(rawHref) {
+        const u = new URL(rawHref, window.location.href);
+        u.hash = '';
+        return u.toString();
+    }
+
+    async function swapPaginatedSection(url, pagIndex, targetContainer, pushHistory) {
+        if (!targetContainer) {
+            window.location.href = url;
+            return;
+        }
+        if (activeController) activeController.abort();
+        activeController = new AbortController();
+        const prevX = window.scrollX;
+        const prevY = window.scrollY;
+        targetContainer.style.opacity = '0.65';
+        try {
+            const res = await fetch(url, { signal: activeController.signal, credentials: 'same-origin' });
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            const html = await res.text();
+            const doc = new DOMParser().parseFromString(html, 'text/html');
+            const nextPag = doc.querySelectorAll('.kk-pagination')[pagIndex];
+            const nextContainer = nextPag ? nextPag.closest('section.card, .card, section, main') : null;
+            if (!nextContainer) throw new Error('Paginated container not found');
+            targetContainer.innerHTML = nextContainer.innerHTML;
+            if (pushHistory) {
+                history.pushState({ kkPagination: true, pagIndex }, '', url);
+            }
+            window.scrollTo(prevX, prevY);
+        } catch (err) {
+            if (err && err.name === 'AbortError') return;
+            window.location.href = url;
+        } finally {
+            targetContainer.style.opacity = '';
+        }
+    }
+
+    document.addEventListener('click', function (e) {
+        const link = e.target.closest('.kk-pagination a[href]');
+        if (!link || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+        if (link.getAttribute('aria-disabled') === 'true') {
+            e.preventDefault();
+            return;
+        }
+        const pagEl = link.closest('.kk-pagination');
+        const container = pagEl ? pagEl.closest('section.card, .card, section, main') : null;
+        if (!pagEl || !container) return;
+
+        const allPaginations = Array.from(document.querySelectorAll('.kk-pagination'));
+        const pagIndex = allPaginations.indexOf(pagEl);
+        if (pagIndex < 0) return;
+
+        e.preventDefault();
+        swapPaginatedSection(getCleanUrl(link.href), pagIndex, container, true);
+    });
+
+    window.addEventListener('popstate', function (e) {
+        if (!e.state || !e.state.kkPagination) return;
+        const pagIndex = Number(e.state.pagIndex) || 0;
+        const pagEl = document.querySelectorAll('.kk-pagination')[pagIndex];
+        const container = pagEl ? pagEl.closest('section.card, .card, section, main') : null;
+        if (container) {
+            swapPaginatedSection(getCleanUrl(window.location.href), pagIndex, container, false);
+        } else {
+            window.location.reload();
+        }
+    });
+})();

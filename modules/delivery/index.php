@@ -855,57 +855,59 @@ function closeQuoteModal() {
 document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') closeQuoteModal();
 });
-document.addEventListener('DOMContentLoaded', function () {
-    document.querySelectorAll('.cod-deliver-form').forEach(function (form) {
-        var chk = form.querySelector('.cod-collected-checkbox');
-        var btn = form.querySelector('.cod-deliver-btn');
-        if (chk && btn) {
-            chk.addEventListener('change', function () {
-                btn.disabled = !chk.checked;
-                btn.style.opacity = chk.checked ? '1' : '0.55';
-                btn.style.cursor = chk.checked ? 'pointer' : 'not-allowed';
-            });
-        }
+document.addEventListener('change', function (e) {
+    var chk = e.target.closest('.cod-collected-checkbox');
+    if (!chk) return;
+    var form = chk.closest('.cod-deliver-form');
+    var btn = form ? form.querySelector('.cod-deliver-btn') : null;
+    if (btn) {
+        btn.disabled = !chk.checked;
+        btn.style.opacity = chk.checked ? '1' : '0.55';
+        btn.style.cursor = chk.checked ? 'pointer' : 'not-allowed';
+    }
+});
 
-        form.addEventListener('submit', async function (e) {
-            if (form.dataset.kkConfirmed === '1') {
-                delete form.dataset.kkConfirmed;
-                return;
-            }
-            if (chk && !chk.checked) {
-                e.preventDefault();
-                if (window.kkNotify) {
-                    window.kkNotify('Please check the confirmation box that Cash on Delivery was collected before marking this order delivered.', 'warning', { title: 'COD Collection Required' });
-                }
-                return;
-            }
-            if (window.kkConfirm) {
-                e.preventDefault();
-                var isPaid = form.dataset.isPaid === '1';
-                var orderNo = form.dataset.orderNo || 'Order';
-                var orderTotal = form.dataset.orderTotal || '';
-                var payMethod = form.dataset.paymentMethod || 'Cash on Delivery';
-                var confirmed = await window.kkConfirm({
-                    title: isPaid ? 'Complete Delivery Order?' : 'Confirm COD Collection & Complete Delivery?',
-                    details: [
-                        { label: 'Order Number', value: orderNo },
-                        { label: 'Amount to Collect', value: isPaid ? (orderTotal + ' (Paid)') : orderTotal },
-                        { label: 'Payment Method', value: payMethod }
-                    ],
-                    message: isPaid
-                        ? 'Confirm that this order has been delivered to the customer.'
-                        : 'Confirm that you have collected the Cash on Delivery payment from the customer before marking this order delivered.',
-                    confirmText: isPaid ? 'Confirm Delivery' : 'Confirm COD & Mark Delivered',
-                    cancelText: 'Cancel',
-                    variant: 'primary'
-                });
-                if (!confirmed) return;
-                form.dataset.kkConfirmed = '1';
-                if (btn) btn.disabled = true;
-                form.submit();
-            }
+document.addEventListener('submit', async function (e) {
+    var form = e.target.closest('.cod-deliver-form');
+    if (!form) return;
+    var chk = form.querySelector('.cod-collected-checkbox');
+    var btn = form.querySelector('.cod-deliver-btn');
+    if (form.dataset.kkConfirmed === '1') {
+        delete form.dataset.kkConfirmed;
+        return;
+    }
+    if (chk && !chk.checked) {
+        e.preventDefault();
+        if (window.kkNotify) {
+            window.kkNotify('Please check the confirmation box that Cash on Delivery was collected before marking this order delivered.', 'warning', { title: 'COD Collection Required' });
+        }
+        return;
+    }
+    if (window.kkConfirm) {
+        e.preventDefault();
+        var isPaid = form.dataset.isPaid === '1';
+        var orderNo = form.dataset.orderNo || 'Order';
+        var orderTotal = form.dataset.orderTotal || '';
+        var payMethod = form.dataset.paymentMethod || 'Cash on Delivery';
+        var confirmed = await window.kkConfirm({
+            title: isPaid ? 'Complete Delivery Order?' : 'Confirm COD Collection & Complete Delivery?',
+            details: [
+                { label: 'Order Number', value: orderNo },
+                { label: 'Amount to Collect', value: isPaid ? (orderTotal + ' (Paid)') : orderTotal },
+                { label: 'Payment Method', value: payMethod }
+            ],
+            message: isPaid
+                ? 'Confirm that this order has been delivered to the customer.'
+                : 'Confirm that you have collected the Cash on Delivery payment from the customer before marking this order delivered.',
+            confirmText: isPaid ? 'Confirm Delivery' : 'Confirm COD & Mark Delivered',
+            cancelText: 'Cancel',
+            variant: 'primary'
         });
-    });
+        if (!confirmed) return;
+        form.dataset.kkConfirmed = '1';
+        if (btn) btn.disabled = true;
+        form.submit();
+    }
 });
 </script>
 <?php include ROOT_PATH . '/includes/footer.php'; ?>
