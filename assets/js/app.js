@@ -648,6 +648,12 @@ window.addEventListener('pageshow', function (event) {
             detail.textContent = String(item.detail || '');
 
             link.append(top, detail);
+            link.addEventListener('click', () => {
+                if (bellMenu && bellBtn) {
+                    bellMenu.hidden = true;
+                    bellBtn.setAttribute('aria-expanded', 'false');
+                }
+            });
             bellList.appendChild(link);
         });
     }

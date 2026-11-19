@@ -362,7 +362,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $pending = $conn->query("
-    SELECT ar.*, mi.item_name, c.category_name, u.full_name AS requester_name
+    SELECT ar.*, mi.item_name, mi.stock AS current_stock, mi.price AS current_price, mi.availability AS current_availability,
+           c.category_name, u.full_name AS requester_name
     FROM approval_requests ar
     LEFT JOIN menu_items mi ON mi.id = ar.menu_item_id
     LEFT JOIN categories c ON c.id = ar.category_id
@@ -370,6 +371,7 @@ $pending = $conn->query("
     WHERE ar.status = 'Pending'
     ORDER BY ar.created_at ASC, ar.id ASC
 ")->fetchAll();
+$highlightId = (int)($_GET['highlight'] ?? 0);
 
 $statusCountsStmt = $conn->query("SELECT status, COUNT(*) AS cnt FROM approval_requests WHERE status IN ('Approved','Rejected') GROUP BY status");
 $approvedCount = 0;
@@ -424,6 +426,12 @@ include ROOT_PATH . '/includes/header.php';
 .approval-summary {
     margin-top: 6px;
 }
+.approval-context-line { display:flex; flex-wrap:wrap; align-items:center; gap:6px; font-size:13px; color:#242424; }
+.approval-context-pill { display:inline-flex; align-items:center; gap:5px; padding:3px 9px; border-radius:999px; background:#fff6d6; border:1px solid #ecd585; color:#694c00; font-size:12px; font-weight:700; }
+.approval-context-pill.is-danger { background:#fff1f0; border-color:#f3b8b3; color:#b42318; }
+.approval-context-pill.is-success { background:#ecfdf3; border-color:#abefc6; color:#067647; }
+.approval-remarks-text { margin-top:5px; font-size:12.5px; color:#625c4f; line-height:1.4; max-width:340px; overflow-wrap:anywhere; }
+tr.approval-row-highlight td { background:#fffbeb!important; box-shadow:inset 0 2px 0 #f2c12e, inset 0 -2px 0 #f2c12e; }
 .approval-heading { display:flex; justify-content:space-between; align-items:center; gap:16px; margin-bottom:22px; }
 .approval-heading h2 { font-size:26px; margin:0 0 6px; color:#242424; }
 .approval-heading h2 i { color:#b58100; margin-right:8px; }
@@ -527,12 +535,58 @@ include ROOT_PATH . '/includes/header.php';
                             $targetTitle = $row['item_name'] ?? 'Unknown Menu Item';
                         }
 
-                        $detail = $typeLabel;
-                        if (in_array($type, ['Stock In', 'Stock Out', 'Adjustment'], true)) {
-                            $detail .= $type === 'Adjustment' ? ' → ' . (int) $row['quantity'] . ' pcs' : ' • ' . (int) $row['quantity'] . ' pcs';
+                        $currStock = $row['current_stock'] !== null ? (int) $row['current_stock'] : null;
+                        $reqQty = $row['quantity'] !== null ? (int) $row['quantity'] : null;
+                        $contextHtml = '';
+
+                        if ($type === 'Adjustment' && $reqQty !== null) {
+                            if ($currStock !== null) {
+                                $delta = $reqQty - $currStock;
+                                $deltaStr = $delta > 0 ? ('+' . $delta) : (string) $delta;
+                                $pillClass = $reqQty <= 0 ? 'is-danger' : ($delta >= 0 ? 'is-success' : '');
+                                $contextHtml = '<div class="approval-context-line">'
+                                    . '<span class="approval-context-pill ' . $pillClass . '">'
+                                    . 'Stock: ' . $currStock . ' pcs &rarr; ' . $reqQty . ' pcs'
+                                    . ($delta !== 0 ? ' (' . $deltaStr . ' pcs)' : ' (No change)')
+                                    . '</span></div>';
+                            } else {
+                                $contextHtml = '<div class="approval-context-line"><span class="approval-context-pill">New Stock: ' . $reqQty . ' pcs</span></div>';
+                            }
+                        } elseif ($type === 'Stock In' && $reqQty !== null) {
+                            $afterStock = $currStock !== null ? ($currStock + $reqQty) : null;
+                            $contextHtml = '<div class="approval-context-line"><span class="approval-context-pill is-success">'
+                                . 'Add +' . $reqQty . ' pcs'
+                                . ($afterStock !== null ? (' (' . $currStock . ' &rarr; ' . $afterStock . ' pcs)') : '')
+                                . '</span></div>';
+                        } elseif ($type === 'Stock Out' && $reqQty !== null) {
+                            $afterStock = $currStock !== null ? ($currStock - $reqQty) : null;
+                            $insufficient = $currStock !== null && $reqQty > $currStock;
+                            $contextHtml = '<div class="approval-context-line"><span class="approval-context-pill ' . ($insufficient ? 'is-danger' : '') . '">'
+                                . ($insufficient
+                                    ? ('Insufficient stock: ' . $currStock . ' pcs available, requested -' . $reqQty . ' pcs')
+                                    : ('Remove -' . $reqQty . ' pcs' . ($afterStock !== null ? (' (' . $currStock . ' &rarr; ' . $afterStock . ' pcs)') : '')))
+                                . '</span></div>';
+                        } elseif (in_array($type, ['Archive', 'Delete Item'], true)) {
+                            $stockInfo = $currStock !== null ? ('Current stock: ' . $currStock . ' pcs &middot; ') : '';
+                            $contextHtml = '<div class="approval-context-line"><span class="approval-context-pill is-danger">'
+                                . $stockInfo . 'Hides item from POS &amp; Online Menu</span></div>';
+                        } elseif ($type === 'Unarchive') {
+                            $stockInfo = $currStock !== null ? ('Current stock: ' . $currStock . ' pcs &rarr; ' . ($currStock > 0 ? 'Available' : 'Unavailable')) : 'Restores item to active menu';
+                            $contextHtml = '<div class="approval-context-line"><span class="approval-context-pill is-success">' . $stockInfo . '</span></div>';
+                        } elseif ($type === 'Add Item') {
+                            $initStock = isset($payloadData['stock']) ? (int) $payloadData['stock'] : 0;
+                            $contextHtml = '<div class="approval-context-line"><span class="approval-context-pill is-success">'
+                                . 'New Menu Item &middot; Initial stock: ' . $initStock . ' pcs</span></div>';
+                        } elseif ($type === 'Add Category') {
+                            $contextHtml = '<div class="approval-context-line"><span class="approval-context-pill is-success">Creates new active menu category</span></div>';
+                        } elseif ($type === 'Delete Category') {
+                            $contextHtml = '<div class="approval-context-line"><span class="approval-context-pill is-danger">Deactivates category from menu</span></div>';
                         }
+
+                        $remarksText = trim((string) ($row['remarks'] ?? ''));
+                        $isHighlighted = $highlightId > 0 && $highlightId === (int) $row['id'];
                         ?>
-                        <tr>
+                        <tr id="approval-req-<?= (int) $row['id'] ?>" class="<?= $isHighlighted ? 'approval-row-highlight' : '' ?>">
                             <td>
                                 <strong>#<?= e($row['id']) ?></strong>
                                 <div class="approval-summary"><span class="badge <?= $badgeClass ?>"><?= e($typeLabel) ?></span></div>
@@ -551,7 +605,12 @@ include ROOT_PATH . '/includes/header.php';
                                 </div>
                             </td>
                             <td><?= e($row['requester_name'] ?? 'Unknown User') ?></td>
-                            <td><?= e($row['remarks'] ?? '') ?></td>
+                            <td>
+                                <?= $contextHtml ?>
+                                <?php if ($remarksText !== ''): ?>
+                                    <div class="approval-remarks-text"><?= e($remarksText) ?></div>
+                                <?php endif; ?>
+                            </td>
                             <td><?= e(date('M d, Y h:i A', strtotime($row['created_at']))) ?></td>
                             <td>
                                 <div class="approval-actions">

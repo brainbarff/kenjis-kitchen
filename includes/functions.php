@@ -846,7 +846,7 @@ function kk_module_notifications(PDO $conn, string $module, int $actorId = 0): a
                 WHERE COALESCE(is_archived, 0) = 0
                   AND (stock <= 5 OR availability <> 'Available')
                 ORDER BY stock ASC, item_name ASC
-                LIMIT 12
+                LIMIT 8
             ")->fetchAll();
             foreach ($rows as $r) {
                 $stock = (int)$r['stock'];
@@ -855,9 +855,51 @@ function kk_module_notifications(PDO $conn, string $module, int $actorId = 0): a
                     'title' => (string)$r['item_name'],
                     'detail' => $isOut ? 'Currently out of stock / unavailable' : ('Remaining: ' . $stock . ' pcs left'),
                     'tag' => $isOut ? 'Out of Stock' : 'Low Stock',
-                    'url' => BASE_URL . '/modules/inventory/index.php?stock_filter=' . ($isOut ? 'out' : 'low'),
+                    'url' => BASE_URL . '/modules/inventory/index.php?stock_filter=' . ($isOut ? 'out' : 'low') . '&inventory_search=' . urlencode((string)$r['item_name']) . '#inventory-list',
                 ];
             }
+
+            $decisionRows = $conn->query("
+                SELECT ar.id, ar.request_type, ar.status, ar.quantity, ar.review_notes, ar.reviewed_at,
+                       mi.item_name, mi.stock AS current_stock
+                FROM approval_requests ar
+                LEFT JOIN menu_items mi ON mi.id = ar.menu_item_id
+                WHERE ar.status IN ('Approved', 'Rejected')
+                  AND ar.request_type IN ('Stock In', 'Stock Out', 'Adjustment', 'Archive', 'Unarchive')
+                  AND ar.reviewed_at >= (NOW() - INTERVAL 1 DAY)
+                ORDER BY ar.reviewed_at DESC, ar.id DESC
+                LIMIT 6
+            ")->fetchAll();
+            foreach ($decisionRows as $dr) {
+                $dStatus = (string)($dr['status'] ?? '');
+                $dType = (string)($dr['request_type'] ?? 'Request');
+                $dItem = (string)($dr['item_name'] ?: ('Request #' . $dr['id']));
+                $dTime = !empty($dr['reviewed_at']) ? date('M j, g:i A', strtotime((string)$dr['reviewed_at'])) : '';
+                if ($dStatus === 'Approved') {
+                    if ($dType === 'Adjustment' && $dr['quantity'] !== null) {
+                        $dDetail = 'Approved by Admin · Stock set to ' . (int)$dr['quantity'] . ' pcs';
+                    } elseif ($dType === 'Stock In' && $dr['quantity'] !== null) {
+                        $dDetail = 'Approved by Admin · +' . (int)$dr['quantity'] . ' pcs (Now ' . (int)($dr['current_stock'] ?? 0) . ' pcs)';
+                    } elseif ($dType === 'Stock Out' && $dr['quantity'] !== null) {
+                        $dDetail = 'Approved by Admin · -' . (int)$dr['quantity'] . ' pcs (Now ' . (int)($dr['current_stock'] ?? 0) . ' pcs)';
+                    } else {
+                        $dDetail = 'Approved by Admin';
+                    }
+                } else {
+                    $note = trim((string)($dr['review_notes'] ?? ''));
+                    $dDetail = 'Rejected by Admin' . ($note !== '' ? ' · ' . mb_strimwidth($note, 0, 55, '…') : '');
+                }
+                if ($dTime !== '') {
+                    $dDetail .= ' · ' . $dTime;
+                }
+                $items[] = [
+                    'title' => '#' . (int)$dr['id'] . ' ' . $dItem . ' (' . $dType . ')',
+                    'detail' => $dDetail,
+                    'tag' => $dStatus,
+                    'url' => BASE_URL . '/modules/inventory/index.php?inventory_search=' . urlencode((string)($dr['item_name'] ?? '')) . '#stock-history',
+                ];
+            }
+            $totalCount = max($totalCount, count($items));
         } elseif ($module === 'reports') {
             $rows = $conn->query("
                 SELECT o.order_no, o.customer_name, p.payment_method, p.payment_status, o.total, COALESCE(p.paid_at, p.created_at) AS tx_time
@@ -951,7 +993,7 @@ function kk_module_notifications(PDO $conn, string $module, int $actorId = 0): a
                     'title' => (string)$r['item_name'],
                     'detail' => 'Hidden or out of stock on customer menu',
                     'tag' => 'Unavailable',
-                    'url' => BASE_URL . '/modules/menu/index.php',
+                    'url' => BASE_URL . '/modules/menu/index.php?menu_search=' . urlencode((string)$r['item_name']),
                 ];
             }
             $priceRows = $conn->query("
@@ -966,7 +1008,7 @@ function kk_module_notifications(PDO $conn, string $module, int $actorId = 0): a
                     'title' => (string)$r['item_name'],
                     'detail' => '₱' . number_format((float)$r['old_price'], 2) . ' → ₱' . number_format((float)$r['new_price'], 2),
                     'tag' => 'Price Updated',
-                    'url' => BASE_URL . '/modules/menu/index.php',
+                    'url' => BASE_URL . '/modules/menu/index.php?menu_search=' . urlencode((string)$r['item_name']),
                 ];
             }
             $totalCount = count($items);
@@ -1006,22 +1048,56 @@ function kk_module_notifications(PDO $conn, string $module, int $actorId = 0): a
             $totalCount = count($items);
         } elseif ($module === 'approvals') {
             $rows = $conn->query("
-                SELECT id, request_type, target_name
-                FROM approval_requests
-                WHERE status = 'Pending'
-                ORDER BY created_at DESC
+                SELECT ar.id, ar.request_type, ar.quantity, ar.payload, ar.remarks,
+                       mi.item_name, mi.stock AS current_stock,
+                       c.category_name,
+                       u.full_name AS requester_name
+                FROM approval_requests ar
+                LEFT JOIN menu_items mi ON mi.id = ar.menu_item_id
+                LEFT JOIN categories c ON c.id = ar.category_id
+                LEFT JOIN users u ON u.id = ar.requested_by
+                WHERE ar.status = 'Pending'
+                ORDER BY ar.created_at DESC, ar.id DESC
                 LIMIT 8
             ")->fetchAll();
             foreach ($rows as $r) {
+                $rType = (string)($r['request_type'] ?: 'Approval Request');
+                $payload = !empty($r['payload']) ? (json_decode((string)$r['payload'], true) ?: []) : [];
+                if ($rType === 'Add Category') {
+                    $target = 'Category: ' . ($payload['category_name'] ?? 'New Category');
+                } elseif ($rType === 'Delete Category') {
+                    $target = 'Category: ' . ($r['category_name'] ?? ($payload['category_name'] ?? ('ID #' . $r['id'])));
+                } elseif ($rType === 'Add Item') {
+                    $target = (string)($payload['item_name'] ?? 'New Item');
+                } else {
+                    $target = (string)($r['item_name'] ?: ('Request #' . $r['id']));
+                }
+
+                $requester = trim((string)($r['requester_name'] ?? '')) ?: 'Staff';
+                $curr = $r['current_stock'] !== null ? (int)$r['current_stock'] : null;
+                $qty = $r['quantity'] !== null ? (int)$r['quantity'] : null;
+                $context = $requester;
+                if ($rType === 'Adjustment' && $qty !== null) {
+                    $context .= $curr !== null ? (" · {$curr} → {$qty} pcs") : (" · Set to {$qty} pcs");
+                } elseif ($rType === 'Stock In' && $qty !== null) {
+                    $after = $curr !== null ? ($curr + $qty) : null;
+                    $context .= " · +{$qty} pcs" . ($after !== null ? " ({$curr} → {$after})" : '');
+                } elseif ($rType === 'Stock Out' && $qty !== null) {
+                    $after = $curr !== null ? ($curr - $qty) : null;
+                    $context .= " · -{$qty} pcs" . ($after !== null ? " ({$curr} → {$after})" : '');
+                } elseif ($rType === 'Add Item' && isset($payload['price'])) {
+                    $context .= ' · ₱' . number_format((float)$payload['price'], 2);
+                }
+
                 $items[] = [
-                    'title' => (string)($r['request_type'] ?: 'Approval Request'),
-                    'detail' => (string)($r['target_name'] ?: ('Request #' . $r['id'])),
+                    'title' => '#' . (int)$r['id'] . ' ' . $rType . ' · ' . $target,
+                    'detail' => $context,
                     'tag' => 'Pending',
-                    'url' => BASE_URL . '/modules/approvals/index.php',
+                    'url' => BASE_URL . '/modules/approvals/index.php?status=pending&highlight=' . (int)$r['id'] . '#approval-req-' . (int)$r['id'],
                 ];
             }
             $txRows = $conn->query("
-                SELECT tr.id, tr.request_type, o.order_no, o.customer_name
+                SELECT tr.id, tr.request_type, o.order_no, o.customer_name, o.fulfillment_mode
                 FROM transaction_requests tr
                 LEFT JOIN orders o ON o.id = tr.order_id
                 WHERE tr.status = 'Pending'
@@ -1029,13 +1105,18 @@ function kk_module_notifications(PDO $conn, string $module, int $actorId = 0): a
                 LIMIT 8
             ")->fetchAll();
             foreach ($txRows as $tr) {
+                $isCancelDelivery = ($tr['request_type'] ?? '') === 'Cancel Delivery';
+                $txUrl = $isCancelDelivery
+                    ? (BASE_URL . '/modules/delivery/index.php' . (($tr['fulfillment_mode'] ?? '') === 'OUTSIDE' ? '?filter=outside' : ''))
+                    : (BASE_URL . '/modules/transactions/index.php');
                 $items[] = [
                     'title' => (string)($tr['request_type'] ?: 'Transaction Request') . (!empty($tr['order_no']) ? (' · ' . $tr['order_no']) : ''),
                     'detail' => (string)($tr['customer_name'] ?: ('Request #' . $tr['id'])),
                     'tag' => 'Needs Review',
-                    'url' => BASE_URL . '/modules/approvals/index.php',
+                    'url' => $txUrl,
                 ];
             }
+            $totalCount = max($totalCount, count($items));
         } else {
             // Dashboard / general overview filtered by role
             if ($module === 'dashboard' && can_access('admin')) {
