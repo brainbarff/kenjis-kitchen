@@ -6301,6 +6301,13 @@ async function requestRecoveryCode(resend = false) {
   const form = document.getElementById('recoveryEmailForm');
   if (!resend && !form.reportValidity()) return;
   const email = resend ? _recovery.email : document.getElementById('recoveryEmail').value.trim().toLowerCase();
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    const errMsg = 'Please enter a valid email address.';
+    setRecoveryError(errMsg);
+    window.kkNotify(errMsg, 'warning');
+    document.getElementById('recoveryEmail')?.focus();
+    return;
+  }
   if (email === _recovery.email && Date.now() < _recovery.resendAt) {
     if (!resend && Date.now() < _recovery.expiresAt) showRecoveryReset();
     return;
@@ -6824,8 +6831,8 @@ async function handleDirectSignIn() {
   const loginInput = document.getElementById('siEmailInput').value.trim();
   const password = document.getElementById('siPasswordInput').value;
 
-  if (!loginInput) {
-    _authAlert('Please enter your email address or phone number.', 'siEmailInput');
+  if (!loginInput || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(loginInput)) {
+    _authAlert('Please enter a valid email address.', 'siEmailInput');
     return;
   }
   if (!password) {

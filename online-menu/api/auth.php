@@ -392,8 +392,11 @@ if ($action === 'login') {
     $loginInput = trim((string)($data['email'] ?? ''));
     $password = (string)($data['password'] ?? '');
 
-    if ($loginInput === '' || $password === '') {
-        online_json(['status' => 'error', 'message' => 'Enter your email or phone number and password.'], 400);
+    if ($loginInput === '' || !filter_var($loginInput, FILTER_VALIDATE_EMAIL)) {
+        online_json(['status' => 'error', 'ok' => false, 'message' => 'Please enter a valid email address.'], 400);
+    }
+    if ($password === '') {
+        online_json(['status' => 'error', 'ok' => false, 'message' => 'Please enter your password.'], 400);
     }
 
     $rateKey = 'customer:' . $loginInput;
@@ -407,32 +410,16 @@ if ($action === 'login') {
         ], 429);
     }
 
-    $cleanPhone = preg_replace('/[^0-9]/', '', $loginInput);
-    $isPhone = preg_match('/^09[0-9]{9}$/', $cleanPhone);
-
-    if ($isPhone) {
-        $stmt = $conn->prepare("
-            SELECT u.id, u.full_name, u.email, u.phone, u.customer_address, u.profile_photo, u.password,
-                   u.status, u.is_archived, u.customer_status, u.email_verified_at, u.deleted_at, r.role_name
-            FROM users u
-            JOIN roles r ON r.id = u.role_id
-            WHERE (u.phone = ? OR u.username = ?)
-            ORDER BY (r.role_name = 'Customer (Online)') DESC
-            LIMIT 1
-        ");
-        $stmt->execute([$cleanPhone, $cleanPhone]);
-    } else {
-        $stmt = $conn->prepare("
-            SELECT u.id, u.full_name, u.email, u.phone, u.customer_address, u.profile_photo, u.password,
-                   u.status, u.is_archived, u.customer_status, u.email_verified_at, u.deleted_at, r.role_name
-            FROM users u
-            JOIN roles r ON r.id = u.role_id
-            WHERE (LOWER(u.email) = ? OR LOWER(u.username) = ?)
-            ORDER BY (r.role_name = 'Customer (Online)') DESC
-            LIMIT 1
-        ");
-        $stmt->execute([strtolower($loginInput), strtolower($loginInput)]);
-    }
+    $stmt = $conn->prepare("
+        SELECT u.id, u.full_name, u.email, u.phone, u.customer_address, u.profile_photo, u.password,
+               u.status, u.is_archived, u.customer_status, u.email_verified_at, u.deleted_at, r.role_name
+        FROM users u
+        JOIN roles r ON r.id = u.role_id
+        WHERE (LOWER(u.email) = ? OR LOWER(u.username) = ?)
+        ORDER BY (r.role_name = 'Customer (Online)') DESC
+        LIMIT 1
+    ");
+    $stmt->execute([strtolower($loginInput), strtolower($loginInput)]);
     $user = $stmt->fetch();
 
     if (!$user || $user['role_name'] !== 'Customer (Online)') {
