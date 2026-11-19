@@ -274,16 +274,7 @@ require_once dirname(__DIR__) . '/includes/storefront_bestsellers.php';
   <!-- Unified Auth Modal: Sign In & Register with OTP Verification -->
   <div class="modal-overlay" id="authModal">
     <div class="modal-card auth-modal-card">
-      <div class="auth-brand-bar">
-        <div class="auth-brand-id">
-          <img src="../assets/img/logo.png" alt="Kenji's Kitchen" class="auth-brand-logo">
-          <div>
-            <strong>Kenji’s Kitchen</strong>
-            <span>Greater Lagro · Online Ordering</span>
-          </div>
-        </div>
-        <button type="button" class="btn-close-modal auth-close-btn" onclick="closeModal('authModal')" aria-label="Close dialog">✕</button>
-      </div>
+      <button class="btn-close-modal" onclick="closeModal('authModal')">✕</button>
 
       <!-- Dual Tab Bar -->
       <div class="auth-tabs">

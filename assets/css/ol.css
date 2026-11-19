@@ -3076,68 +3076,11 @@ body.dark-mode .tracking-cancelled-banner {
 
 /* Modal card sizing */
 .auth-modal-card {
-  max-width: 430px;
+  max-width: 420px;
   width: 100%;
   border-radius: 20px;
   overflow: hidden;
-  box-shadow: 0 24px 60px rgba(0,0,0,0.22);
-}
-
-/* ── Kenji's Kitchen Auth Brand Header ── */
-.auth-brand-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 13px 18px;
-  background: #1c1a16;
-  border-bottom: 3px solid #f59e0b;
-}
-
-.auth-brand-id {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-}
-
-.auth-brand-logo {
-  width: 34px;
-  height: 34px;
-  border-radius: 9px;
-  object-fit: cover;
-  border: 1.5px solid rgba(245, 158, 11, 0.55);
-  flex-shrink: 0;
-}
-
-.auth-brand-id strong {
-  display: block;
-  color: #ffffff;
-  font-size: 0.94rem;
-  font-weight: 800;
-  line-height: 1.15;
-}
-
-.auth-brand-id span {
-  display: block;
-  color: #d6cfc0;
-  font-size: 0.72rem;
-  margin-top: 2px;
-}
-
-.auth-brand-bar .auth-close-btn {
-  position: static;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.12);
-  color: #f3f4f6;
-  flex-shrink: 0;
-}
-
-.auth-brand-bar .auth-close-btn:hover {
-  background: #f59e0b;
-  color: #111111;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.18);
 }
 
 /* ── Tab bar ── */
@@ -3342,11 +3285,11 @@ body.dark-mode .tracking-cancelled-banner {
   font-weight: 800;
   text-align: center;
   margin: 0 0 6px;
-  color: #1f2328;
+  color: #111111;
 }
 
 .auth-otp-title span {
-  color: #d97706;
+  color: inherit;
 }
 
 .auth-otp-intro {
