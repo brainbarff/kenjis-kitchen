@@ -5243,7 +5243,7 @@ function openCourierFeeModal(orderId) {
   const btn = document.getElementById('btnSubmitCourierFee');
   if (btn) {
     btn.disabled = false;
-    btn.textContent = 'Submit Fee Payment';
+    btn.textContent = 'Submit Courier Fee';
   }
   loadOnlineGcashSettings();
   document.getElementById('courierFeeModal')?.classList.add('active');
@@ -5372,7 +5372,7 @@ async function submitCourierFeePayment() {
     courierFeeState.busy = false;
     if (btn) {
       btn.disabled = false;
-      btn.textContent = 'Submit Fee Payment';
+      btn.textContent = 'Submit Courier Fee';
     }
   }
 }

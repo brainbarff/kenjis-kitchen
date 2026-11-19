@@ -631,18 +631,32 @@ body.dark-mode .kk-opt1-tracking-status.is-rejected {background:rgba(239,68,68,.
 body.dark-mode .kk-opt1-tracking-status.is-verified {background:rgba(34,197,94,.20);color:#86efac;border-color:rgba(34,197,94,.35);}
 body.dark-mode .kk-tracking-ext-btn {background:#353020;border-color:#705300;color:#fbe38e!important;}
 body.dark-mode .kk-tracking-ext-btn:hover {background:#f2c12e;border-color:#f2c12e;color:#1f2328!important;}
-#courierFeeModal .courier-fee-summary-box {padding:8px 12px;margin-bottom:10px;font-size:0.82rem;background:#fcfbf7;border-color:#e6e3d8;}
-#courierFeeModal .courier-fee-summary-row {padding:2px 0;}
-#courierFeeModal .courier-fee-summary-row.total {margin-top:4px;padding-top:5px;font-size:0.9rem;}
-#courierFeeModal .gcash-payment-panel {padding:10px 12px;margin-bottom:10px;}
-#courierFeeModal .gcash-payment-title {margin:0 0 6px;font-size:0.82rem;}
+#courierFeeModal .courier-fee-modal-card {border-top:4px solid #f2c12e;background:#fffdf8;}
+#courierFeeModal .courier-fee-summary-box {padding:10px 14px;margin-bottom:12px;font-size:0.83rem;background:#fcfbf7;border-color:#e6e3d8;border-radius:12px;}
+#courierFeeModal .courier-fee-summary-row {padding:3px 0;}
+#courierFeeModal .courier-fee-summary-row.total {margin-top:5px;padding-top:6px;font-size:0.92rem;}
+#courierFeeModal .gcash-payment-panel {padding:12px 14px;margin-bottom:12px;border-radius:12px;background:#fcfbf7;border:1px solid #e6e3d8;}
+#courierFeeModal .gcash-payment-title {margin:0 0 8px;font-size:0.83rem;font-weight:800;color:#29251f;}
 #courierFeeModal .gcash-qr-frame {max-width:170px;padding:6px;margin:0 auto;}
 #courierFeeModal .gcash-qr-frame.loaded .gcash-qr-image {max-height:156px;width:auto;margin:0 auto;display:block;}
 #courierFeeModal .gcash-account-details {padding:8px 12px;margin-top:8px;gap:4px 12px;font-size:0.8rem;}
 #courierFeeModal .gcash-account-actions {margin-top:8px;gap:6px;}
 #courierFeeModal .gcash-account-actions a,#courierFeeModal .gcash-account-actions button {padding:7px 10px;font-size:0.76rem;}
 #courierFeeModal .gcash-payment-help {margin:6px 0 0;font-size:0.74rem;}
-body.dark-mode #courierFeeModal .courier-fee-summary-box {background:#252B33;border-color:#454F5B;}
+#courierFeeProofInput {height:auto;min-height:44px;padding:6px;border:1px solid var(--border);border-radius:10px;background:var(--card,#fff);color:var(--text);font-size:13px;line-height:1.5;}
+#courierFeeProofInput::file-selector-button {background:#f2c12e;color:#29251e;border:0;border-radius:6px;padding:6px 10px;margin-right:10px;font:inherit;font-weight:600;cursor:pointer;}
+#courierFeeProofInput::file-selector-button:hover {background:#e5b420;}
+#courierFeeModal .courier-fee-actions {display:flex;align-items:center;justify-content:center;gap:10px;margin-top:6px;}
+#courierFeeModal .courier-fee-cancel-btn,
+#courierFeeModal .courier-fee-submit-btn {flex:1;height:40px;min-height:40px;padding:8px 14px;border-radius:10px;font-size:0.84rem;line-height:1.2;display:inline-flex;align-items:center;justify-content:center;}
+#courierFeeModal .courier-fee-cancel-btn {font-weight:700;}
+#courierFeeModal .courier-fee-submit-btn {font-weight:800;background:#f2c12e;color:#1f2328;border:1px solid #dfaf1e;box-shadow:none;}
+#courierFeeModal .courier-fee-submit-btn:hover:not(:disabled) {background:#e5b420;}
+body.dark-mode #courierFeeModal .courier-fee-modal-card {background:#23262C;}
+body.dark-mode #courierFeeModal .courier-fee-summary-box,
+body.dark-mode #courierFeeModal .gcash-payment-panel {background:#252B33;border-color:#454F5B;}
+body.dark-mode #courierFeeModal .gcash-payment-title {color:#f3efe4;}
+body.dark-mode #courierFeeProofInput {background:#23272e;border-color:#444b56;color:#f2f0e8;}
 #customerOrdersModal .customer-order-row a,
 #customerOrdersModal .tracking-card a {color:#93630c;text-decoration:underline;text-underline-offset:2px;}
 body.dark-mode #customerOrdersModal .customer-order-row a,

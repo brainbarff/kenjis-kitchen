@@ -834,13 +834,13 @@ require_once dirname(__DIR__) . '/includes/storefront_bestsellers.php';
 
   <!-- Third-Party Store-Booked Courier Fee Payment Modal -->
   <div class="modal-overlay" id="courierFeeModal">
-    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="courierFeeTitle" style="max-width:480px;">
+    <div class="modal-card courier-fee-modal-card" role="dialog" aria-modal="true" aria-labelledby="courierFeeTitle" style="max-width:480px;">
       <button type="button" class="btn-close-modal" aria-label="Close courier fee payment" onclick="closeCourierFeeModal()">✕</button>
-      <div class="modal-body" style="padding:18px 20px;">
-        <h2 id="courierFeeTitle" style="margin:0 0 3px;font-size:1.12rem;font-weight:800;color:var(--dark);display:flex;align-items:center;gap:8px;">
-          <i class="bi bi-truck" style="color:var(--primary);"></i> Pay Courier Delivery Fee
+      <div class="modal-body" style="padding:20px 22px;">
+        <h2 id="courierFeeTitle" style="margin:0 0 4px;font-size:1.15rem;font-weight:800;color:var(--dark);display:flex;align-items:center;gap:8px;">
+          <i class="bi bi-truck" style="color:#d6a81f;"></i> Pay Courier Delivery Fee
         </h2>
-        <p class="muted" id="courierFeeSubtitle" style="margin:0 0 10px;font-size:0.81rem;">Pay the quoted courier fee via GCash QR and upload your payment receipt below.</p>
+        <p class="muted" id="courierFeeSubtitle" style="margin:0 0 12px;font-size:0.82rem;line-height:1.45;">Pay the quoted courier fee via GCash QR, then upload your payment screenshot and enter the reference number below.</p>
 
         <div class="courier-fee-summary-box">
           <div class="courier-fee-summary-row"><span>Order No.</span><strong id="courierFeeOrderNo">N/A</strong></div>
@@ -863,29 +863,30 @@ require_once dirname(__DIR__) . '/includes/storefront_bestsellers.php';
         <form id="courierFeeForm" onsubmit="event.preventDefault(); submitCourierFeePayment(); return false;" novalidate>
           <div id="courierFeeError" class="checkout-validation-alert" style="display:none;margin-bottom:10px;" role="alert"></div>
 
-          <div style="margin-bottom:10px;">
-            <label for="courierFeeGcashRef" style="font-size:0.83rem;font-weight:700;display:block;margin-bottom:3px;">GCash Reference Number <span style="color:var(--danger);">*</span></label>
-            <input type="text" id="courierFeeGcashRef" class="checkout-input" style="letter-spacing:1px;padding:8px 11px;" maxlength="13" inputmode="numeric" placeholder="Enter 13-digit reference" required>
-          </div>
-
           <div style="margin-bottom:12px;">
-            <label for="courierFeeProofInput" style="font-size:0.83rem;font-weight:700;display:block;margin-bottom:3px;">Upload Courier Fee Receipt <span style="color:var(--danger);">*</span></label>
-            <input type="file" id="courierFeeProofInput" class="checkout-input" accept="image/jpeg,image/png,image/webp" onchange="handleCourierFeeProofSelection(event)" style="padding:6px 8px;">
-            <small style="color:var(--muted);font-size:0.73rem;display:block;margin-top:2px;">JPG, PNG, or WebP screenshot (max 5 MB).</small>
-            <div id="courierFeeProofPreviewWrap" style="display:none;margin-top:8px;padding:8px;border:1px solid var(--border);border-radius:10px;background:var(--soft);">
-              <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px;">
-                <span id="courierFeeProofFileName" style="font-size:0.78rem;font-weight:700;color:var(--dark);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
-                <button type="button" onclick="clearCourierFeeProofSelection()" style="background:rgba(217,83,79,0.12);color:#ef4444;border:1px solid rgba(217,83,79,0.35);border-radius:6px;padding:3px 9px;font-size:0.75rem;font-weight:700;cursor:pointer;flex-shrink:0;">
-                  <i class="bi bi-trash"></i> Remove
+            <label for="courierFeeProofInput" style="font-size:0.84rem;font-weight:700;display:block;margin-bottom:4px;">Upload Courier Fee Receipt <span style="color:var(--danger);">*</span></label>
+            <input type="file" id="courierFeeProofInput" class="checkout-input" accept="image/jpeg,image/png,image/webp" onchange="handleCourierFeeProofSelection(event)">
+            <small style="color:var(--muted);font-size:0.74rem;display:block;margin-top:3px;">Accepted formats: JPG, PNG, or WebP (max 5 MB).</small>
+            <div id="courierFeeProofPreviewWrap" style="display:none;margin-top:9px;padding:10px;border:1px solid var(--border);border-radius:10px;background:var(--soft);">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;">
+                <span id="courierFeeProofFileName" style="font-size:0.79rem;font-weight:700;color:var(--dark);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+                <button type="button" onclick="clearCourierFeeProofSelection()" style="background:rgba(217,83,79,0.12);color:#ef4444;border:1px solid rgba(217,83,79,0.35);border-radius:6px;padding:4px 10px;font-size:0.75rem;font-weight:700;cursor:pointer;flex-shrink:0;">
+                  <i class="bi bi-trash"></i> Remove / Replace
                 </button>
               </div>
-              <img id="courierFeeProofPreviewImg" src="" alt="Courier fee receipt preview" style="max-height:110px;max-width:100%;border-radius:8px;display:block;margin:0 auto;object-fit:contain;border:1px solid var(--border);">
+              <img id="courierFeeProofPreviewImg" src="" alt="Courier fee receipt preview" style="max-height:130px;max-width:100%;border-radius:8px;display:block;margin:0 auto;object-fit:contain;border:1px solid var(--border);">
             </div>
           </div>
 
-          <div style="display:flex;gap:10px;">
-            <button type="button" class="auth-btn-back" style="flex:0.8;height:auto;padding:10px;" onclick="closeCourierFeeModal()">Cancel</button>
-            <button type="submit" id="btnSubmitCourierFee" class="btn-primary" style="flex:1.4;padding:10px;">Submit Fee Payment</button>
+          <div style="margin-bottom:14px;">
+            <label for="courierFeeGcashRef" style="font-size:0.84rem;font-weight:700;display:block;margin-bottom:4px;">GCash Reference Number <span style="color:var(--danger);">*</span></label>
+            <input type="text" id="courierFeeGcashRef" class="checkout-input" style="letter-spacing:1px;padding:9px 12px;" maxlength="13" inputmode="numeric" placeholder="Enter 13-digit reference" required>
+            <small style="color:var(--muted);font-size:0.74rem;display:block;margin-top:3px;">Find this number on your GCash receipt.</small>
+          </div>
+
+          <div class="courier-fee-actions">
+            <button type="button" class="auth-btn-back courier-fee-cancel-btn" onclick="closeCourierFeeModal()">Cancel</button>
+            <button type="submit" id="btnSubmitCourierFee" class="btn-primary courier-fee-submit-btn">Submit Courier Fee</button>
           </div>
         </form>
       </div>

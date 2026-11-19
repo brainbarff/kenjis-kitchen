@@ -751,8 +751,8 @@ include ROOT_PATH . '/includes/header.php';
 .delivery-page td:nth-child(2) { max-width:210px; overflow-wrap:anywhere; }
 .delivery-page td:nth-child(3) { max-width:165px; }
 .delivery-page td:nth-child(4) { max-width:130px; overflow-wrap:anywhere; }
-.delivery-page td:nth-child(7), .delivery-page th:nth-child(7) { text-align:right; white-space:nowrap; font-weight:700; font-variant-numeric:tabular-nums; }
-.delivery-page td:last-child, .delivery-page th:last-child { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; color:#5e5a4c; }
+.delivery-page td:nth-child(7), .delivery-page th:nth-child(7) { text-align:left; white-space:nowrap; font-weight:700; font-variant-numeric:tabular-nums; }
+.delivery-page td:last-child, .delivery-page th:last-child { text-align:left; white-space:nowrap; font-variant-numeric:tabular-nums; color:#5e5a4c; }
 .delivery-page .table-wrap { border:1px solid #e6e3d8; border-radius:12px; overflow-x:auto; margin-top:16px; }
 .delivery-page .btn { min-height:40px; border-radius:9px; font-size:14px; }
 .delivery-page .btn-primary { background:#f2c12e; color:#1f2328; border-color:#dfaf1e; font-weight:800; }
@@ -777,8 +777,23 @@ include ROOT_PATH . '/includes/header.php';
 .delivery-outside-box.is-opt1 { background:#fffbeb; border-color:#eee3be; }
 .delivery-outside-box.is-opt2 { background:#fcfbf7; border-color:#e6e3d8; }
 .outside-proof-box { background:#fffbeb; border:1px solid #fde68a; border-radius:10px; padding:12px; margin:10px 0; font-size:13.5px; }
-.delivery-modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:9999; display:flex; justify-content:center; align-items:center; padding:16px; }
-.delivery-modal-card { background:#fff; border-radius:16px; width:min(460px, 100%); max-height:90vh; overflow:auto; padding:24px; box-shadow:0 14px 34px rgba(0,0,0,0.2); }
+.delivery-modal-backdrop { position:fixed; inset:0; background:rgba(15, 18, 22, 0.56); backdrop-filter:blur(2px); z-index:9999; display:flex; justify-content:center; align-items:center; padding:16px; }
+.delivery-modal-card { background:#fffdf8; border:1px solid #e6dfd0; border-top:4px solid #f2c12e; border-radius:16px; width:min(470px, 100%); max-height:90vh; overflow:auto; padding:22px 24px; box-shadow:0 18px 44px rgba(0,0,0,0.22); }
+.delivery-modal-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:8px; }
+.delivery-modal-head h2 { font-size:19px; font-weight:800; color:#1f2328; margin:0; }
+.delivery-modal-close { display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; border-radius:999px; border:1px solid #dfd8c8; background:#fffaf0; color:#29251f; cursor:pointer; font-size:14px; flex-shrink:0; transition:background .15s, border-color .15s; }
+.delivery-modal-close:hover { background:#fff3c4; border-color:#d6a81f; }
+.delivery-modal-desc { font-size:13.5px; line-height:1.5; color:#5e5a4c; margin:0 0 16px; }
+.delivery-modal-card .field { margin-bottom:13px; }
+.delivery-modal-card .field label { display:block; font-size:13px; font-weight:700; color:#29251f; margin-bottom:5px; }
+.delivery-modal-card .field input,
+.delivery-modal-card .field select { width:100%; min-height:42px; padding:8px 12px; border:1px solid #dfd8c8; border-radius:10px; background:#ffffff; color:#1f2328; font-size:14px; box-sizing:border-box; }
+.delivery-modal-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:16px; padding-top:14px; border-top:1px dashed #e6dfd0; }
+.delivery-modal-actions .btn { min-height:40px; padding:8px 18px; font-size:13.5px; border-radius:10px; }
+.delivery-modal-actions .btn-secondary { background:#fffaf0; color:#29251f; border:1px solid #dfd8c8; font-weight:700; }
+.delivery-modal-actions .btn-secondary:hover { background:#f3eee2; border-color:#c9bfa9; }
+.delivery-modal-actions .btn-primary { background:#f2c12e; color:#1f2328; border:1px solid #dfaf1e; font-weight:800; }
+.delivery-modal-actions .btn-primary:hover { background:#e5b420; border-color:#c69814; }
 @media(max-width:900px) { .delivery-guide { grid-template-columns:1fr; } .delivery-meta-grid { grid-template-columns:1fr; } }
 @media(max-width:700px) { .delivery-guide { gap:14px; } .delivery-page .page-head h2 { font-size:24px; } .delivery-page .page-head .kk-pagination { flex:1 1 100%; } }
 </style>
@@ -786,13 +801,13 @@ include ROOT_PATH . '/includes/header.php';
 <!-- Quote Modal -->
 <div id="quoteModal" class="delivery-modal-backdrop" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="quoteModalTitle" onclick="if (event.target === this) closeQuoteModal()">
     <div class="delivery-modal-card">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;">
-            <h2 id="quoteModalTitle" style="font-size:20px;margin:0;">Record Third-Party Delivery Quote</h2>
-            <button type="button" class="btn btn-secondary" style="min-height:36px;padding:6px 10px;" aria-label="Close quote modal" onclick="closeQuoteModal()">
+        <div class="delivery-modal-head">
+            <h2 id="quoteModalTitle">Record Quote</h2>
+            <button type="button" class="delivery-modal-close" aria-label="Close quote modal" onclick="closeQuoteModal()">
                 <i class="bi bi-x-lg" aria-hidden="true"></i>
             </button>
         </div>
-        <p class="muted" style="font-size:13px;margin:0 0 16px;">Check your third-party courier app (e.g. GrabExpress, Lalamove) manually for the fare to the customer address, then enter the quote here:</p>
+        <p class="delivery-modal-desc">Check your third-party courier app (Lalamove or GrabExpress) for the fare to the customer address, then enter the quote below.</p>
         <form method="post" class="form">
             <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
             <input type="hidden" name="filter" value="<?= e($deliveryFilter) ?>">
@@ -804,8 +819,7 @@ include ROOT_PATH . '/includes/header.php';
                 <select id="quote_booking_service" name="booking_service">
                     <option value="Lalamove">Lalamove</option>
                     <option value="GrabExpress">GrabExpress</option>
-                    <option value="Borzo">Borzo / Mr. Speedy</option>
-                    <option value="Customer Own Rider">Other Manual Courier</option>
+                    <option value="Other third-party Courier">Other third-party Courier</option>
                 </select>
             </div>
 
@@ -819,7 +833,7 @@ include ROOT_PATH . '/includes/header.php';
                 <input type="text" id="quote_tracking_ref" name="tracking_reference" placeholder="e.g. https://share.lalamove.com/... or booking ref">
             </div>
 
-            <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:8px;">
+            <div class="delivery-modal-actions">
                 <button type="button" class="btn btn-secondary" onclick="closeQuoteModal()">Cancel</button>
                 <button type="submit" class="btn btn-primary"><i class="bi bi-check2" aria-hidden="true"></i> Save Fee Quote</button>
             </div>
