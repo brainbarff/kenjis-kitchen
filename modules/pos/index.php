@@ -114,11 +114,9 @@ try {
         $mid = (int)$r['id'];
         $seenCatCount[$cid] = ($seenCatCount[$cid] ?? 0) + 1;
         if ($bilaoCatId && $cid === (int)$bilaoCatId) {
-            $baseDish = trim((string)preg_replace('/\s+(Small|Medium|Large|XL|Extra\s+Large|\([SMLXL]+\))$/i', '', (string)$r['item_name']));
-            if ($baseDish !== '' && count($posBestsellerBilaoDish) < 2 && !isset($posBestsellerBilaoDish[$baseDish])) {
-                $posBestsellerBilaoDish[$baseDish] = 'Best Seller';
-            }
-        } elseif ($seenCatCount[$cid] <= 2 && !isset($posBestsellerById[$mid])) {
+            continue;
+        }
+        if ($seenCatCount[$cid] <= 2 && !isset($posBestsellerById[$mid])) {
             $posBestsellerById[$mid] = 'Best Seller';
         }
     }
@@ -2089,14 +2087,17 @@ include ROOT_PATH . '/includes/header.php';
     .pos-page .cart-items::-webkit-scrollbar-track { background:#f5f0e4; }
     .pos-page .menu-grid::-webkit-scrollbar-thumb,
     .pos-page .cart-items::-webkit-scrollbar-thumb { background:#d6cbb4; }
+    .pos-page .menu-grid { align-items:start!important; }
     .pos-page .food-card { background:#ffffff; border:1px solid #e8e1d0; box-shadow:0 3px 10px rgba(36,35,30,.04); }
+    .pos-page .food-card div { padding:0; }
+    .pos-page .food-card .card-info { padding:6px 4px 2px; }
+    .pos-page .food-card .bilao-center-content { padding:6px 2px 2px; gap:7px; }
     .pos-page .food-card:hover { border-color:#dfc065; box-shadow:0 8px 20px rgba(36,35,30,.08); }
     .pos-page .food-card.in-cart { border-color:#e5b422; background:#fffdf5; box-shadow:0 4px 14px rgba(242,193,46,.18); }
     .pos-page .food-card img { background-color:#faf6ec; border:1px solid #f2ece0; }
     .pos-page .stock-badge { background:rgba(255,252,244,.96); color:#5c5240; border:1px solid #e5dcc4; box-shadow:0 2px 5px rgba(0,0,0,.04); }
     .pos-page .stock-badge.low-stock { background:#fff3c4; color:#8a5200; border-color:#e8c455; }
-    .pos-page .bestseller-badge { position:absolute; top:8px; left:8px; z-index:2; display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:999px; background:#f2c12e; color:#1f2328; border:1px solid #d9a316; font-size:0.64rem; font-weight:800; box-shadow:0 2px 6px rgba(36,35,30,.12); pointer-events:none; }
-    .pos-page .bestseller-badge i { color:#784d00; font-size:0.62rem; }
+    .pos-page .bestseller-badge { position:absolute; top:8px; left:8px; z-index:2; display:inline-flex; align-items:center; padding:2px 8px; border-radius:999px; background:#f2c12e; color:#1f2328; border:1px solid #d9a316; font-size:0.64rem; font-weight:800; box-shadow:0 2px 6px rgba(36,35,30,.12); pointer-events:none; }
     .pos-page .pos-products-header .tabs .tab { padding:6px 11px; font-size:0.8rem; }
     .pos-page .card-info h3 { color:#1f2328; font-weight:800; }
     .pos-page .card-desc { color:#6e6555; }
@@ -2189,7 +2190,7 @@ include ROOT_PATH . '/includes/header.php';
             <div class="pos-category-scroller-wrap">
                 <div class="tabs" id="posCategoryTabs">
                     <button class="tab active" data-cat="all">All</button>
-                    <button class="tab" data-cat="bestsellers" title="View Kenji's Kitchen best-selling dishes"><i class="bi bi-star-fill" style="color:#b47d12; margin-right:4px;"></i>Best Sellers</button>
+                    <button class="tab" data-cat="bestsellers" title="View Kenji's Kitchen best-selling dishes">Best Sellers</button>
                     <?php foreach ($categories as $cat): ?>
                         <button class="tab" data-cat="<?= e($cat['id']) ?>"><?= e(['add-ons' => 'Add-ons', 'silog meals' => 'Silog'][strtolower($cat['category_name'])] ?? $cat['category_name']) ?></button>
                     <?php endforeach; ?>
@@ -2246,7 +2247,7 @@ include ROOT_PATH . '/includes/header.php';
                          data-availability="<?= e($availability) ?>">
 
                     <?php if ($bsLabel !== ''): ?>
-                        <span class="bestseller-badge"><i class="bi bi-star-fill" aria-hidden="true"></i> <?= e($bsLabel) ?></span>
+                        <span class="bestseller-badge"><?= e($bsLabel) ?></span>
                     <?php endif; ?>
 
                     <span class="stock-badge <?= ($stock <= 0 || $availability !== 'Available') ? 'out-of-stock' : ($stock <= 5 ? 'low-stock' : '') ?>">
@@ -2318,7 +2319,7 @@ include ROOT_PATH . '/includes/header.php';
                              data-variants='<?= $json_variants ?>'>
 
                         <?php if ($bilaoBsLabel !== ''): ?>
-                            <span class="bestseller-badge"><i class="bi bi-star-fill" aria-hidden="true"></i> <?= e($bilaoBsLabel) ?></span>
+                            <span class="bestseller-badge"><?= e($bilaoBsLabel) ?></span>
                         <?php endif; ?>
 
                         <span class="stock-badge <?= ($init_stock <= 0 || $init_availability !== 'Available') ? 'out-of-stock' : ($init_stock <= 5 ? 'low-stock' : '') ?>">
