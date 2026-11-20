@@ -84,11 +84,16 @@ foreach ($raw_items as $item) {
 
 require_once ROOT_PATH . '/includes/storefront_bestsellers.php';
 $posBestsellerById = [];
+$posBestsellerRankById = [];
 $posBestsellerBilaoDish = [];
+$nextBsRank = 1;
 foreach ($storeBestsellers as $idx => $bs) {
     $bsId = (int)($bs['id'] ?? 0);
     if ($bsId > 0) {
-        $posBestsellerById[$bsId] = '#' . ($idx + 1) . ' Best Seller';
+        $rankNum = $idx + 1;
+        $posBestsellerById[$bsId] = '#' . $rankNum . ' Best Seller';
+        $posBestsellerRankById[$bsId] = $rankNum;
+        $nextBsRank = max($nextBsRank, $rankNum + 1);
     }
 }
 try {
@@ -118,6 +123,7 @@ try {
         }
         if ($seenCatCount[$cid] <= 2 && !isset($posBestsellerById[$mid])) {
             $posBestsellerById[$mid] = 'Best Seller';
+            $posBestsellerRankById[$mid] = $nextBsRank++;
         }
     }
 } catch (Throwable $e) {}
@@ -2234,12 +2240,14 @@ include ROOT_PATH . '/includes/header.php';
                 $availability = $item['availability'] ?? 'Available';
                 $isUnavailable = ($stock <= 0 || $availability !== 'Available');
                 $bsLabel = $posBestsellerById[(int)$item['id']] ?? '';
+                $bsRank = $posBestsellerRankById[(int)$item['id']] ?? 999;
                 ?>
 
                 <article class="food-card <?= $isUnavailable ? 'unavailable' : '' ?>"
                          data-cat="<?= e($item['category_id']) ?>"
                          data-subcat="<?= $subcat ?>"
                          data-bestseller="<?= $bsLabel !== '' ? '1' : '0' ?>"
+                         data-bestseller-rank="<?= (int)$bsRank ?>"
                          data-id="<?= e($item['id']) ?>"
                          data-name="<?= e($item['item_name']) ?>"
                          data-price="<?= e($price) ?>"

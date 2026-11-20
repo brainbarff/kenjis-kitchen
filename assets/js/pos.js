@@ -946,6 +946,11 @@ function filterMenu() {
                 matchesSearch
                     ? ''
                     : 'none';
+
+            card.style.order =
+                cat === 'bestsellers'
+                    ? (card.dataset.bestsellerRank || '999')
+                    : '';
         });
 }
 window.filterPosMenu = filterMenu;
