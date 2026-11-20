@@ -5414,21 +5414,6 @@ body.dark-mode .courier-fee-summary-row.total strong { color: #F2C12E; }
   font-weight: 700;
   color: #2c2820;
 }
-.cod-change-input-row {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-.cod-change-peso {
-  position: absolute;
-  left: 12px;
-  font-weight: 800;
-  color: #6b6250;
-  pointer-events: none;
-}
-.cod-change-input-row input {
-  padding-left: 28px !important;
-}
 .cod-change-summary {
   margin: 10px 0 0;
   padding: 8px 10px;
@@ -5468,8 +5453,7 @@ body.dark-mode .cod-change-tag {
   color: #fde68a;
 }
 body.dark-mode .cod-change-panel-head small,
-body.dark-mode .cod-change-custom-wrap label,
-body.dark-mode .cod-change-peso {
+body.dark-mode .cod-change-custom-wrap label {
   color: #CBD5E1;
 }
 body.dark-mode .cod-change-pill-btn {

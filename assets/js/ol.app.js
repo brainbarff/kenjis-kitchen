@@ -3646,7 +3646,7 @@ function updateCodChangeSummary() {
   const total = getCartSubtotalAmount();
   summaryEl.classList.remove('is-change', 'is-error');
   if (selectedCodChangeMode === 'exact') {
-    summaryEl.textContent = `Exact amount (${formatPeso(total)}) selected — no change needed from rider.`;
+    summaryEl.textContent = `Exact amount (${formatPeso(total)}) selected - no change needed from rider.`;
     return;
   }
   if (selectedCodChangeMode === 'custom') {
@@ -3663,7 +3663,7 @@ function updateCodChangeSummary() {
     }
     const change = Math.max(0, num - total);
     if (change <= 0.009) {
-      summaryEl.textContent = `Exact amount (${formatPeso(total)}) — no change needed from rider.`;
+      summaryEl.textContent = `Exact amount (${formatPeso(total)}) - no change needed from rider.`;
       return;
     }
     summaryEl.classList.add('is-change');
@@ -3675,7 +3675,7 @@ function updateCodChangeSummary() {
     summaryEl.classList.add('is-change');
     summaryEl.textContent = `Paying with ${formatPeso(presetBill)} · Rider will prepare ${formatPeso(presetBill - total)} change.`;
   } else {
-    summaryEl.textContent = `Exact amount (${formatPeso(total)}) selected — no change needed from rider.`;
+    summaryEl.textContent = `Exact amount (${formatPeso(total)}) selected - no change needed from rider.`;
   }
 }
 

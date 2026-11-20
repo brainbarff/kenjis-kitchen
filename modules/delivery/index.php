@@ -631,6 +631,15 @@ include ROOT_PATH . '/includes/header.php';
                 <input type="hidden" name="filter" value="<?= e($deliveryFilter) ?>">
                 <input type="hidden" name="order_id" value="<?= (int)$order['id'] ?>">
                 <input type="hidden" name="action" value="delivered">
+                <?php if (!$isOutside && $order['payment_status'] !== 'Paid'): ?>
+                <p class="delivery-confirm-guide"><i class="bi bi-telephone-outbound" aria-hidden="true"></i> Wait for the Kenji's Kitchen rider to call or text the store confirming delivery and cash collection before ticking and confirming below.</p>
+                <?php elseif (!$isOutside): ?>
+                <p class="delivery-confirm-guide"><i class="bi bi-telephone-outbound" aria-hidden="true"></i> Wait for the Kenji's Kitchen rider to call or text the store confirming drop-off to the customer before marking delivered.</p>
+                <?php elseif ($isCustomerBooked): ?>
+                <p class="delivery-confirm-guide"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i> Open the tracking link above (or check with the customer/courier) to verify completed drop-off before marking delivered.</p>
+                <?php else: ?>
+                <p class="delivery-confirm-guide"><i class="bi bi-phone" aria-hidden="true"></i> Check your Lalamove/GrabExpress app or open the tracking link above to confirm completed drop-off before marking delivered.</p>
+                <?php endif; ?>
                 <?php if ($order['payment_status'] !== 'Paid'): ?>
                 <label class="cod-confirm-check">
                     <input type="checkbox" name="cash_collected" value="1" class="cod-collected-checkbox">
@@ -804,6 +813,8 @@ include ROOT_PATH . '/includes/header.php';
 .cod-confirm-check { display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:10px; background:#fffbeb; border:1px solid #f59e0b; font-weight:600; color:#242424; cursor:pointer; transition:box-shadow .2s ease, border-color .2s ease, background-color .2s ease; }
 .cod-confirm-check input[type=checkbox] { width:18px; height:18px; accent-color:#d97706; flex-shrink:0; }
 .cod-confirm-check.is-attention { background:#fef3c7; border-color:#d97706; box-shadow:0 0 0 3px rgba(242, 193, 46, 0.35); }
+.delivery-confirm-guide { margin:0; font-size:12.5px; line-height:1.45; color:#5e5a4c; display:flex; align-items:flex-start; gap:6px; max-width:620px; }
+.delivery-confirm-guide i { color:#8a6200; margin-top:2px; flex-shrink:0; }
 .delivery-page .delivery-handoff-btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:42px; padding:9px 20px; border-radius:10px; box-shadow:0 2px 8px rgba(242,193,46,0.28); }
 .delivery-page input:focus, .delivery-page select:focus, .delivery-page textarea:focus { outline:2px solid #b48b12; outline-offset:2px; }
 .delivery-page input[type=checkbox] { accent-color:#c49a19!important; }

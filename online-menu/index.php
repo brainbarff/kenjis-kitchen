@@ -643,12 +643,9 @@ require_once dirname(__DIR__) . '/includes/storefront_bestsellers.php';
           </div>
           <div id="codCustomChangeWrap" class="cod-change-custom-wrap" style="display: none;">
             <label for="custCodChangeFor">Cash amount you will pay (₱)</label>
-            <div class="cod-change-input-row">
-              <span class="cod-change-peso" aria-hidden="true">₱</span>
-              <input type="number" id="custCodChangeFor" class="checkout-input" min="1" step="0.01" inputmode="decimal" placeholder="e.g. 500" oninput="updateCodChangeSummary()">
-            </div>
+            <input type="number" id="custCodChangeFor" class="checkout-input" min="1" step="0.01" inputmode="decimal" placeholder="e.g. 500" oninput="updateCodChangeSummary()">
           </div>
-          <p id="codChangeSummaryText" class="cod-change-summary" role="status" aria-live="polite">Exact amount selected — no change needed from rider.</p>
+          <p id="codChangeSummaryText" class="cod-change-summary" role="status" aria-live="polite">Exact amount selected - no change needed from rider.</p>
         </div>
 
         <div id="onlineGcashWrap" style="display: none; margin-bottom: 14px;">
