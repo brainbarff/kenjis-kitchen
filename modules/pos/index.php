@@ -2544,12 +2544,12 @@ include ROOT_PATH . '/includes/header.php';
             <p style="margin:0; font-size:0.9rem; line-height:1.5; color:#64748b;">Enter the actual cash counted in the drawer to close your shift.</p>
         </div>
         <div id="shiftSummaryBox" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px; margin-bottom:16px; font-size:0.83rem; color:#334155; display:none;">
-            <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>Opening Cash</span><span id="ss_opening">—</span></div>
-            <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>Cash Sales</span><span id="ss_cash_sales">—</span></div>
-            <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>GCash Sales</span><span id="ss_gcash_sales">—</span></div>
-            <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>Cash Refunds Out</span><span id="ss_cash_refunds" style="color:#dc2626;">—</span></div>
-            <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>Total Sales</span><span id="ss_total_sales" style="font-weight:700;">—</span></div>
-            <div style="display:flex; justify-content:space-between; border-top:1px solid #e2e8f0; padding-top:6px; margin-top:6px;"><span>Expected Cash</span><span id="ss_expected" style="font-weight:700; color:#059669;">—</span></div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>Opening Cash</span><span id="ss_opening">-</span></div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>Cash Sales</span><span id="ss_cash_sales">-</span></div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>GCash Sales</span><span id="ss_gcash_sales">-</span></div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>Cash Refunds Out</span><span id="ss_cash_refunds" style="color:#dc2626;">-</span></div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>Total Sales</span><span id="ss_total_sales" style="font-weight:700;">-</span></div>
+            <div style="display:flex; justify-content:space-between; border-top:1px solid #e2e8f0; padding-top:6px; margin-top:6px;"><span>Expected Cash</span><span id="ss_expected" style="font-weight:700; color:#059669;">-</span></div>
         </div>
         <div style="margin-bottom:14px;">
             <label for="closingCashInput" style="font-size:0.9rem; font-weight:700; color:#374151; display:block; margin-bottom:6px;">Actual Cash Counted (₱)</label>
@@ -3040,7 +3040,7 @@ function setAuthenticatedCashier(cashier) {
     }
     hideCashierAuthModal();
     loadShiftSummary();
-    // After login, check if shift is already open — if not, prompt Cashiers to open one
+    // After login, check if shift is already open - if not, prompt Cashiers to open one
     if (!isAdminActive) {
         checkAndPromptShift(cashier);
     }
@@ -3051,7 +3051,7 @@ async function checkAndPromptShift(cashier) {
         const res = await fetch('<?= BASE_URL ?>/modules/pos/shift_api.php?action=status&terminal=Main+POS');
         const data = await res.json();
         if (data.ok && !data.has_open_shift) {
-            // No open shift — show the Open Shift modal
+            // No open shift - show the Open Shift modal
             const nameEl = document.getElementById('openShiftCashierName');
             if (nameEl) nameEl.textContent = cashier.full_name || cashier.username;
             document.getElementById('openShiftModalOverlay').hidden = false;

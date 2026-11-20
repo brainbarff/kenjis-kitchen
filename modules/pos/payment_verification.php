@@ -393,7 +393,7 @@ include ROOT_PATH . '/includes/header.php';
         <div>
             <?php if ($hasCancelRequest): ?>
                 <div style="background:#fff1f2; color:#9f1239; font-size:12.5px; padding:10px; border-radius:8px; border:1px solid #fecdd3; text-align:center; font-weight:700;">
-                    <i class="bi bi-slash-circle-fill"></i> Verification locked — <a href="<?= e(BASE_URL . '/modules/transactions/index.php') ?>" style="color:#9f1239; text-decoration:underline;">resolve cancellation request</a> first.
+                    <i class="bi bi-slash-circle-fill"></i> Verification locked - <a href="<?= e(BASE_URL . '/modules/transactions/index.php') ?>" style="color:#9f1239; text-decoration:underline;">resolve cancellation request</a> first.
                 </div>
             <?php elseif ($isLocked): ?>
                 <div style="background:#fef3c7; color:#92400e; font-size:12px; padding:8px; border-radius:6px; text-align:center; font-weight:700;">

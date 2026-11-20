@@ -514,7 +514,7 @@ include ROOT_PATH . '/includes/header.php';
                                 · Customer: <?= e($request['customer_name']) ?>
                             <?php endif; ?>
                             · Order <?= e($request['order_status']) ?>
-                            · <?= e($request['payment_method'] ?? '—') ?> / <?= e($request['payment_status'] ?? '—') ?>
+                            · <?= e($request['payment_method'] ?? '-') ?> / <?= e($request['payment_status'] ?? '-') ?>
                         </div>
                     </div>
                     <strong style="font-size:17px; color:#1f2328; white-space:nowrap;"><?= money($request['total']) ?></strong>
@@ -587,13 +587,13 @@ include ROOT_PATH . '/includes/header.php';
                 <div class="field">
                     <label>Request type</label>
                     <select id="txRequestTypeSelect" name="request_type" required>
-                        <option value="Void">Void (Pending order — restores stock)</option>
+                        <option value="Void">Void (Pending order - restores stock)</option>
                         <option value="Refund">Refund (Paid Served / Picked Up / Cancelled order)</option>
                         <option value="Cancel Delivery" <?= ($_GET['request_type'] ?? '') === 'Cancel Delivery' ? 'selected' : '' ?>>Cancel Delivery (Failed unpaid COD)</option>
                     </select>
                 </div>
                 <div class="field">
-                    <label>Reason <span class="muted">(8–500 chars)</span></label>
+                    <label>Reason <span class="muted">(8-500 chars)</span></label>
                     <textarea name="reason" minlength="8" maxlength="500" placeholder="Explain why this void, refund, or delivery cancellation is requested..." required></textarea>
                 </div>
                 <button class="btn btn-primary" type="submit" style="width:100%;"><i class="bi bi-send-fill" aria-hidden="true"></i> Send Request to Admin</button>
@@ -704,7 +704,7 @@ include ROOT_PATH . '/includes/header.php';
                                 </div>
                             </td>
                             <td><span class="kk-tx-badge <?= $statusBadgeCls ?>"><?= e($rowStatus) ?></span></td>
-                            <td><?= e($row['payment_method'] ?? '—') ?> / <strong><?= e($row['payment_status'] ?? '—') ?></strong></td>
+                            <td><?= e($row['payment_method'] ?? '-') ?> / <strong><?= e($row['payment_status'] ?? '-') ?></strong></td>
                             <td><strong><?= money($row['total']) ?></strong></td>
                             <?php if (!$isAdmin): ?>
                             <td>
@@ -757,7 +757,7 @@ include ROOT_PATH . '/includes/header.php';
                             $decisionParts[] = 'Stock returned';
                         }
                     }
-                    $decisionSummary = $decisionParts ? implode(' · ', $decisionParts) : '—';
+                    $decisionSummary = $decisionParts ? implode(' · ', $decisionParts) : '-';
                     $reqType = (string)$request['request_type'];
                     $reqBadgeCls = $reqType === 'Cancel Order'
                         ? 'is-cancel'
@@ -774,7 +774,7 @@ include ROOT_PATH . '/includes/header.php';
                     <td><span class="kk-tx-badge <?= $reqBadgeCls ?>"><?= e($reqType) ?></span></td>
                     <td><span class="kk-tx-badge <?= $decBadgeCls ?>"><?= e($request['status']) ?></span></td>
                     <td><?= e($request['requester']) ?></td>
-                    <td><?= e($request['reviewer'] ?? '—') ?></td>
+                    <td><?= e($request['reviewer'] ?? '-') ?></td>
                     <td><?= e($decisionSummary) ?></td>
                 </tr>
                 <?php endforeach; ?>

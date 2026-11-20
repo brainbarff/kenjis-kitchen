@@ -145,7 +145,7 @@ try {
                 ];
             }, $freshStmt->fetchAll(PDO::FETCH_ASSOC));
             $msg = $availStock <= 0
-                ? ($item['item_name'] . ' is currently out of stock — remaining stock was claimed by an earlier walk-in or online order.')
+                ? ($item['item_name'] . ' is currently out of stock - remaining stock was claimed by an earlier walk-in or online order.')
                 : ('Only ' . $availStock . ' pcs of ' . $item['item_name'] . ' remain (remaining stock was claimed by an earlier walk-in or online order).');
             echo json_encode([
                 'ok' => false,

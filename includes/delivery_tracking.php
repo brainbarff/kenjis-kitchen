@@ -1173,14 +1173,14 @@ function verify_lagro_delivery_address(
         $verification = array_merge($baseResult, [
             'status' => 'WITHIN_LAGRO',
             'legacy_status' => 'VERIFIED_LAGRO',
-            'headline' => 'Within Greater Lagro — free store delivery.',
+            'headline' => 'Within Greater Lagro - free store delivery.',
             'reason_code' => 'VERIFIED_INSIDE_LAGRO',
             'eligible_free' => true,
             'eligible_outside' => false,
             'delivery_mode' => 'LAGRO_FREE',
             'delivery_fee' => 0.00,
             'address_confirmed' => true,
-            'message' => 'Within Greater Lagro — free store delivery (₱0.00) by Kenji\'s Kitchen staff. Matched ' . $matchedLabel . '; please confirm your written House/Block/Lot and map pin match.',
+            'message' => 'Within Greater Lagro - free store delivery (₱0.00) by Kenji\'s Kitchen staff. Matched ' . $matchedLabel . '; please confirm your written House/Block/Lot and map pin match.',
         ]);
         $verification['verification_token'] = kk_issue_delivery_verification_token($verification, $clean, $latFloat, $lngFloat);
         return $verification;
@@ -1219,18 +1219,18 @@ function verify_lagro_delivery_address(
         ]);
     }
 
-    // 9c. Verified Outside Greater Lagro — third-party courier required
+    // 9c. Verified Outside Greater Lagro - third-party courier required
     $verification = array_merge($baseResult, [
         'status' => 'OUTSIDE_LAGRO',
         'legacy_status' => 'OUTSIDE_LAGRO',
-        'headline' => 'Outside Greater Lagro — third-party courier required.',
+        'headline' => 'Outside Greater Lagro - third-party courier required.',
         'reason_code' => 'VERIFIED_OUTSIDE_LAGRO',
         'eligible_free' => false,
         'eligible_outside' => true,
         'delivery_mode' => 'CUSTOMER_BOOKED',
         'delivery_fee' => null,
         'address_confirmed' => true,
-        'message' => 'Outside Greater Lagro — third-party courier required. Delivery is arranged manually through a third-party courier. Choose whether you will book the courier or ask the store to book; the courier\'s actual booking charge is separate from the food amount.',
+        'message' => 'Outside Greater Lagro - third-party courier required. Delivery is arranged manually through a third-party courier. Choose whether you will book the courier or ask the store to book; the courier\'s actual booking charge is separate from the food amount.',
     ]);
     $verification['verification_token'] = kk_issue_delivery_verification_token($verification, $clean, $latFloat, $lngFloat);
     return $verification;

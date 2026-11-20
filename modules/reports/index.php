@@ -246,7 +246,7 @@ if (isset($_GET['export']) && in_array($_GET['export'], ['excel', 'csv', 'print'
         };
         $sheet = '<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0" showGridLines="0"><pane ySplit="3" topLeftCell="A4" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>';
         foreach ($columns as $i => $col) $sheet .= '<col min="'.($i+1).'" max="'.($i+1).'" width="'.(preg_match('/Name|Number|Date|Time|Reference|Method|Customer|Product/i',$col)?28:19).'" customWidth="1"/>';
-        $sheet .= '</cols><sheetData><row ht="32" customHeight="1">'.$cell('Kenji’s Kitchen — '.$reportName,1).'</row><row ht="28" customHeight="1">'.$cell('Period: '.$periodLabel).'</row><row ht="36" customHeight="1">';
+        $sheet .= '</cols><sheetData><row ht="32" customHeight="1">'.$cell('Kenji’s Kitchen - '.$reportName,1).'</row><row ht="28" customHeight="1">'.$cell('Period: '.$periodLabel).'</row><row ht="36" customHeight="1">';
         foreach ($columns as $col) $sheet .= $cell($col,1);
         $sheet .= '</row>'; $rowIndex=0; $totals=array_fill(0,count($columns),0);
         while (($row=fgetcsv($output))!==false) {
@@ -282,8 +282,8 @@ if (isset($_GET['export']) && in_array($_GET['export'], ['excel', 'csv', 'print'
         echo $zip.$directory.pack('VvvvvVVv',0x06054b50,0,0,count($files),count($files),strlen($directory),strlen($zip),0);
     } else {
         header('Content-Type: text/html; charset=utf-8');
-        echo '<!doctype html><html><head><meta charset="utf-8"><title>' . e($reportName) . ' — Kenji’s Kitchen</title><style>@page{size:A4 landscape;margin:12mm}body{font:12px Arial;color:#242424;margin:24px}h1{font-size:24px;margin-bottom:8px}p{line-height:1.5}table{width:100%;border-collapse:collapse;table-layout:fixed}th{background:#f7c62f;font-size:13px;text-align:left}td,th{padding:10px 8px;border:1px solid #ddd;overflow-wrap:anywhere}tbody tr:nth-child(even){background:#f7f7f2}thead{display:table-header-group}tr{break-inside:avoid}button{padding:12px 18px;background:#f7c62f;border:0;border-radius:8px;cursor:pointer}@media print{body{margin:0}button{display:none}*{print-color-adjust:exact;-webkit-print-color-adjust:exact}}.preset-pill.active { background:#f7c62f!important; color:#242424!important; font-weight:700; box-shadow:0 1px 4px #0001; }
-</style></head><body><button onclick="window.print()">Print / Save as PDF</button><h1>Kenji’s Kitchen — ' . e($reportName) . '</h1><p>Reporting period: ' . e($periodLabel) . '<br>All matching records · Generated ' . date('M d, Y h:i A') . '</p><table><thead><tr>';
+        echo '<!doctype html><html><head><meta charset="utf-8"><title>' . e($reportName) . ' - Kenji’s Kitchen</title><style>@page{size:A4 landscape;margin:12mm}body{font:12px Arial;color:#242424;margin:24px}h1{font-size:24px;margin-bottom:8px}p{line-height:1.5}table{width:100%;border-collapse:collapse;table-layout:fixed}th{background:#f7c62f;font-size:13px;text-align:left}td,th{padding:10px 8px;border:1px solid #ddd;overflow-wrap:anywhere}tbody tr:nth-child(even){background:#f7f7f2}thead{display:table-header-group}tr{break-inside:avoid}button{padding:12px 18px;background:#f7c62f;border:0;border-radius:8px;cursor:pointer}@media print{body{margin:0}button{display:none}*{print-color-adjust:exact;-webkit-print-color-adjust:exact}}.preset-pill.active { background:#f7c62f!important; color:#242424!important; font-weight:700; box-shadow:0 1px 4px #0001; }
+</style></head><body><button onclick="window.print()">Print / Save as PDF</button><h1>Kenji’s Kitchen - ' . e($reportName) . '</h1><p>Reporting period: ' . e($periodLabel) . '<br>All matching records · Generated ' . date('M d, Y h:i A') . '</p><table><thead><tr>';
         foreach ($columns as $col) echo '<th>' . e($col) . '</th>';
         echo '</tr></thead><tbody>'; $count = 0; $salesTotals = array_fill(0, count($columns), 0);
         while (($row = fgetcsv($output)) !== false) { echo '<tr>'; foreach ($row as $i => $value) { if (str_contains($columns[$i], 'PHP')) $salesTotals[$i] += (float)$value; if (preg_match('/Date|Time/i', $columns[$i]) && $value && strtotime($value) !== false) $value = date('m-d-Y h:i A', strtotime($value)); echo '<td>' . e($value ?? '') . '</td>'; } echo '</tr>'; $count++; }
@@ -1743,7 +1743,7 @@ include ROOT_PATH . '/includes/header.php';
                                         <span class="order-code-badge"><?= htmlspecialchars($row['order_no']) ?></span>
                                     </td>
                                     <td style="font-size:0.8rem; color:#475569;">
-                                        <?= $row['paid_at'] ? date('M d, Y h:i A', strtotime($row['paid_at'])) : '—' ?>
+                                        <?= $row['paid_at'] ? date('M d, Y h:i A', strtotime($row['paid_at'])) : '-' ?>
                                     </td>
                                     <td>
                                         <span style="font-weight:700; color:<?= $row['order_channel'] === 'POS' ? '#d97706' : '#2563eb' ?>;">
@@ -1843,11 +1843,11 @@ include ROOT_PATH . '/includes/header.php';
                                     </td>
                                     <td style="font-size:0.8rem;">
                                         <?php if (!empty($row['cashier_name']) && $row['order_channel'] === 'POS'): ?>
-                                            <span style="display:inline-flex;align-items:center;gap:4px;font-weight:600;color:#0284c7;">
+                                            <span style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;background:#fff4cc;border:1px solid #e5c352;font-weight:700;color:#785300;font-size:0.76rem;">
                                                 <i class="bi bi-person-badge"></i><?= htmlspecialchars($row['cashier_name']) ?>
                                             </span>
                                         <?php else: ?>
-                                            <span style="color:#94a3b8;">—</span>
+                                            <span style="color:#94a3b8;">-</span>
                                         <?php endif; ?>
                                     </td>
                                     <td>
@@ -2008,7 +2008,7 @@ include ROOT_PATH . '/includes/header.php';
                                     <td style="font-weight:700; color:<?= htmlspecialchars($mv['color']) ?>; white-space:nowrap;">
                                         <?= htmlspecialchars($mv['qty_text']) ?>
                                     </td>
-                                    <td style="color:#64748b; font-size:0.8rem;"><?= htmlspecialchars($log['remarks'] ?: '—') ?></td>
+                                    <td style="color:#64748b; font-size:0.8rem;"><?= htmlspecialchars($log['remarks'] ?: '-') ?></td>
                                     <td><?= htmlspecialchars($log['user_name']) ?></td>
                                 </tr>
                             <?php endforeach; ?>
@@ -2176,7 +2176,7 @@ include ROOT_PATH . '/includes/header.php';
                                 ?>
                                 <tr>
                                     <td><span class="order-code-badge"><?= htmlspecialchars($row['order_no']) ?></span></td>
-                                    <td style="font-size:0.8rem; color:#475569;"><?= $row['paid_at'] ? date('M d, Y h:i A', strtotime($row['paid_at'])) : '—' ?></td>
+                                    <td style="font-size:0.8rem; color:#475569;"><?= $row['paid_at'] ? date('M d, Y h:i A', strtotime($row['paid_at'])) : '-' ?></td>
                                     <td>
                                         <span class="status-pill status-ready" style="font-weight:700;">
                                             <i class="bi bi-tag-fill"></i> <?= htmlspecialchars($type) ?>
@@ -2249,7 +2249,7 @@ include ROOT_PATH . '/includes/header.php';
                                 <tr>
                                     <td><span class="order-code-badge">#<?= htmlspecialchars($row['id']) ?></span></td>
                                     <td><span class="order-code-badge"><?= htmlspecialchars($row['order_no']) ?></span></td>
-                                    <td style="font-size:0.8rem; color:#475569;"><?= $row['paid_at'] ? date('M d, Y h:i A', strtotime($row['paid_at'])) : '—' ?></td>
+                                    <td style="font-size:0.8rem; color:#475569;"><?= $row['paid_at'] ? date('M d, Y h:i A', strtotime($row['paid_at'])) : '-' ?></td>
                                     <td>
                                         <span style="font-weight:700; color:<?= $row['order_channel'] === 'POS' ? '#d97706' : '#2563eb' ?>;">
                                             <?= htmlspecialchars($row['order_channel']) ?>
@@ -2262,7 +2262,7 @@ include ROOT_PATH . '/includes/header.php';
                                         </span>
                                     </td>
                                     <td style="font-size:0.8rem; color:#475569; font-family:monospace;">
-                                        <?= htmlspecialchars($row['payment_reference'] ?: '—') ?>
+                                        <?= htmlspecialchars($row['payment_reference'] ?: '-') ?>
                                     </td>
                                     <td style="font-weight:800; color:#0f172a; font-size:0.95rem;">
                                         <?= money($row['amount_paid']) ?>

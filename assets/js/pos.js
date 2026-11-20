@@ -247,13 +247,13 @@ function injectPosModalStyles() {
 
         .pos-checkout-actions {
             display: grid;
-            grid-template-columns: 1fr;
-            gap: 0;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
         }
 
         .pos-checkout-action {
             height: 42px;
-            border-radius: 7px;
+            border-radius: 8px;
             font-size: 0.82rem;
             font-weight: 800;
             cursor: pointer;
@@ -266,21 +266,21 @@ function injectPosModalStyles() {
         }
 
         .pos-checkout-print {
-            background: #ffffff;
-            border: 1px solid #cfcfcf;
-            color: #111111;
-            font-size: 0.74rem;
+            background: #fffdf7;
+            border: 1px solid #e2d8be;
+            color: #3b3323;
+            font-size: 0.82rem;
         }
 
         .pos-checkout-print:hover {
-            background: #f7f7f7;
-            border-color: #999999;
+            background: #fff4cc;
+            border-color: #d6a81f;
         }
 
         .pos-checkout-new {
             background: #F2C12E;
             border: 1px solid #D8AF18;
-            color: #111111;
+            color: #1f2328;
         }
 
         .pos-checkout-new:hover {
@@ -2114,8 +2114,8 @@ function showCheckoutSuccessScreen(
                             Kitchen
                         </span>
 
-                        <span class="pos-checkout-detail-value">
-                            Sent
+                        <span class="pos-checkout-detail-value" style="display:inline-flex;align-items:center;gap:4px;color:#15803d;font-weight:700;">
+                            <i class="bi bi-check2-circle"></i> Sent to Kitchen
                         </span>
                     </div>
 
@@ -2188,14 +2188,23 @@ function showCheckoutSuccessScreen(
                 <div class="pos-checkout-actions">
                     <button
                         type="button"
-                        class="pos-checkout-action pos-checkout-print"
+                        class="pos-checkout-action pos-checkout-new"
                         id="checkoutSuccessPrintBtn"
-                        title="The order is already in the kitchen queue. Click to choose a printer and print the receipt."
+                        title="Choose a printer and print the customer receipt."
                     >
-                        <i class="bi bi-printer"></i>
-                        Kitchen + Print Receipt
+                        <i class="bi bi-printer-fill"></i>
+                        Print Receipt
                     </button>
 
+                    <button
+                        type="button"
+                        class="pos-checkout-action pos-checkout-print"
+                        id="checkoutSuccessDoneBtn"
+                        title="Close and start the next order."
+                    >
+                        <i class="bi bi-check2"></i>
+                        Done
+                    </button>
                 </div>
             </div>
         </div>
@@ -2220,6 +2229,15 @@ function showCheckoutSuccessScreen(
     document
         .getElementById(
             'checkoutSuccessCloseBtn'
+        )
+        ?.addEventListener(
+            'click',
+            closeSuccessScreen
+        );
+
+    document
+        .getElementById(
+            'checkoutSuccessDoneBtn'
         )
         ?.addEventListener(
             'click',
@@ -2454,7 +2472,7 @@ function generatePrintReceiptHtml(
                                     ? `
                                         <tr>
                                             <td colspan="2" style="padding: 1px 0; font-size: 9px; color: #555;">
-                                                ID: ${escapeHtml(orderData.discountIdNumber)} ${orderData.discountCustomerName ? '— ' + escapeHtml(orderData.discountCustomerName) : ''}
+                                                ID: ${escapeHtml(orderData.discountIdNumber)} ${orderData.discountCustomerName ? '- ' + escapeHtml(orderData.discountCustomerName) : ''}
                                             </td>
                                         </tr>
                                     `

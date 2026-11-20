@@ -522,7 +522,7 @@ tr.approval-row-highlight td { background:#fffbeb!important; box-shadow:inset 0 
                             $badgeClass = 'badge-warning';
                         }
 
-                        $targetTitle = '—';
+                        $targetTitle = '-';
                         $targetSubtitle = '';
                         $thumb = null;
 
@@ -665,7 +665,7 @@ tr.approval-row-highlight td { background:#fffbeb!important; box-shadow:inset 0 
                         $type = $row['request_type'];
                         $typeLabel = $type === 'Delete Category' ? 'Deactivate Category' : ($type === 'Delete Item' ? 'Archive Item' : $type);
                         $payloadData = !empty($row['payload']) ? (json_decode($row['payload'], true) ?: []) : [];
-                        $targetTitle = '—';
+                        $targetTitle = '-';
                         if ($type === 'Add Category') {
                             $targetTitle = 'Category: ' . ($payloadData['category_name'] ?? 'New Category');
                         } elseif ($type === 'Delete Category') {
@@ -682,7 +682,7 @@ tr.approval-row-highlight td { background:#fffbeb!important; box-shadow:inset 0 
                             <td><?= e($row['requester_name'] ?? 'Unknown User') ?></td>
                             <td><span class="badge <?= $row['status'] === 'Approved' ? 'badge-success' : 'badge-danger' ?>"><?= e($row['status']) ?></span><?php if ($row['status'] === 'Rejected' && !empty($row['review_notes'])): ?><div class="approval-summary muted" style="max-width:260px;font-size:12px;overflow-wrap:anywhere;"><?= e($row['review_notes']) ?></div><?php endif; ?></td>
                             <td><?= e($row['reviewer_name'] ?? 'Admin') ?></td>
-                            <td><?= $row['reviewed_at'] ? e(date('M d, Y h:i A', strtotime($row['reviewed_at']))) : '—' ?></td>
+                            <td><?= $row['reviewed_at'] ? e(date('M d, Y h:i A', strtotime($row['reviewed_at']))) : '-' ?></td>
                         </tr>
                     <?php endforeach; ?>
                 <?php else: ?>

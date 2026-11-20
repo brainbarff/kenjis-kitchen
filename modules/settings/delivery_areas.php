@@ -307,7 +307,7 @@ include ROOT_PATH . '/includes/header.php';
                 <tr style="<?= !$row['is_active'] ? 'opacity:0.5;' : '' ?>">
                     <td><?= $i + 1 ?></td>
                     <td><strong><?= e($row['street_name']) ?></strong></td>
-                    <td><?= e($row['subdivision'] ?: '—') ?></td>
+                    <td><?= e($row['subdivision'] ?: '-') ?></td>
                     <td><?= e($row['barangay']) ?></td>
                     <td>
                         <form method="POST" style="margin:0; display:inline;">
@@ -333,7 +333,7 @@ include ROOT_PATH . '/includes/header.php';
                             </span>
                         <?php endif; ?>
                     </td>
-                    <td style="font-size:12px; color:var(--muted); max-width:180px;"><?= e($row['note'] ?: '—') ?></td>
+                    <td style="font-size:12px; color:var(--muted); max-width:180px;"><?= e($row['note'] ?: '-') ?></td>
                     <td style="text-align:right;">
                         <div style="display:inline-flex; gap:4px;">
                             <?php if (!$row['is_verified']): ?>

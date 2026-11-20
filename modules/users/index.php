@@ -571,10 +571,10 @@ include ROOT_PATH . '/includes/header.php';
                         'username' => '@' . (string)$row['username'],
                         'role' => (string)$row['role_name'] . ($isSupportedRole ? '' : ' (Retired Legacy Role)'),
                         'status' => $isArchived ? 'Archived (' . (string)$row['status'] . ')' : (string)$row['status'],
-                        'email' => (string)($row['email'] ?: '—'),
-                        'phone' => (string)($row['phone'] ?: '—'),
-                        'address' => (string)($row['customer_address'] ?: '—'),
-                        'created_at' => !empty($row['created_at']) ? date('M d, Y h:i A', strtotime($row['created_at'])) : '—',
+                        'email' => (string)($row['email'] ?: '-'),
+                        'phone' => (string)($row['phone'] ?: '-'),
+                        'address' => (string)($row['customer_address'] ?: '-'),
+                        'created_at' => !empty($row['created_at']) ? date('M d, Y h:i A', strtotime($row['created_at'])) : '-',
                         'archived_at' => !empty($row['deleted_at'])
                             ? date('M d, Y h:i A', strtotime($row['deleted_at']))
                             : ($isArchived ? 'Archived (Legacy Role)' : 'Not archived'),
@@ -601,7 +601,7 @@ include ROOT_PATH . '/includes/header.php';
                             <?php if (!empty($row['pin_code'])): ?>
                                 <span class="badge badge-info" style="font-family:monospace; font-size:12px; letter-spacing:2px;">••••</span>
                             <?php else: ?>
-                                <span class="muted" style="font-size:12px;">—</span>
+                                <span class="muted" style="font-size:12px;">-</span>
                             <?php endif; ?>
                         </td>
                         <td>
@@ -716,13 +716,13 @@ include ROOT_PATH . '/includes/header.php';
                     'type' => 'Online Customer',
                     'id' => (int)$c['id'],
                     'full_name' => (string)$c['full_name'],
-                    'username' => (string)($c['username'] ? '@' . $c['username'] : '—'),
+                    'username' => (string)($c['username'] ? '@' . $c['username'] : '-'),
                     'role' => (string)($c['role_name'] ?? 'Customer (Online)'),
                     'status' => $isCustArchived ? 'Inactive (Archived)' : $custStatusLabel,
-                    'email' => (string)($c['email'] ?: '—'),
-                    'phone' => (string)($c['phone'] ?: '—'),
-                    'address' => (string)($c['customer_address'] ?: '—'),
-                    'created_at' => !empty($c['created_at']) ? date('M d, Y h:i A', strtotime($c['created_at'])) : '—',
+                    'email' => (string)($c['email'] ?: '-'),
+                    'phone' => (string)($c['phone'] ?: '-'),
+                    'address' => (string)($c['customer_address'] ?: '-'),
+                    'created_at' => !empty($c['created_at']) ? date('M d, Y h:i A', strtotime($c['created_at'])) : '-',
                     'archived_at' => $isCustArchived ? date('M d, Y h:i A', strtotime($c['deleted_at'])) : 'Not archived',
                     'orders' => (int)$c['total_orders'] . ' online order(s)',
                 ];
@@ -740,8 +740,8 @@ include ROOT_PATH . '/includes/header.php';
                         <strong><?= e($c['full_name']) ?></strong>
                         <?php if ($isCustArchived): ?><br><small class="muted">Archived</small><?php endif; ?>
                     </td>
-                    <td><?= e($c['email'] ?? '—') ?></td>
-                    <td><?= e($c['phone'] ?? '—') ?></td>
+                    <td><?= e($c['email'] ?? '-') ?></td>
+                    <td><?= e($c['phone'] ?? '-') ?></td>
                     <td><?= e($c['role_name'] ?? 'Customer (Online)') ?></td>
                     <td><span class="badge badge-success"><?= (int)$c['total_orders'] ?> orders</span></td>
                     <td>
@@ -883,18 +883,18 @@ function openUserDetailModal(btn) {
         if (!dl) return;
         document.getElementById('accountProfileName').textContent = data.full_name || 'Account';
         document.getElementById('accountProfileAvatar').textContent = (data.full_name || 'A').trim().charAt(0).toUpperCase();
-        document.getElementById('accountProfileType').textContent = (data.type || 'Account') + ' · #' + (data.id || '—');
+        document.getElementById('accountProfileType').textContent = (data.type || 'Account') + ' · #' + (data.id || '-');
         document.getElementById('userDetailModalTitle').textContent = data.type === 'Staff Account' ? 'Staff Account Details' : 'Customer Account Details';
         var rows = [
-            ['Username', data.username || '—'],
-            ['Role', data.role || '—'],
-            ['Status', data.status || '—'],
-            ['Email', data.email || '—'],
-            ['Mobile Phone', data.phone || '—'],
-            ['Address', data.address || '—'],
-            ['Order History', data.orders || '—'],
-            ['Created / Registered', data.created_at || '—'],
-            ['Archive State', data.archived_at || '—']
+            ['Username', data.username || '-'],
+            ['Role', data.role || '-'],
+            ['Status', data.status || '-'],
+            ['Email', data.email || '-'],
+            ['Mobile Phone', data.phone || '-'],
+            ['Address', data.address || '-'],
+            ['Order History', data.orders || '-'],
+            ['Created / Registered', data.created_at || '-'],
+            ['Archive State', data.archived_at || '-']
         ];
         dl.innerHTML = rows.map(function (r) {
             var d = document.createElement('div');

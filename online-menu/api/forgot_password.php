@@ -143,7 +143,7 @@ Click the link below to set a new password (valid for 45 minutes):
 If you did not request a password reset, you can safely ignore this email.
 Your password will not change until you access the link above.
 
-— Kenji's Kitchen
+- Kenji's Kitchen
 TEXT;
 
 $htmlBody = <<<HTML

@@ -7,7 +7,7 @@ require_once dirname(__DIR__, 1) . '/includes/functions.php';
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Forgot Password — Kenji's Kitchen</title>
+  <title>Forgot Password - Kenji's Kitchen</title>
   <link rel="icon" type="image/png" href="../assets/img/logo.png">
   <link rel="stylesheet" href="../assets/css/ol.css?v=<?= (int)@filemtime(dirname(__DIR__) . '/assets/css/ol.css') ?: '20261118' ?>">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">

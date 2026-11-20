@@ -681,9 +681,9 @@ try {
         $availStock = max(0, (int)$product['stock']);
         if ($totalQtyForId > 0 && $availStock < $totalQtyForId) {
             if ($availStock <= 0) {
-                throw new RuntimeException($product['item_name'] . ' is currently out of stock — remaining stock was claimed by an earlier walk-in or online order.');
+                throw new RuntimeException($product['item_name'] . ' is currently out of stock - remaining stock was claimed by an earlier walk-in or online order.');
             }
-            throw new RuntimeException('Only ' . $availStock . ' left in stock for ' . $product['item_name'] . ' (requested ' . $totalQtyForId . ') — remaining stock was claimed by an earlier walk-in or online order.');
+            throw new RuntimeException('Only ' . $availStock . ' left in stock for ' . $product['item_name'] . ' (requested ' . $totalQtyForId . ') - remaining stock was claimed by an earlier walk-in or online order.');
         }
         $lockedProducts[$menuId] = $product;
     }

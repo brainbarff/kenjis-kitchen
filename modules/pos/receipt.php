@@ -245,9 +245,9 @@ $change = max(0, $tendered - (float)$order['total']);
                 $receiptBooker = strtoupper((string)($order['courier_booking_by'] ?? 'CUSTOMER'));
                 $arrangementLabel = $isOutsideReceipt
                     ? ($receiptBooker === 'STORE'
-                        ? 'Outside Greater Lagro — Third-Party Courier (Store-Booked, Paid Separately)'
-                        : 'Outside Greater Lagro — Third-Party Courier (Customer-Booked, Paid Separately)')
-                    : 'Within Greater Lagro — Free Store Delivery (₱0.00)';
+                        ? 'Outside Greater Lagro - Third-Party Courier (Store-Booked, Paid Separately)'
+                        : 'Outside Greater Lagro - Third-Party Courier (Customer-Booked, Paid Separately)')
+                    : 'Within Greater Lagro - Free Store Delivery (₱0.00)';
                 ?>
                 <div><strong>Delivery:</strong> <?= htmlspecialchars($arrangementLabel) ?></div>
                 <?php if (!empty($order['delivery_address'])): ?>

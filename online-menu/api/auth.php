@@ -937,7 +937,7 @@ if ($action === 'forgot_password_send') {
 
     $emailResult = send_app_email(
         $email,
-        "Kenji's Kitchen — Password Reset Code",
+        "Kenji's Kitchen - Password Reset Code",
         "Your Kenji's Kitchen password reset verification code is {$code}. It expires in 5 minutes. If you did not request a password reset, please ignore this email.",
         customer_code_email($code, 'password_reset')
     );
