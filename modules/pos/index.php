@@ -2159,8 +2159,8 @@ include ROOT_PATH . '/includes/header.php';
     .pos-page .note-pill-display { background:#fffaf0; border-color:#e5c352; color:#4b4335; }
     .pos-page .totals { color:#3b352a; }
     .pos-page .totals .grand { border-top-color:#dfd6c3; color:#1f2328; font-size:1.04rem; padding-top:5px; }
-    .pos-page .pos-discount-quick-btns { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:5px; margin:5px 0 6px; }
-    .pos-page .pos-disc-btn { border-color:#dfd6c3; background:#fcfaf4; color:#4b4335; border-radius:7px; padding:5px 4px; font-size:0.71rem; white-space:nowrap; }
+    .pos-page .pos-discount-quick-btns { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:6px; margin:5px 0 6px; }
+    .pos-page .pos-disc-btn { border-color:#dfd6c3; background:#fcfaf4; color:#4b4335; border-radius:7px; padding:5px 6px; font-size:0.74rem; white-space:nowrap; }
     .pos-page .discount-line { display:flex!important; align-items:center; justify-content:space-between; gap:8px; }
     .pos-page .discount-line-left { display:inline-flex; align-items:center; gap:6px; }
     .pos-page .discount-control input { width:46px; height:22px; border-color:#dfd6c3; background:#fcfaf4; color:#1f2328; font-weight:700; border-radius:5px; text-align:center; padding:1px 4px; }
@@ -2463,11 +2463,8 @@ include ROOT_PATH . '/includes/header.php';
                     <strong id="subtotal">₱0.00</strong>
                 </div>
 
-                <!-- Automatic Student, Senior Citizen & PWD Discount Selector -->
+                <!-- Automatic Senior Citizen & PWD Discount Selector -->
                 <div class="pos-discount-quick-btns">
-                    <button type="button" class="pos-disc-btn" id="btnDiscountStudent" onclick="toggleQuickDiscount('Student')" title="Apply 20% Student Discount">
-                        <i class="bi bi-mortarboard-fill"></i> Student (20%)
-                    </button>
                     <button type="button" class="pos-disc-btn" id="btnDiscountSenior" onclick="toggleQuickDiscount('Senior')" title="Apply 20% Senior Citizen Discount">
                         <i class="bi bi-person-heart"></i> Senior (20%)
                     </button>

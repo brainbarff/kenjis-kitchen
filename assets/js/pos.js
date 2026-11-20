@@ -1306,7 +1306,7 @@ document
         );
     });
 
-let currentDiscountType = null; // 'Student' | 'Senior Citizen' | 'PWD' | null
+let currentDiscountType = null; // 'Senior Citizen' | 'PWD' | null
 let currentDiscountIdNumber = '';
 let currentDiscountCustomerName = '';
 
@@ -1322,10 +1322,10 @@ function totals() {
     let discountPercent = 0;
     let discount = 0;
 
-    if (currentDiscountType === 'Senior Citizen' || currentDiscountType === 'PWD' || currentDiscountType === 'Student') {
+    if (currentDiscountType === 'Senior Citizen' || currentDiscountType === 'PWD') {
         discountPercent = 20;
-        // 20% discount applies to individual personal consumption meals.
-        // Bilao Favorites (category 6) is bulk/catering party size, excluded from Student/Senior/PWD discount.
+        // Philippine RA 9994 / RA 10754: 20% discount applies to individual personal consumption meals.
+        // Bilao Favorites (category 6) is bulk/catering party size, excluded from Senior/PWD discount.
         const eligibleSubtotal = cart.reduce((sum, item) => {
             const isBilao = String(item.catId) === '6' ||
                             Boolean(item.packaging) ||
@@ -1458,14 +1458,12 @@ function updateTotalsDisplay() {
         }
     }
 
-    // Synchronize Student, Senior Citizen & PWD quick discount UI
-    const btnStudent = document.getElementById('btnDiscountStudent');
+    // Synchronize Senior Citizen & PWD quick discount UI
     const btnSenior = document.getElementById('btnDiscountSenior');
     const btnPwd = document.getElementById('btnDiscountPwd');
     const badgeRow = document.getElementById('posDiscBadgeRow');
     const badgeText = document.getElementById('posDiscBadgeText');
 
-    if (btnStudent) btnStudent.classList.toggle('active', data.discountType === 'Student');
     if (btnSenior) btnSenior.classList.toggle('active', data.discountType === 'Senior Citizen');
     if (btnPwd) btnPwd.classList.toggle('active', data.discountType === 'PWD');
 
@@ -1831,7 +1829,7 @@ if (discountInput) {
 let pendingQuickDiscountType = null;
 
 window.toggleQuickDiscount = function(type) {
-    const fullType = type === 'Senior' ? 'Senior Citizen' : (type === 'Student' ? 'Student' : 'PWD');
+    const fullType = type === 'Senior' ? 'Senior Citizen' : 'PWD';
 
     if (currentDiscountType === fullType) {
         // Cashier clicked the active one again: remove discount
@@ -1879,16 +1877,6 @@ function openSeniorPwdModal(type) {
             iconWrap.style.background = '#fff4c9';
             iconWrap.style.color = '#9a6b00';
             iconWrap.innerHTML = '<i class="bi bi-person-badge-fill"></i>';
-        }
-    } else if (type === 'Student') {
-        if (title) title.textContent = 'Student Discount Verification';
-        if (subtitle) subtitle.textContent = 'Verify the customer\'s valid School / Student ID (20% Discount).';
-        if (label) label.textContent = 'Student ID / School ID #';
-        if (idInp) idInp.placeholder = 'e.g. 2024-00123-QC';
-        if (iconWrap) {
-            iconWrap.style.background = '#fff4c9';
-            iconWrap.style.color = '#9a6b00';
-            iconWrap.innerHTML = '<i class="bi bi-mortarboard-fill"></i>';
         }
     } else {
         if (title) title.textContent = 'PWD Verification';
