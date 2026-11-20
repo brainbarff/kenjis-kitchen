@@ -2026,6 +2026,101 @@ include ROOT_PATH . '/includes/header.php';
     .online-orders-empty strong { display:block; font-size:18px; color:#242424; margin-bottom:6px; }
     .online-orders-empty p { margin:0; }
     .online-orders-modal button:focus-visible, #cashDrawerModalOverlay button:focus-visible { outline:2px solid #95720a; outline-offset:3px; }
+
+    /* Kenji's Kitchen Warm Cream & Gold POS Theme Refinement */
+    .pos-page .pos-category-nav-btn { border-color:#dfd6c3; background:#fffdf8; color:#4b4335; }
+    .pos-page .pos-search-box { background:#fffdf9; border:1px solid #dfd6c3; height:36px; width:210px; flex-shrink:0; padding:0 13px; box-shadow:0 1px 4px rgba(36,35,30,.04); }
+    .pos-page .pos-search-box i { color:#8a7d65; font-size:0.88rem; }
+    .pos-page .pos-search-box input { color:#1f2328; font-weight:600; font-size:0.82rem; }
+    .pos-page .pos-search-box input::placeholder { color:#9a8f7a; font-weight:500; }
+    .pos-page .menu-grid::-webkit-scrollbar-track,
+    .pos-page .cart-items::-webkit-scrollbar-track { background:#f5f0e4; }
+    .pos-page .menu-grid::-webkit-scrollbar-thumb,
+    .pos-page .cart-items::-webkit-scrollbar-thumb { background:#d6cbb4; }
+    .pos-page .food-card { background:#ffffff; border:1px solid #e8e1d0; box-shadow:0 3px 10px rgba(36,35,30,.04); }
+    .pos-page .food-card:hover { border-color:#dfc065; box-shadow:0 8px 20px rgba(36,35,30,.08); }
+    .pos-page .food-card.in-cart { border-color:#e5b422; background:#fffdf5; box-shadow:0 4px 14px rgba(242,193,46,.18); }
+    .pos-page .food-card img { background-color:#faf6ec; border:1px solid #f2ece0; }
+    .pos-page .stock-badge { background:rgba(255,252,244,.96); color:#5c5240; border:1px solid #e5dcc4; box-shadow:0 2px 5px rgba(0,0,0,.04); }
+    .pos-page .stock-badge.low-stock { background:#fff3c4; color:#8a5200; border-color:#e8c455; }
+    .pos-page .card-info h3 { color:#1f2328; font-weight:800; }
+    .pos-page .card-desc { color:#6e6555; }
+    .pos-page .card-footer-price,
+    .pos-page .bilao-price { color:#1f2328; }
+    .pos-page .qty-stepper { height:32px; background:#f8f4e8; border:1px solid #e5dcc4; border-radius:9px; transition:background .15s, border-color .15s; }
+    .pos-page .food-card.in-cart .qty-stepper { background:#fff3c4; border-color:#e2b93b; }
+    .pos-page .btn-qty { color:#5c5240; font-size:1.05rem; transition:background .15s, color .15s; }
+    .pos-page .btn-qty:focus,
+    .pos-page .btn-qty:focus-visible { outline:none!important; box-shadow:none!important; }
+    .pos-page .btn-qty:hover:not(:disabled) { background:#f2c12e; color:#1f2328; }
+    .pos-page .btn-qty:disabled { color:#cfc5b0; }
+    .pos-page .qty-display { color:#1f2328; font-weight:800; }
+    .pos-page .sub-tab { border-color:#dfd6c3; background:#fffdf8; color:#5c5240; font-weight:700; }
+    .pos-page .sub-tab:hover { background:#fff6d6; border-color:#dfc065; color:#1f2328; }
+    .pos-page .sub-tab.active,
+    .pos-page .bilao-pkg-btn.active { background:#24231e; color:#f2c12e; border-color:#24231e; }
+    .pos-page .bilao-size-btn,
+    .pos-page .bilao-pkg-btn { border-color:#dfd6c3; background:#fffdf9; color:#4b4335; }
+    .pos-page .receipt-panel { background:#ffffff; border:1px solid #e6dfd0; border-top:4px solid #f2c12e; box-shadow:0 6px 22px rgba(36,35,30,.06); }
+    .pos-page .receipt-brand { border-bottom:1px solid #ece5d5; padding-bottom:10px; }
+    .pos-page .brand-text-col h2 { color:#1f2328; }
+    .pos-page .order-pill { background:#fff6d6; color:#6e4f00; border:1px solid #e9cb6b; border-radius:999px; font-weight:800; padding:3px 10px; }
+    .pos-page #openDrawerModalBtn { background:#24231e!important; border-color:#24231e!important; color:#faf6ee!important; border-radius:8px; }
+    .pos-page #openDrawerModalBtn i { color:#f2c12e; }
+    .pos-page #openDrawerModalBtn:hover { background:#33312a!important; border-color:#33312a!important; }
+    .pos-page #closeShiftBtn { background:#fffdf7!important; border-color:#dfd6c3!important; color:#2b261d!important; border-radius:8px; }
+    .pos-page #closeShiftBtn:hover { background:#fff4c9!important; border-color:#d9a81e!important; }
+    .pos-page #activeCashierBadgeWrap { background:#fcfaf3; border:1px solid #e8dfc9; border-radius:10px; padding:5px 10px; box-sizing:border-box; }
+    .pos-page #activeCashierBadge { background:transparent!important; color:#1f2328!important; padding:2px 0!important; font-weight:700!important; }
+    .pos-page #activeCashierBadge i { color:#b47d12; font-size:15px; }
+    .pos-page #activeCashierBadgeWrap button { background:#fff3c4!important; border:1px solid #e5c352!important; color:#5c4300!important; border-radius:6px!important; padding:3px 10px!important; font-size:12px!important; font-weight:700!important; transition:background .15s; }
+    .pos-page #activeCashierBadgeWrap button:hover { background:#f2c12e!important; color:#1f2328!important; }
+    .pos-page .btn-online-orders { border-color:#dfd6c3; background:#fffdf8; color:#1f2328; border-radius:8px; }
+    .pos-page .btn-clear-cart { border-color:#dfd6c3; background:#fffdf8; color:#4b4335; border-radius:8px; }
+    .pos-page .btn-clear-cart:hover:not(:disabled) { background:#fef2f2; color:#dc2626; border-color:#fecaca; }
+    .pos-page .btn-clear-cart:disabled { background:#faf7f0; color:#c8beaa; border-color:#ebe4d4; opacity:.6; }
+    .pos-page .receipt-form-top { border-bottom:1px solid #ece5d5; }
+    .pos-page .receipt-form-top label { color:#655c4c; }
+    .pos-page .receipt-form-top select,
+    .pos-page .receipt-form-top input { background:#fcfaf4; border:1px solid #dfd6c3; color:#1f2328; font-weight:600; transition:border-color .15s, box-shadow .15s; }
+    .pos-page .receipt-form-top select:focus,
+    .pos-page .receipt-form-top input:focus { outline:none; border-color:#d9a316; background:#ffffff; box-shadow:0 0 0 3px rgba(242,193,46,.2); }
+    .pos-page .empty-cart-state i { width:52px; height:52px; border-radius:14px; background:#fff4c9; color:#8a6200; display:inline-flex; align-items:center; justify-content:center; font-size:1.5rem; margin-bottom:4px; }
+    .pos-page .empty-cart-state span { color:#2b261d; font-weight:800; }
+    .pos-page .empty-cart-state small { color:#7a705e; }
+    .pos-page .cart-row { border-bottom-color:#ebe4d4; padding:7px 0!important; }
+    .pos-page .cart-row strong { color:#1f2328; }
+    .pos-page .cart-row p.muted { color:#7a705e; }
+    .pos-page .cart-row .qty { background:#faf6eb; border-color:#e5dcc4; }
+    .pos-page .cart-row .qty button { color:#5c5240; }
+    .pos-page .cart-row .qty button:hover:not(:disabled) { background:#f2c12e; color:#1f2328; }
+    .pos-page .receipt-bottom-section { border-top:1px solid #ece5d5; padding-top:8px; }
+    .pos-page .btn-add-note-link { color:#785b08; }
+    .pos-page .btn-add-note-link:hover { color:#1f2328; }
+    .pos-page .note-input-row input { background:#fcfaf4; border-color:#dfd6c3; color:#1f2328; }
+    .pos-page .note-input-row .btn-done-note { background:#f2c12e; color:#1f2328; border-color:#dfaf1e; }
+    .pos-page .note-pill-display { background:#fffaf0; border-color:#e5c352; color:#4b4335; }
+    .pos-page .totals { color:#3b352a; }
+    .pos-page .totals .grand { border-top-color:#dfd6c3; color:#1f2328; font-size:1.04rem; padding-top:5px; }
+    .pos-page .pos-disc-btn { border-color:#dfd6c3; background:#fcfaf4; color:#4b4335; border-radius:7px; }
+    .pos-page .discount-control input { border-color:#dfd6c3; background:#fcfaf4; color:#1f2328; font-weight:700; border-radius:5px; }
+    .pos-page .discount-control span,
+    .pos-page .discount-amount { color:#5c5240; }
+    .pos-page .receipt-cash-row { background:#fcfaf3; border:1px solid #e6dec8; border-radius:8px; padding:6px 10px; }
+    .pos-page .receipt-cash-row label { color:#5c5240; }
+    .pos-page .receipt-cash-row input { border-color:#dfd6c3; color:#1f2328; font-weight:700; border-radius:6px; }
+    .pos-page .receipt-cash-row .change-display strong { color:#1f2328; }
+    .pos-page #tenderGcashAttestWrap { background:#fff8e1!important; border-color:#efd379!important; border-radius:8px!important; }
+    .pos-page #tenderGcashAttestWrap label { color:#5c4300!important; }
+    .pos-page #gcashCashierAttested { accent-color:#d97706!important; }
+    .pos-page .btn-pay-toggle { border:1.5px solid #dfd6c3; background:#fcfaf4; color:#4b4335; }
+    .pos-page .btn-pay-toggle:hover:not(.active) { background:#fff7d9; border-color:#dfc065; color:#1f2328; }
+    .pos-page .btn-pay-toggle.active { background:#fff4c9!important; border:2px solid #eab308!important; color:#1f2328!important; }
+    .pos-page .pos-keypad-modal { background:#fffdf9; border:1px solid #e6dfd0; border-top:4px solid #f2c12e; }
+    .pos-page .pos-keypad-display { background:#fcfaf3; border-color:#dfd6c3; color:#1f2328; }
+    .pos-page .pos-keypad-key { border-color:#e5dcc8; color:#1f2328; }
+    .pos-page .pos-keypad-key:hover { background:#fff8e1; border-color:#dfc065; }
+    .pos-page .pos-keypad-key.action { background:#f8f3e6; color:#4b4335; }
 </style>
 
 <div class="pos-layout">
@@ -2045,6 +2140,10 @@ include ROOT_PATH . '/includes/header.php';
                 <button type="button" class="pos-category-nav-btn" id="catScrollRightBtn" aria-label="Scroll categories right" title="Scroll right">
                     <i class="bi bi-chevron-right"></i>
                 </button>
+            </div>
+            <div class="pos-search-box">
+                <i class="bi bi-search" aria-hidden="true"></i>
+                <input type="search" id="posProductSearch" placeholder="Search dishes..." aria-label="Search POS dishes" autocomplete="off">
             </div>
         </div>
 
@@ -2260,7 +2359,7 @@ include ROOT_PATH . '/includes/header.php';
 
             <div class="field">
                 <label for="tableNo">Table No.</label>
-                <input id="tableNo" type="text" inputmode="none" readonly maxlength="2" placeholder="1–10" data-keypad-type="table" aria-label="Table number">
+                <input id="tableNo" type="text" inputmode="none" readonly maxlength="2" placeholder="1-10" data-keypad-type="table" aria-label="Table number">
             </div>
         </div>
 
@@ -2484,38 +2583,38 @@ include ROOT_PATH . '/includes/header.php';
 </div>
 
 <!-- Senior Citizen / PWD Verification Modal -->
-<div class="online-orders-overlay" id="seniorPwdModalOverlay" hidden style="background:rgba(15,23,42,0.7); z-index:99999;">
-    <div style="background:#ffffff; border-radius:18px; width:100%; max-width:420px; padding:28px 24px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.35); position:relative; margin:auto;">
+<div class="online-orders-overlay" id="seniorPwdModalOverlay" hidden style="background:rgba(20,20,20,0.65); z-index:99999;">
+    <div style="background:#fffdf9; border:1px solid #e6dfd0; border-top:4px solid #f2c12e; border-radius:18px; width:100%; max-width:420px; padding:28px 24px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.35); position:relative; margin:auto;">
         <button type="button" onclick="closeSeniorPwdModal()" style="position:absolute; top:16px; right:16px; background:none; border:none; font-size:1.4rem; color:#64748b; cursor:pointer; line-height:1;">&times;</button>
         
         <div style="text-align:center; margin-bottom:18px;">
-            <div id="spModalIconWrap" style="width:54px; height:54px; background:#fef3c7; color:#d97706; border-radius:16px; display:inline-flex; align-items:center; justify-content:center; font-size:1.6rem; margin-bottom:10px;">
+            <div id="spModalIconWrap" style="width:54px; height:54px; background:#fff4c9; color:#9a6b00; border-radius:16px; display:inline-flex; align-items:center; justify-content:center; font-size:1.6rem; margin-bottom:10px;">
                 <i class="bi bi-person-badge-fill"></i>
             </div>
-            <h3 id="spModalTitle" style="margin:0 0 4px; font-size:1.25rem; font-weight:800; color:#0f172a;">Senior Citizen Verification</h3>
-            <p style="margin:0; font-size:0.83rem; color:#64748b;">Verify the customer's ID under R.A. 9994 / 10754 (20% Discount).</p>
+            <h3 id="spModalTitle" style="margin:0 0 4px; font-size:1.25rem; font-weight:800; color:#1f2328;">Senior Citizen Verification</h3>
+            <p style="margin:0; font-size:0.83rem; color:#655c4c;">Verify the customer's ID under R.A. 9994 / 10754 (20% Discount).</p>
         </div>
 
         <form id="seniorPwdForm" onsubmit="event.preventDefault(); confirmSeniorPwdDiscount();" style="text-align:left;">
             <div style="margin-bottom:14px;">
-                <label style="display:block; font-size:0.82rem; font-weight:700; color:#334155; margin-bottom:5px;">
+                <label style="display:block; font-size:0.82rem; font-weight:700; color:#3b352a; margin-bottom:5px;">
                     Customer Full Name <span style="color:#dc2626;">*</span>
                 </label>
                 <input type="text" id="spCustomerName" placeholder="e.g. Juanita Dela Cruz" required
-                    style="width:100%; font-size:0.95rem; padding:10px 12px; border:1.5px solid #cbd5e1; border-radius:8px; font-weight:600; color:#0f172a;">
+                    style="width:100%; font-size:0.95rem; padding:10px 12px; border:1.5px solid #dfd6c3; background:#fcfaf4; border-radius:8px; font-weight:600; color:#1f2328;">
             </div>
 
             <div style="margin-bottom:14px;">
-                <label style="display:block; font-size:0.82rem; font-weight:700; color:#334155; margin-bottom:5px;">
+                <label style="display:block; font-size:0.82rem; font-weight:700; color:#3b352a; margin-bottom:5px;">
                     <span id="spIdLabel">Senior Citizen ID / OSCA #</span> <span style="color:#dc2626;">*</span>
                 </label>
                 <input type="text" id="spIdNumber" placeholder="e.g. OSCA-2024-12345" required
-                    style="width:100%; font-size:0.95rem; padding:10px 12px; border:1.5px solid #cbd5e1; border-radius:8px; font-weight:600; color:#0f172a;">
+                    style="width:100%; font-size:0.95rem; padding:10px 12px; border:1.5px solid #dfd6c3; background:#fcfaf4; border-radius:8px; font-weight:600; color:#1f2328;">
             </div>
 
-            <div style="margin-bottom:18px; padding:10px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; font-size:0.78rem; color:#475569;">
-                <div style="display:flex; align-items:center; gap:6px; margin-bottom:4px; font-weight:700; color:#0f172a;">
-                    <i class="bi bi-info-circle-fill" style="color:#0284c7;"></i> Discount Eligibility Note:
+            <div style="margin-bottom:18px; padding:10px 12px; background:#fff8e1; border:1px solid #efd379; border-radius:8px; font-size:0.78rem; color:#5c4300;">
+                <div style="display:flex; align-items:center; gap:6px; margin-bottom:4px; font-weight:700; color:#423000;">
+                    <i class="bi bi-info-circle-fill" style="color:#b47d12;"></i> Discount Eligibility Note:
                 </div>
                 <div>Per BIR rules, 20% discount applies to individual personal consumption meals. Bilao catering favorites are bulk-sized and non-discountable.</div>
             </div>
@@ -2523,8 +2622,8 @@ include ROOT_PATH . '/includes/header.php';
             <div id="spModalErrorMsg" style="display:none; color:#dc2626; font-size:0.82rem; font-weight:700; margin-bottom:14px; background:#fee2e2; padding:8px 12px; border-radius:8px;"></div>
 
             <div style="display:flex; gap:10px;">
-                <button type="button" onclick="closeSeniorPwdModal()" style="flex:1; padding:10px 14px; border:1px solid #cbd5e1; background:#f8fafc; color:#475569; font-weight:700; border-radius:10px; cursor:pointer;">Cancel</button>
-                <button type="submit" id="btnConfirmSpDiscount" style="flex:1.5; padding:10px 14px; border:none; background:#F2C12E; color:#232323; font-weight:800; border-radius:10px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:6px;">
+                <button type="button" onclick="closeSeniorPwdModal()" style="flex:1; padding:10px 14px; border:1px solid #dfd6c3; background:#fcfaf4; color:#4b4335; font-weight:700; border-radius:10px; cursor:pointer;">Cancel</button>
+                <button type="submit" id="btnConfirmSpDiscount" style="flex:1.5; padding:10px 14px; border:1px solid #dfaf1e; background:#F2C12E; color:#1f2328; font-weight:800; border-radius:10px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:6px;">
                     <i class="bi bi-check2-circle"></i> Apply Discount
                 </button>
             </div>
@@ -2534,38 +2633,38 @@ include ROOT_PATH . '/includes/header.php';
 
 <!-- Close Shift Modal -->
 <div class="online-orders-overlay" id="closeShiftModalOverlay" hidden style="background:rgba(20,20,20,0.65); z-index:99999;">
-    <div style="background:#fff; border-radius:18px; width:100%; max-width:440px; max-height:90vh; overflow-y:auto; padding:28px 24px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.35); position:relative; margin:auto;">
+    <div style="background:#fffdf9; border:1px solid #e6dfd0; border-top:4px solid #f2c12e; border-radius:18px; width:100%; max-width:440px; max-height:90vh; overflow-y:auto; padding:28px 24px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.35); position:relative; margin:auto;">
         <button type="button" aria-label="Close End Shift" onclick="closeShiftModal()" style="position:absolute; top:16px; right:16px; background:none; border:none; font-size:1.4rem; color:#64748b; cursor:pointer; line-height:1;">&times;</button>
         <div style="text-align:center; margin-bottom:18px;">
             <div style="width:52px; height:52px; background:#f7c62f; border-radius:14px; display:flex; align-items:center; justify-content:center; margin:0 auto 12px;">
                 <i class="bi bi-box-arrow-right" style="font-size:1.5rem; color:#242424;"></i>
             </div>
-            <h3 style="margin:0 0 6px; font-size:1.5rem; font-weight:800; color:#0f172a;">End Shift</h3>
-            <p style="margin:0; font-size:0.9rem; line-height:1.5; color:#64748b;">Enter the actual cash counted in the drawer to close your shift.</p>
+            <h3 style="margin:0 0 6px; font-size:1.5rem; font-weight:800; color:#1f2328;">End Shift</h3>
+            <p style="margin:0; font-size:0.9rem; line-height:1.5; color:#655c4c;">Enter the actual cash counted in the drawer to close your shift.</p>
         </div>
-        <div id="shiftSummaryBox" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px; margin-bottom:16px; font-size:0.83rem; color:#334155; display:none;">
+        <div id="shiftSummaryBox" style="background:#fcfaf3; border:1px solid #e8dfc9; border-radius:10px; padding:12px 14px; margin-bottom:16px; font-size:0.83rem; color:#3b352a; display:none;">
             <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>Opening Cash</span><span id="ss_opening">-</span></div>
             <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>Cash Sales</span><span id="ss_cash_sales">-</span></div>
             <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>GCash Sales</span><span id="ss_gcash_sales">-</span></div>
             <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>Cash Refunds Out</span><span id="ss_cash_refunds" style="color:#dc2626;">-</span></div>
             <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>Total Sales</span><span id="ss_total_sales" style="font-weight:700;">-</span></div>
-            <div style="display:flex; justify-content:space-between; border-top:1px solid #e2e8f0; padding-top:6px; margin-top:6px;"><span>Expected Cash</span><span id="ss_expected" style="font-weight:700; color:#059669;">-</span></div>
+            <div style="display:flex; justify-content:space-between; border-top:1px solid #e8dfc9; padding-top:6px; margin-top:6px;"><span>Expected Cash</span><span id="ss_expected" style="font-weight:700; color:#059669;">-</span></div>
         </div>
         <div style="margin-bottom:14px;">
-            <label for="closingCashInput" style="font-size:0.9rem; font-weight:700; color:#374151; display:block; margin-bottom:6px;">Actual Cash Counted (₱)</label>
+            <label for="closingCashInput" style="font-size:0.9rem; font-weight:700; color:#3b352a; display:block; margin-bottom:6px;">Actual Cash Counted (₱)</label>
             <input type="number" id="closingCashInput" min="0" step="0.01" placeholder="0.00"
-                style="width:100%; font-size:1.4rem; text-align:center; padding:10px 14px; border:2px solid #cbd5e1; border-radius:10px; font-weight:700;" autocomplete="off">
+                style="width:100%; font-size:1.4rem; text-align:center; padding:10px 14px; border:2px solid #dfd6c3; background:#fcfaf4; border-radius:10px; font-weight:700; color:#1f2328;" autocomplete="off">
         </div>
         <div style="margin-bottom:14px;">
-            <label for="shiftRemarksInput" style="font-size:0.9rem; font-weight:700; color:#374151; display:block; margin-bottom:6px;">Remarks / Notes <span id="remarksRequired" style="color:#dc2626; display:none;">* Required (variance too large)</span></label>
+            <label for="shiftRemarksInput" style="font-size:0.9rem; font-weight:700; color:#3b352a; display:block; margin-bottom:6px;">Remarks / Notes <span id="remarksRequired" style="color:#dc2626; display:none;">* Required (variance too large)</span></label>
             <textarea id="shiftRemarksInput" rows="2" placeholder="Optional notes about this shift..."
-                style="width:100%; padding:9px 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:0.85rem; resize:vertical;"></textarea>
+                style="width:100%; padding:9px 12px; border:1px solid #dfd6c3; background:#fcfaf4; border-radius:8px; font-size:0.85rem; resize:vertical; color:#1f2328;"></textarea>
         </div>
         <div id="shiftCloseErrorMsg" style="display:none; color:#dc2626; font-size:0.9rem; font-weight:700; margin-bottom:12px; background:#fee2e2; padding:8px 12px; border-radius:8px;"></div>
         <div id="shiftCloseSuccessMsg" style="display:none; color:#059669; font-size:0.9rem; line-height:1.5; font-weight:700; margin-bottom:12px; background:#d1fae5; padding:8px 12px; border-radius:8px; text-align:center;"></div>
         <div style="display:flex; gap:10px;">
-            <button type="button" onclick="closeShiftModal()" style="flex:1; padding:10px 14px; border:1px solid #cbd5e1; background:#f8fafc; color:#475569; font-weight:700; border-radius:10px; cursor:pointer;">Cancel</button>
-            <button type="button" id="btnEndShift" onclick="submitEndShift()" style="flex:1.4; padding:10px 14px; border:none; background:#f7c62f; color:#242424; font-weight:700; border-radius:10px; cursor:pointer;">
+            <button type="button" onclick="closeShiftModal()" style="flex:1; padding:10px 14px; border:1px solid #dfd6c3; background:#fcfaf4; color:#4b4335; font-weight:700; border-radius:10px; cursor:pointer;">Cancel</button>
+            <button type="button" id="btnEndShift" onclick="submitEndShift()" style="flex:1.4; padding:10px 14px; border:1px solid #dfaf1e; background:#f7c62f; color:#242424; font-weight:700; border-radius:10px; cursor:pointer;">
                 <i class="bi bi-box-arrow-right"></i> End Shift
             </button>
         </div>
@@ -2596,24 +2695,24 @@ include ROOT_PATH . '/includes/header.php';
 
 <!-- Cash Drawer Access Modal -->
 <div class="online-orders-overlay" id="cashDrawerModalOverlay" hidden style="background:rgba(20,20,20,0.65); z-index:99999;">
-    <div style="background:#fff; border-radius:18px; width:100%; max-width:440px; max-height:90vh; overflow-y:auto; padding:26px 24px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.35); text-align:center; position:relative; margin:auto;">
+    <div style="background:#fffdf9; border:1px solid #e6dfd0; border-top:4px solid #f2c12e; border-radius:18px; width:100%; max-width:440px; max-height:90vh; overflow-y:auto; padding:26px 24px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.35); text-align:center; position:relative; margin:auto;">
         <button type="button" aria-label="Close Cash Drawer" onclick="closeCashDrawerModal()" style="position:absolute; top:16px; right:16px; background:none; border:none; font-size:1.4rem; color:#64748b; cursor:pointer; line-height:1;">&times;</button>
         
         <div style="width:56px; height:56px; background:#f7c62f; color:#242424; border-radius:16px; display:inline-flex; align-items:center; justify-content:center; font-size:1.6rem; margin-bottom:12px;">
             <i class="bi bi-safe2-fill"></i>
         </div>
         
-        <h3 style="margin:0 0 6px; font-size:1.5rem; font-weight:800; color:#0f172a;">Open Cash Drawer</h3>
-        <p style="margin:0 0 18px; font-size:0.9rem; line-height:1.5; color:#64748b;"><?= role_key() === 'admin' ? 'Select a reason to authorize and record drawer access.' : 'Re-enter your cashier PIN to record drawer access. Physical drawer control requires a connected device.' ?></p>
+        <h3 style="margin:0 0 6px; font-size:1.5rem; font-weight:800; color:#1f2328;">Open Cash Drawer</h3>
+        <p style="margin:0 0 18px; font-size:0.9rem; line-height:1.5; color:#655c4c;"><?= role_key() === 'admin' ? 'Select a reason to authorize and record drawer access.' : 'Re-enter your cashier PIN to record drawer access. Physical drawer control requires a connected device.' ?></p>
         
         <div id="drawerPinWrap" style="margin-bottom:16px; text-align:left; <?= role_key() === 'admin' ? 'display:none;' : '' ?>">
-            <label for="drawerPinInput" style="display:block; font-size:0.9rem; font-weight:700; color:#475569; margin-bottom:6px;">Security PIN</label>
-            <input type="password" id="drawerPinInput" maxlength="4" placeholder="••••" style="width:100%; font-size:1.6rem; text-align:center; letter-spacing:8px; padding:10px 14px; border:2px solid #cbd5e1; border-radius:10px; font-weight:800;" autocomplete="off" onkeydown="if(event.key==='Enter') submitCashDrawerUnlock()">
+            <label for="drawerPinInput" style="display:block; font-size:0.9rem; font-weight:700; color:#3b352a; margin-bottom:6px;">Security PIN</label>
+            <input type="password" id="drawerPinInput" maxlength="4" placeholder="••••" style="width:100%; font-size:1.6rem; text-align:center; letter-spacing:8px; padding:10px 14px; border:2px solid #dfd6c3; background:#fcfaf4; border-radius:10px; font-weight:800; color:#1f2328;" autocomplete="off" onkeydown="if(event.key==='Enter') submitCashDrawerUnlock()">
         </div>
 
         <div style="margin-bottom:18px; text-align:left;">
-            <label for="drawerReasonSelect" style="display:block; font-size:0.9rem; font-weight:700; color:#475569; margin-bottom:6px;">Reason for Opening</label>
-            <select id="drawerReasonSelect" style="width:100%; padding:9px 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:0.9rem; line-height:1.5; font-weight:600; color:#1e293b;">
+            <label for="drawerReasonSelect" style="display:block; font-size:0.9rem; font-weight:700; color:#3b352a; margin-bottom:6px;">Reason for Opening</label>
+            <select id="drawerReasonSelect" style="width:100%; padding:9px 12px; border:1px solid #dfd6c3; background:#fcfaf4; border-radius:8px; font-size:0.9rem; line-height:1.5; font-weight:600; color:#1f2328;">
                 <option value="Customer Change / Panukli Refill">Customer Change / Panukli Refill</option>
                 <option value="Shift Float Deposit (₱4,000)">Shift Float Deposit (₱4,000)</option>
                 <option value="Auditing / Cash Count">Auditing / Cash Count</option>
@@ -2625,8 +2724,8 @@ include ROOT_PATH . '/includes/header.php';
         <div id="drawerSuccessMsg" style="display:none; color:#059669; font-size:0.9rem; line-height:1.5; font-weight:700; margin-bottom:14px; background:#d1fae5; padding:8px 12px; border-radius:8px;"></div>
 
         <div style="display:flex; gap:10px;">
-            <button type="button" onclick="closeCashDrawerModal()" style="flex:1; padding:10px 14px; border:1px solid #cbd5e1; background:#f8fafc; color:#475569; font-weight:700; border-radius:10px; cursor:pointer;">Cancel</button>
-            <button type="button" id="btnUnlockDrawer" onclick="submitCashDrawerUnlock()" style="flex:1.4; padding:10px 14px; border:none; background:#f7c62f; color:#242424; font-weight:700; border-radius:10px; cursor:pointer;">
+            <button type="button" onclick="closeCashDrawerModal()" style="flex:1; padding:10px 14px; border:1px solid #dfd6c3; background:#fcfaf4; color:#4b4335; font-weight:700; border-radius:10px; cursor:pointer;">Cancel</button>
+            <button type="button" id="btnUnlockDrawer" onclick="submitCashDrawerUnlock()" style="flex:1.4; padding:10px 14px; border:1px solid #dfaf1e; background:#f7c62f; color:#242424; font-weight:700; border-radius:10px; cursor:pointer;">
                 <i class="bi bi-unlock-fill"></i> Unlock Drawer
             </button>
         </div>
@@ -2636,7 +2735,7 @@ include ROOT_PATH . '/includes/header.php';
 
 <!-- 1. Automatic Cashier Authentication Modal -->
 <div id="cashierAuthModalOverlay" style="display:<?= (role_key() === 'admin' || !empty($_SESSION['pos_active_cashier'])) ? 'none' : 'flex' ?>; position:fixed; inset:0; background:rgba(20,20,20,0.65); z-index:999999; backdrop-filter:blur(4px); align-items:center; justify-content:center; padding:16px;">
-    <div style="background:#ffffff; border-radius:20px; width:100%; max-width:420px; padding:32px 28px; box-shadow:0 25px 60px -15px rgba(0,0,0,0.5); text-align:center; position:relative; border:1px solid #e2e8f0;">
+    <div style="background:#fffdf9; border:1px solid #e6dfd0; border-top:4px solid #f2c12e; border-radius:20px; width:100%; max-width:420px; padding:32px 28px; box-shadow:0 25px 60px -15px rgba(0,0,0,0.5); text-align:center; position:relative;">
         <?php if (role_key() === 'admin'): ?>
         <button type="button" onclick="hideCashierAuthModal()" style="position:absolute; top:18px; right:18px; background:none; border:none; font-size:1.6rem; color:#94a3b8; cursor:pointer; line-height:1; width:32px; height:32px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; transition:background 0.2s, color 0.2s;" onmouseover="this.style.background='#f1f5f9'; this.style.color='#0f172a';" onmouseout="this.style.background='none'; this.style.color='#94a3b8';" title="Close">&times;</button>
         <?php endif; ?>

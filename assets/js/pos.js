@@ -1569,6 +1569,7 @@ function updateMenuCardControls() {
             if (qtyDisplay) {
                 qtyDisplay.textContent = currentQty;
             }
+            card.classList.toggle('in-cart', currentQty > 0);
         });
 }
 
