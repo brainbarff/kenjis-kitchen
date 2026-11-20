@@ -2031,7 +2031,7 @@ include ROOT_PATH . '/includes/header.php';
     .pos-page .pos-products-header { gap:12px; margin-bottom:12px; align-items:center; flex-wrap:wrap; }
     .pos-page .pos-category-scroller-wrap { flex:1 1 auto; min-width:0; }
     .pos-page .pos-category-nav-btn { display:none!important; }
-    .pos-page .pos-products-header .tabs { display:flex; flex-wrap:wrap; gap:6px; overflow:visible; padding:2px 0; margin-bottom:0; cursor:default; }
+    .pos-page .pos-products-header .tabs { display:flex; align-items:center; flex-wrap:wrap; gap:6px; width:100%; overflow:visible; padding:2px 0; margin-bottom:0; cursor:default; }
     .pos-page .pos-products-header .tabs .tab { padding:7px 13px; font-size:0.82rem; font-weight:700; border:1px solid #dfd6c3; background:#fffdf9; color:#3b352a; border-radius:999px; transition:background .15s, border-color .15s, color .15s, box-shadow .15s; }
     .pos-page .pos-products-header .tabs .tab:hover:not(.active) { background:#fff6d6; border-color:#dfc065; color:#1f2328; }
     .pos-page .pos-products-header .tabs .tab.active { background:#f2c12e; border-color:#dfaf1e; color:#1f2328; font-weight:800; box-shadow:0 2px 6px rgba(242,193,46,.28); }
@@ -2138,22 +2138,16 @@ include ROOT_PATH . '/includes/header.php';
         <!-- Horizontal Categories Bar with Left/Right Scroller -->
         <div class="pos-products-header">
             <div class="pos-category-scroller-wrap">
-                <button type="button" class="pos-category-nav-btn" id="catScrollLeftBtn" aria-label="Scroll categories left" title="Scroll left">
-                    <i class="bi bi-chevron-left"></i>
-                </button>
                 <div class="tabs" id="posCategoryTabs">
                     <button class="tab active" data-cat="all">All</button>
                     <?php foreach ($categories as $cat): ?>
                         <button class="tab" data-cat="<?= e($cat['id']) ?>"><?= e(['add-ons' => 'Add-ons', 'silog meals' => 'Silog'][strtolower($cat['category_name'])] ?? $cat['category_name']) ?></button>
                     <?php endforeach; ?>
+                    <div class="pos-search-box">
+                        <i class="bi bi-search" aria-hidden="true"></i>
+                        <input type="search" id="posProductSearch" placeholder="Search dishes..." aria-label="Search POS dishes" autocomplete="off">
+                    </div>
                 </div>
-                <button type="button" class="pos-category-nav-btn" id="catScrollRightBtn" aria-label="Scroll categories right" title="Scroll right">
-                    <i class="bi bi-chevron-right"></i>
-                </button>
-            </div>
-            <div class="pos-search-box">
-                <i class="bi bi-search" aria-hidden="true"></i>
-                <input type="search" id="posProductSearch" placeholder="Search dishes..." aria-label="Search POS dishes" autocomplete="off">
             </div>
         </div>
 
