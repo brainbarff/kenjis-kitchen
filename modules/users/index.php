@@ -182,7 +182,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     log_audit($conn, 'Staff Restored', 'user', (string)$id, "Restored staff account @{$target['username']}");
                     $msg = 'Staff account restored and set to Active.';
                 }
-            } elseif (in_array($action, ['edit_customer', 'activate_customer', 'deactivate_customer', 'archive_customer', 'restore_customer', 'reset_cod'], true)) {
+            } elseif (in_array($action, ['activate_customer', 'deactivate_customer', 'restore_customer', 'reset_cod'], true)) {
                 $id = (int)($_POST['id'] ?? 0);
                 $stmt = $conn->prepare("SELECT u.*, r.role_name FROM users u JOIN roles r ON r.id = u.role_id WHERE u.id = ? AND r.role_name = 'Customer (Online)' LIMIT 1");
                 $stmt->execute([$id]);
@@ -191,54 +191,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     throw new RuntimeException('Online customer account not found.');
                 }
 
-                if ($action === 'edit_customer') {
-                    $fullName = trim((string)($_POST['full_name'] ?? ''));
-                    $phone = trim((string)($_POST['phone'] ?? ''));
-                    $status = ($_POST['status'] ?? 'Active') === 'Inactive' ? 'Inactive' : 'Active';
-                    if ($fullName === '' || mb_strlen($fullName) > 100) {
-                        throw new RuntimeException('Enter a valid customer full name.');
-                    }
-                    if ($phone !== '' && !preg_match('/^09[0-9]{9}$/', $phone)) {
-                        throw new RuntimeException('Customer mobile number must be 11 digits starting with 09, or left blank.');
-                    }
-                    $conn->prepare("UPDATE users SET full_name = ?, phone = ?, status = ?, customer_status = ? WHERE id = ?")
-                        ->execute([$fullName, $phone ?: null, $status, $status, $id]);
-                    if ($status !== 'Active') {
-                        $conn->prepare("UPDATE user_sessions SET revoked_at = NOW() WHERE user_id = ? AND revoked_at IS NULL")->execute([$id]);
-                    }
-                    log_audit($conn, 'Customer Updated', 'customer', (string)$id, "Updated customer account ID {$id}");
-                    $msg = 'Customer account details updated.';
-                } elseif ($action === 'activate_customer') {
+                if ($action === 'activate_customer') {
                     $conn->prepare("UPDATE users SET status = 'Active', customer_status = 'Active', is_archived = 0, deleted_at = NULL WHERE id = ?")->execute([$id]);
-                    log_audit($conn, 'Customer Activated', 'customer', (string)$id, "Activated customer ID {$id}");
-                    $msg = 'Customer account activated.';
+                    log_audit($conn, 'Customer Activated', 'customer', (string)$id, "Activated customer ID {$id} ({$customer['full_name']})");
+                    $msg = 'Customer account marked as Active.';
                 } elseif ($action === 'deactivate_customer') {
+                    $reason = trim((string)($_POST['reason'] ?? ''));
+                    if ($reason === '' || mb_strlen($reason) < 3) {
+                        throw new RuntimeException('Please provide a reason for deactivating this customer account (minimum 3 characters).');
+                    }
+                    if (mb_strlen($reason) > 255) {
+                        throw new RuntimeException('Deactivation reason cannot exceed 255 characters.');
+                    }
                     $conn->prepare("UPDATE users SET status = 'Inactive', customer_status = 'Inactive' WHERE id = ?")->execute([$id]);
                     $conn->prepare("UPDATE user_sessions SET revoked_at = NOW() WHERE user_id = ? AND revoked_at IS NULL")->execute([$id]);
-                    log_audit($conn, 'Customer Deactivated', 'customer', (string)$id, "Deactivated customer ID {$id}");
-                    $msg = 'Customer account deactivated.';
-                } elseif ($action === 'archive_customer') {
-                    $activeOrdersStmt = $conn->prepare("SELECT COUNT(*) FROM orders WHERE user_id = ? AND order_channel = 'ONLINE' AND status IN ('Pending', 'Preparing', 'Ready')");
-                    $activeOrdersStmt->execute([$id]);
-                    $activeCount = (int)$activeOrdersStmt->fetchColumn();
-                    if ($activeCount > 0) {
-                        throw new RuntimeException("Cannot archive customer: Customer currently has {$activeCount} active order(s) (Pending, Preparing, or Ready). Please fulfill or cancel the orders first.");
-                    }
-                    $conn->prepare("UPDATE users SET status = 'Inactive', customer_status = 'Inactive', is_archived = 1, deleted_at = COALESCE(deleted_at, NOW()) WHERE id = ?")->execute([$id]);
-                    $conn->prepare("UPDATE user_sessions SET revoked_at = NOW() WHERE user_id = ? AND revoked_at IS NULL")->execute([$id]);
-                    log_audit($conn, 'Customer Archived', 'customer', (string)$id, "Archived customer ID {$id}");
-                    $msg = 'Customer account archived (historical orders preserved).';
+                    log_audit($conn, 'Customer Deactivated', 'customer', (string)$id, "Deactivated customer ID {$id} ({$customer['full_name']}). Reason: {$reason}");
+                    $msg = 'Customer account marked as Inactive.';
                 } elseif ($action === 'restore_customer') {
                     $conn->prepare("UPDATE users SET deleted_at = NULL, is_archived = 0, status = 'Active', customer_status = 'Active' WHERE id = ?")->execute([$id]);
-                    log_audit($conn, 'Customer Restored', 'customer', (string)$id, "Restored customer ID {$id}");
+                    log_audit($conn, 'Customer Restored', 'customer', (string)$id, "Restored customer ID {$id} ({$customer['full_name']})");
                     $msg = 'Customer account restored and activated.';
                 } elseif ($action === 'reset_cod') {
                     $conn->prepare("UPDATE users SET cod_blocked = 0, cod_fail_count = 0 WHERE id = ?")->execute([$id]);
                     if (function_exists('log_audit')) {
-                        log_audit($conn, 'Customer COD Unblocked', 'customer', (string)$id, "Admin reset COD fail count and unblocked customer ID {$id}.");
+                        log_audit($conn, 'Customer COD Unblocked', 'customer', (string)$id, "Admin reset COD fail count and unblocked customer ID {$id} ({$customer['full_name']}).");
                     }
                     $msg = 'Customer COD block lifted and fail count reset to 0.';
                 }
+            } elseif ($action === 'edit_customer') {
+                throw new RuntimeException('Direct editing of customer personal details (name, phone) is disabled. Customer profiles are customer-managed.');
+            } elseif ($action === 'archive_customer') {
+                throw new RuntimeException('Customer accounts cannot be archived by staff. Customers may manage their own account status.');
             } else {
                 throw new RuntimeException('Unsupported user management action.');
             }
@@ -681,7 +664,7 @@ include ROOT_PATH . '/includes/header.php';
             <p class="muted" style="margin:4px 0 0;font-size:13px;">Customer accounts registered via the online ordering storefront.</p>
         </div>
         <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-left:auto;">
-            <a class="btn btn-secondary btn-sm-action" href="<?= BASE_URL ?>/modules/admin/customers.php"><i class="bi bi-search"></i> Search &amp; Customer Archive</a>
+            <a class="btn btn-secondary btn-sm-action" href="<?= BASE_URL ?>/modules/admin/customers.php"><i class="bi bi-search"></i> Search Customers</a>
             <span style="font-size: 0.85rem; color: var(--muted); font-weight: 600;"><?= (int)$totalOnlineCustomers ?> registered</span>
             <?= render_pagination_controls($customerPage, $totalCustomerPages, static fn(int $p) => $buildUsersQuery(['customer_page' => $p])) ?>
         </div>
@@ -726,14 +709,6 @@ include ROOT_PATH . '/includes/header.php';
                     'archived_at' => $isCustArchived ? date('M d, Y h:i A', strtotime($c['deleted_at'])) : 'Not archived',
                     'orders' => (int)$c['total_orders'] . ' online order(s)',
                 ];
-                $custEditPayload = [
-                    'id' => (int)$c['id'],
-                    'full_name' => (string)$c['full_name'],
-                    'email' => (string)($c['email'] ?? ''),
-                    'phone' => (string)($c['phone'] ?? ''),
-                    'customer_address' => (string)($c['customer_address'] ?? ''),
-                    'status' => $isCustActive ? 'Active' : 'Inactive',
-                ];
                 ?>
                 <tr>
                     <td>
@@ -758,9 +733,6 @@ include ROOT_PATH . '/includes/header.php';
                             <button type="button" class="btn btn-secondary btn-sm-action" title="View Customer Details" aria-label="View Customer Details" data-user-detail="<?= e(json_encode($custDetailPayload)) ?>" onclick="openUserDetailModal(this)">
                                 <i class="bi bi-eye"></i>
                             </button>
-                            <button type="button" class="btn btn-secondary btn-sm-action" title="Edit Customer Details" aria-label="Edit Customer Details" data-cust-edit="<?= e(json_encode($custEditPayload)) ?>" onclick="openCustomerEditModal(this)">
-                                <i class="bi bi-pencil"></i>
-                            </button>
                             <?php if (!empty($c['cod_blocked']) || (int)($c['cod_fail_count'] ?? 0) > 0): ?>
                                 <form method="post">
                                     <?= csrf_field() ?>
@@ -782,32 +754,19 @@ include ROOT_PATH . '/includes/header.php';
                                 </form>
                             <?php else: ?>
                                 <?php if ($isCustActive): ?>
-                                    <form method="post">
-                                        <?= csrf_field() ?>
-                                        <input type="hidden" name="action" value="deactivate_customer">
-                                        <input type="hidden" name="id" value="<?= (int)$c['id'] ?>">
-                                        <button type="submit" class="btn btn-secondary btn-sm-action" title="Deactivate Customer" data-confirm="Deactivate customer account for <?= e($c['full_name']) ?>?">
-                                            <i class="bi bi-pause-circle"></i> Deactivate
-                                        </button>
-                                    </form>
+                                    <button type="button" class="btn btn-secondary btn-sm-action" title="Deactivate Customer Account" onclick="openCustomerDeactivateModal(<?= (int)$c['id'] ?>, '<?= e(addslashes($c['full_name'])) ?>')">
+                                        <i class="bi bi-pause-circle"></i> Deactivate
+                                    </button>
                                 <?php else: ?>
                                     <form method="post">
                                         <?= csrf_field() ?>
                                         <input type="hidden" name="action" value="activate_customer">
                                         <input type="hidden" name="id" value="<?= (int)$c['id'] ?>">
-                                        <button type="submit" class="btn btn-primary btn-sm-action" title="Activate Customer" data-confirm="Activate customer account for <?= e($c['full_name']) ?>?">
+                                        <button type="submit" class="btn btn-primary btn-sm-action" title="Activate Customer Account" data-confirm="Set customer account for <?= e($c['full_name']) ?> to Active?">
                                             <i class="bi bi-check-circle"></i> Activate
                                         </button>
                                     </form>
                                 <?php endif; ?>
-                                <form method="post">
-                                    <?= csrf_field() ?>
-                                    <input type="hidden" name="action" value="archive_customer">
-                                    <input type="hidden" name="id" value="<?= (int)$c['id'] ?>">
-                                    <button type="submit" class="btn btn-danger btn-sm-action" title="Archive Customer" data-confirm="Archive customer account for <?= e($c['full_name']) ?>? Historical orders and receipts will be preserved.">
-                                        <i class="bi bi-archive"></i>
-                                    </button>
-                                </form>
                             <?php endif; ?>
                         </div>
                     </td>
@@ -820,7 +779,7 @@ include ROOT_PATH . '/includes/header.php';
 </section>
 
 <!-- View User Details Modal -->
-<div class="user-modal-backdrop" id="userDetailModal" role="dialog" aria-modal="true" aria-labelledby="userDetailModalTitle">
+<div class="user-modal-backdrop" id="userDetailModal" role="dialog" aria-modal="true" aria-labelledby="userDetailModalTitle" onclick="if(event.target===this)closeUserModal('userDetailModal')">
     <div class="user-modal-card">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
             <h3 id="userDetailModalTitle" style="margin:0;font-size:20px;">Account Details</h3>
@@ -831,43 +790,28 @@ include ROOT_PATH . '/includes/header.php';
     </div>
 </div>
 
-<!-- Edit Online Customer Modal -->
-<div class="user-modal-backdrop" id="customerEditModal" role="dialog" aria-modal="true" aria-labelledby="customerEditModalTitle">
-    <div class="user-modal-card">
+<!-- Deactivate Online Customer Modal -->
+<div class="user-modal-backdrop" id="customerDeactivateModal" role="dialog" aria-modal="true" aria-labelledby="customerDeactivateModalTitle" onclick="if(event.target===this)closeUserModal('customerDeactivateModal')">
+    <div class="user-modal-card" style="max-width: 480px;">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px;">
-            <h3 id="customerEditModalTitle" style="margin:0;font-size:20px;">Edit Customer Account</h3>
-            <button type="button" class="btn btn-secondary btn-sm-action" onclick="closeUserModal('customerEditModal')">Cancel</button>
+            <h3 id="customerDeactivateModalTitle" style="margin:0;font-size:20px;color:var(--text);">Deactivate Customer</h3>
+            <button type="button" class="btn btn-secondary btn-sm-action" onclick="closeUserModal('customerDeactivateModal')">Cancel</button>
         </div>
-        <form class="form" method="post">
+        <p style="margin:0 0 14px;font-size:14px;color:var(--muted);line-height:1.5;">
+            You are setting <strong id="deactCustName" style="color:var(--text);"></strong> to <span class="badge badge-muted">Inactive</span>. Their active sessions will be revoked and they will be prevented from placing orders or logging in.
+        </p>
+        <form class="form" method="post" id="customerDeactivateForm">
             <?= csrf_field() ?>
-            <input type="hidden" name="action" value="edit_customer">
-            <input type="hidden" name="id" id="editCustId">
-            <div class="field">
-                <label>Full Name</label>
-                <input type="text" name="full_name" id="editCustName" maxlength="100" required>
+            <input type="hidden" name="action" value="deactivate_customer">
+            <input type="hidden" name="id" id="deactCustId">
+            <div class="field" style="margin-bottom:16px;">
+                <label for="deactCustReason" style="font-weight:600;display:block;margin-bottom:6px;">Reason for Deactivation <span style="color:var(--danger);font-weight:normal;">* (Required)</span></label>
+                <textarea name="reason" id="deactCustReason" rows="3" maxlength="255" required placeholder="e.g. Repeated bogus COD orders, abusive remarks, fraudulent identity" style="width:100%;box-sizing:border-box;border-radius:8px;padding:10px 12px;border:1px solid var(--border);font-family:inherit;font-size:14px;resize:vertical;"></textarea>
+                <small class="muted" style="display:block;margin-top:4px;font-size:12px;">This reason will be recorded in the permanent audit trail.</small>
             </div>
-            <div class="field">
-                <label>Email Address (Verified Identity)</label>
-                <input type="email" id="editCustEmail" disabled>
-            </div>
-            <div class="field">
-                <label>Mobile Number (09...)</label>
-                <input type="tel" name="phone" id="editCustPhone" maxlength="11" pattern="09[0-9]{9}" placeholder="09171234567">
-            </div>
-            <div class="field">
-                <label>Default Delivery Address (Customer-managed, read-only)</label>
-                <input type="text" id="editCustAddress" maxlength="500" readonly disabled title="Customers update their own delivery address during checkout.">
-            </div>
-            <div class="field">
-                <label>Account Status</label>
-                <select name="status" id="editCustStatus">
-                    <option value="Active">Active</option>
-                    <option value="Inactive">Inactive</option>
-                </select>
-            </div>
-            <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px;">
-                <button type="button" class="btn btn-secondary" onclick="closeUserModal('customerEditModal')">Cancel</button>
-                <button type="submit" class="btn btn-primary"><i class="bi bi-save"></i> Save Changes</button>
+            <div style="display:flex;justify-content:flex-end;gap:10px;">
+                <button type="button" class="btn btn-secondary" onclick="closeUserModal('customerDeactivateModal')">Cancel</button>
+                <button type="submit" class="btn btn-danger"><i class="bi bi-pause-circle"></i> Set as Inactive</button>
             </div>
         </form>
     </div>
@@ -905,24 +849,32 @@ function openUserDetailModal(btn) {
     } catch (_) {}
 }
 
-function openCustomerEditModal(btn) {
-    var raw = btn ? btn.getAttribute('data-cust-edit') : '';
-    if (!raw) return;
-    try {
-        var data = JSON.parse(raw);
-        document.getElementById('editCustId').value = data.id || '';
-        document.getElementById('editCustName').value = data.full_name || '';
-        document.getElementById('editCustEmail').value = data.email || '';
-        document.getElementById('editCustPhone').value = data.phone || '';
-        document.getElementById('editCustAddress').value = data.customer_address || '';
-        document.getElementById('editCustStatus').value = data.status === 'Inactive' ? 'Inactive' : 'Active';
-        document.getElementById('customerEditModal').classList.add('show');
-    } catch (_) {}
+function openCustomerDeactivateModal(id, name) {
+    var idInput = document.getElementById('deactCustId');
+    var nameSpan = document.getElementById('deactCustName');
+    var reasonInput = document.getElementById('deactCustReason');
+    if (idInput) idInput.value = id;
+    if (nameSpan) nameSpan.textContent = name;
+    if (reasonInput) reasonInput.value = '';
+    var modal = document.getElementById('customerDeactivateModal');
+    if (modal) {
+        modal.classList.add('show');
+        setTimeout(function() {
+            if (reasonInput) reasonInput.focus();
+        }, 50);
+    }
 }
 
 function closeUserModal(id) {
     var el = document.getElementById(id);
     if (el) el.classList.remove('show');
 }
+
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        closeUserModal('userDetailModal');
+        closeUserModal('customerDeactivateModal');
+    }
+});
 </script>
 <?php include ROOT_PATH . '/includes/footer.php'; ?>
