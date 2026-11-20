@@ -763,13 +763,15 @@ try {
     if ($hasAdvanceBilao && $hasImmediateItem) {
         throw new InvalidArgumentException('Orders cannot combine regular same-day items with Medium, Large, or Extra Large Bilao platters (which require 1 to 2 days advance preparation). Please place separate orders.');
     }
-    if ($hasAdvanceBilao && $fulfillment !== 'PICKUP') {
-        throw new InvalidArgumentException('Medium, Large, and Extra Large Bilao platters require scheduled Pickup at least 1 to 2 days in advance and cannot use same-day Delivery.');
-    }
     if ($fulfillment === 'PICKUP') {
         $pickupAt = kk_validate_pickup_time($data['pickup_at'] ?? null, null, $hasAdvanceBilao);
         $pickupDate = new DateTimeImmutable($pickupAt, new DateTimeZone('Asia/Manila'));
-        $notes = '[Pickup: ' . $pickupDate->format('M j, Y g:i A') . ' Philippine time] ' . $notes;
+        $notes = '[Pickup: ' . $pickupDate->format('M j, Y g:i A') . '] ' . $notes;
+        if (mb_strlen($notes, 'UTF-8') > 1000) throw new InvalidArgumentException('Please shorten your order notes.');
+    } elseif ($fulfillment === 'DELIVERY' && $hasAdvanceBilao) {
+        $scheduledDeliveryAt = kk_validate_pickup_time($data['scheduled_delivery_at'] ?? null, null, true);
+        $deliveryDate = new DateTimeImmutable($scheduledDeliveryAt, new DateTimeZone('Asia/Manila'));
+        $notes = '[Delivery: ' . $deliveryDate->format('M j, Y g:i A') . '] ' . $notes;
         if (mb_strlen($notes, 'UTF-8') > 1000) throw new InvalidArgumentException('Please shorten your order notes.');
     }
 

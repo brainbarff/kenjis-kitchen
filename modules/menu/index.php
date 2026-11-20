@@ -1995,7 +1995,7 @@ function filterCategoryCards(query) {
                 </label>
                 <input type="hidden" id="priceEffectiveInput"><div class="menu-scheduler" data-schedule-input="priceEffectiveInput"></div>
                 <small class="muted" style="display:block; margin-top:4px; font-size:0.75rem;">
-                    Apply the new price now, or schedule it for later. Times use Philippine time.
+                    Apply the new price now, or schedule it for later.
                 </small>
             </div>
 
@@ -2066,7 +2066,7 @@ function filterCategoryCards(query) {
                 </label>
                 <input type="hidden" id="bulkEffectiveInput"><div class="menu-scheduler" data-schedule-input="bulkEffectiveInput"></div>
                 <small class="muted" style="display:block; margin-top:4px; font-size:0.75rem;">
-                    Apply now, or choose a future date and time. Times use Philippine time.
+                    Apply now, or choose a future date and time.
                 </small>
             </div>
 
@@ -2289,7 +2289,7 @@ document.querySelectorAll('[data-schedule-input]').forEach(host => {
     let selected = '', year, month;
     function summary() {
         host.querySelector('.schedule-summary').textContent = input.value
-            ? new Date(input.value + ':00+08:00').toLocaleString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) + ' · Philippine time'
+            ? new Date(input.value + ':00+08:00').toLocaleString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
             : 'The price change will apply when you save.';
     }
     function commit() {

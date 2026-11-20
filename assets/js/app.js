@@ -203,12 +203,16 @@ document.addEventListener('touchend', (e) => {
 
         const bodyWrap = document.createElement('div');
         bodyWrap.className = 'kk-toast-body';
+        const brandEl = document.createElement('span');
+        brandEl.className = 'kk-toast-brand';
+        brandEl.textContent = "KENJI'S KITCHEN";
         const titleEl = document.createElement('strong');
         titleEl.className = 'kk-toast-title';
         titleEl.textContent = String(title);
         const msgEl = document.createElement('span');
         msgEl.className = 'kk-toast-msg';
         msgEl.textContent = msgText;
+        bodyWrap.appendChild(brandEl);
         bodyWrap.appendChild(titleEl);
         bodyWrap.appendChild(msgEl);
 

@@ -140,6 +140,7 @@ function renderTicket(order) {
 
     const cleanNotes = String(order.notes || '')
         .replace(/^\[Courier booking:[^\]]+\]\s*/i, '')
+        .replace(/\s+Philippine time(?=\])/gi, '')
         .trim();
     const createdMs = Number(order.created_at_ts || 0) > 0
         ? Number(order.created_at_ts) * 1000

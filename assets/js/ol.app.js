@@ -2558,17 +2558,11 @@ function setCheckoutValidationError(message) {
 
 function selectCheckoutFulfillment(mode) {
   const advCheck = validateCartAdvancePrep();
-  if (advCheck.hasAdvanceBilao && mode === 'delivery') {
-    window.kkNotify('Medium, Large, and Extra Large Bilao platters require scheduled Pickup 1–2 days in advance.', 'warning', { title: 'Advance Pickup Required' });
-    mode = 'pickup';
-  }
   const normalized = (mode === 'delivery' || mode === 'pickup') ? mode : '';
   appState.fulfillmentMode = normalized;
   document.querySelectorAll('#checkoutFulfillmentGroup .fulfillment-btn').forEach(btn => {
-    const isDeliveryBtn = btn.dataset.mode === 'delivery';
-    const disabledForAdvance = isDeliveryBtn && advCheck.hasAdvanceBilao;
-    btn.disabled = disabledForAdvance;
-    btn.title = disabledForAdvance ? 'Medium, Large, and XL Bilao platters require 1–2 days advance Pickup reservation.' : '';
+    btn.disabled = false;
+    btn.title = '';
     const isMatch = btn.dataset.mode === normalized;
     btn.classList.toggle('active', isMatch);
     btn.setAttribute('aria-checked', isMatch ? 'true' : 'false');
@@ -2576,7 +2570,13 @@ function selectCheckoutFulfillment(mode) {
   const helpText = document.getElementById('fulfillmentHelpText');
   if (helpText) {
     if (advCheck.hasAdvanceBilao) {
-      helpText.textContent = 'Medium, Large, and Extra Large Bilao platters require Pickup scheduled 1–2 days in advance (same-day Delivery unavailable).';
+      if (normalized === 'delivery') {
+        helpText.textContent = 'Delivery selected. Choose a 1 - 2 days advance delivery schedule and pin your destination on the map.';
+      } else if (normalized === 'pickup') {
+        helpText.textContent = 'Pickup selected. Choose a 1 - 2 days advance pickup time at Kenji\'s Kitchen.';
+      } else {
+        helpText.textContent = 'Medium, Large, and Extra Large Bilao platters require scheduling 1 - 2 days in advance (Delivery or Pickup).';
+      }
     } else if (normalized === 'delivery') {
       helpText.textContent = 'Delivery selected. Enter your delivery address and select your exact destination on the map.';
     } else if (normalized === 'pickup') {
@@ -3534,14 +3534,14 @@ function validateCartAdvancePrep() {
       ok: false,
       mixedConflict: true,
       hasAdvanceBilao: true,
-      message: 'Medium, Large, and Extra Large Bilao platters require 1–2 days advance reservation and cannot be checked out together with regular same-day items (e.g. Pastilsilog or Bilao Small). Please place separate orders.'
+      message: 'Medium, Large, and Extra Large Bilao platters require 1 - 2 days advance reservation and cannot be checked out together with regular same-day items (e.g. Pastilsilog or Bilao Small). Please place separate orders.'
     };
   }
   return {
     ok: true,
     mixedConflict: false,
     hasAdvanceBilao,
-    message: hasAdvanceBilao ? 'Advance reservation required: Medium, Large, and Extra Large Bilao platters require Pickup scheduled at least 1–2 days ahead.' : ''
+    message: hasAdvanceBilao ? 'Advance reservation required: Medium, Large, and Extra Large Bilao platters require scheduling at least 1 - 2 days ahead (Delivery or Pickup).' : ''
   };
 }
 
@@ -3593,8 +3593,28 @@ function updateCourierBookingChoiceUI() {
   }
 }
 
+function isAdvanceBilaoOrderItem(item) {
+  if (!item) return false;
+  if (isAdvancePrepBilaoLine(item)) return true;
+  const rawName = String(item.name || item.item_name || '').trim();
+  const szMatch = rawName.match(/\((M|L|XL)\)\s*$/i);
+  if (szMatch) {
+    if (/bilao|tray/i.test(rawName) || String(item.notes || '').toLowerCase().includes('packaging:')) {
+      return true;
+    }
+    const matchedMenu = appState.menuItems.find(m => Number(m.id) === Number(item.id) || String(m.item_name || '').toLowerCase() === rawName.toLowerCase());
+    if (matchedMenu && (Number(matchedMenu.category_id) === 6 || String(matchedMenu.category_name || '').toLowerCase() === 'bilao favorites')) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function computeEstimatedPrepTime(cartItems = appState.cart) {
   const items = Array.isArray(cartItems) ? cartItems : [];
+  if (items.some(isAdvanceBilaoOrderItem)) {
+    return '1 - 2 days advance reservation required';
+  }
   const totalQty = items.reduce((sum, i) => sum + Number(i.qty || i.quantity || 1), 0);
   const hasBilao = items.some(i => Boolean(i.packaging) || /bilao|tray/i.test(String(i.name || i.item_name || '')));
   if (hasBilao || totalQty >= 8) {
@@ -3825,16 +3845,10 @@ function openCheckoutModal() {
   const prepEl = document.getElementById('checkoutPrepEstimateText');
   const advCheck = validateCartAdvancePrep();
   if (prepEl) {
-    prepEl.textContent = advCheck.hasAdvanceBilao
-      ? '1–2 days advance reservation required'
-      : computeEstimatedPrepTime(appState.cart);
+    prepEl.textContent = computeEstimatedPrepTime(appState.cart);
   }
   setCheckoutValidationError('');
-  if (advCheck.hasAdvanceBilao) {
-    selectCheckoutFulfillment('pickup');
-  } else {
-    selectCheckoutFulfillment(appState.fulfillmentMode || '');
-  }
+  selectCheckoutFulfillment(appState.fulfillmentMode || '');
   document.getElementById('checkoutModal').classList.add('active');
   if (appState.fulfillmentMode === 'delivery') {
     setTimeout(() => {
@@ -3900,13 +3914,6 @@ async function submitOrder() {
   if (!advCheck.ok) {
     setCheckoutValidationError(advCheck.message);
     window.kkNotify(advCheck.message, 'warning', { title: 'Separate Order Required' });
-    return;
-  }
-  if (advCheck.hasAdvanceBilao && appState.fulfillmentMode !== 'pickup') {
-    const msg = 'Medium, Large, and Extra Large Bilao platters require scheduled Pickup 1–2 days in advance and cannot use same-day Delivery.';
-    setCheckoutValidationError(msg);
-    window.kkNotify(msg, 'warning');
-    selectCheckoutFulfillment('pickup');
     return;
   }
 
@@ -4043,12 +4050,15 @@ async function submitOrder() {
     }
   }
 
-  const pickupAt = appState.fulfillmentMode === 'pickup' ? document.getElementById('pickupTime')?.value : null;
-  if (appState.fulfillmentMode === 'pickup' && !pickupAt) {
-    setCheckoutValidationError('Choose your pickup day and time.');
+  const needsAdvanceSchedule = appState.fulfillmentMode === 'delivery' && validateCartAdvancePrep().hasAdvanceBilao;
+  const scheduleAt = (appState.fulfillmentMode === 'pickup' || needsAdvanceSchedule) ? document.getElementById('pickupTime')?.value : null;
+  if ((appState.fulfillmentMode === 'pickup' || needsAdvanceSchedule) && !scheduleAt) {
+    setCheckoutValidationError(needsAdvanceSchedule ? 'Choose your advance delivery day and preferred time.' : 'Choose your pickup day and time.');
     document.getElementById('pickupTime')?.focus();
     return;
   }
+  const pickupAt = appState.fulfillmentMode === 'pickup' ? scheduleAt : null;
+  const scheduledDeliveryAt = needsAdvanceSchedule ? scheduleAt : null;
 
   let codChangeFor = null;
   if (appState.fulfillmentMode === 'delivery' && paymentMethod.toLowerCase() === 'cash' && !getUnavailableCashReason()) {
@@ -4084,6 +4094,7 @@ async function submitOrder() {
 
   const payload = {
     pickup_at: pickupAt,
+    scheduled_delivery_at: scheduledDeliveryAt,
     customer_name: name,
     customer_phone: phone,
     delivery_address: appState.fulfillmentMode === 'delivery' ? address : '',
@@ -4393,22 +4404,32 @@ function selectPickupDay(index) {
   document.getElementById('pickupTime').value = '';
   renderPickupSlots();
 }
+function requiresCheckoutSchedule() {
+  return appState.fulfillmentMode === 'pickup' || (appState.fulfillmentMode === 'delivery' && validateCartAdvancePrep().hasAdvanceBilao);
+}
 function renderPickupSlots() {
   const select = document.getElementById('pickupTime');
   if (!select) return;
   const requiresAdvance = validateCartAdvancePrep().hasAdvanceBilao;
+  const isDeliverySchedule = appState.fulfillmentMode === 'delivery';
   const old = select.value;
   const day = pickupDays[pickupDayIndex];
+  const dayLabelEl = document.getElementById('pickupDayLabel');
+  if (dayLabelEl) dayLabelEl.textContent = isDeliverySchedule ? 'Delivery day (1 - 2 days advance)' : 'Pickup day';
+  const storeInfoEl = document.getElementById('pickupStoreInfo');
+  if (storeInfoEl) storeInfoEl.hidden = isDeliverySchedule;
   document.getElementById('pickupDayChoices').innerHTML = pickupDays.map((d,i) => '<button type="button" aria-pressed="' + (i === pickupDayIndex) + '" onclick="selectPickupDay(' + i + ')">' + d.label + (!d.slots.length ? ' · Unavailable' : '') + '</button>').join('');
-  document.getElementById('pickupTimeLabel').textContent = 'Pickup time' + (day ? ' (' + day.label + ')' : '');
+  document.getElementById('pickupTimeLabel').textContent = (isDeliverySchedule ? 'Preferred delivery time' : 'Pickup time') + (day ? ' (' + day.label + ')' : '');
   select.innerHTML = '<option value="">Choose a time</option>' + (day?.slots || []).map(slot => '<option value="' + slot.value + '">' + slot.label + '</option>').join('');
   if ((day?.slots || []).some(slot => slot.value === old)) select.value = old;
   select.disabled = !day?.slots.length;
   const leadCopy = requiresAdvance
-    ? 'Advance reservation (1–2 days ahead) · Medium, Large & XL Bilao require at least 24 hours preparation'
+    ? (isDeliverySchedule
+      ? 'Advance reservation (1 - 2 days ahead) · Medium, Large & XL Bilao require at least 24 hours preparation before delivery'
+      : 'Advance reservation (1 - 2 days ahead) · Medium, Large & XL Bilao require at least 24 hours preparation')
     : 'Available times only · at least 30 minutes needed for preparation';
   document.getElementById('pickupScheduleHelp').textContent = !day
-    ? 'Choose an available pickup day first.'
+    ? (isDeliverySchedule ? 'Choose an available delivery day first.' : 'Choose an available pickup day first.')
     : day.slots.length
       ? leadCopy
       : new Date(day.date + 'T12:00:00+08:00').getUTCDay() === 0
@@ -4416,17 +4437,30 @@ function renderPickupSlots() {
         : (requiresAdvance ? 'No advance-reservation slots on this day. Select Tomorrow or a later day.' : 'No pickup times left for this day. Please choose another day.');
 }
 setInterval(() => {
-  if (appState.fulfillmentMode === 'pickup' && document.getElementById('checkoutModal')?.classList.contains('active')) loadPickupSlots();
+  if (requiresCheckoutSchedule() && document.getElementById('checkoutModal')?.classList.contains('active')) loadPickupSlots();
 }, 30000);
 
 function updateFulfillmentDetails() {
   const prepHelp = document.getElementById('checkoutPrepHelp');
-  if (prepHelp) prepHelp.textContent = appState.fulfillmentMode === 'pickup'
-    ? 'Preparation may vary with your order and kitchen volume. Check My Orders for readiness before collecting.'
-    : 'This covers food preparation only. Delivery time depends on courier availability, travel distance, and traffic.';
+  const advCheck = validateCartAdvancePrep();
+  if (prepHelp) {
+    if (advCheck.hasAdvanceBilao) {
+      prepHelp.textContent = appState.fulfillmentMode === 'pickup'
+        ? 'Medium, Large & XL Bilao platters are prepared fresh for your scheduled pickup date and time.'
+        : 'Covers food preparation for your scheduled delivery date. Actual arrival depends on rider travel distance and traffic.';
+    } else {
+      prepHelp.textContent = appState.fulfillmentMode === 'pickup'
+        ? 'Preparation may vary with your order and kitchen volume. Check My Orders for readiness before collecting.'
+        : 'This covers food preparation only. Delivery time depends on courier availability, travel distance, and traffic.';
+    }
+  }
   const schedule = document.getElementById('pickupSchedule');
-  if (schedule) schedule.hidden = appState.fulfillmentMode !== 'pickup';
-  if (appState.fulfillmentMode === 'pickup') loadPickupSlots();
+  const showSchedule = requiresCheckoutSchedule();
+  if (schedule) schedule.hidden = !showSchedule;
+  if (showSchedule) {
+    loadPickupSlots();
+    renderPickupSlots();
+  }
   const addrWrap = document.getElementById('addressFieldWrap');
   if (!addrWrap) return;
   if (appState.fulfillmentMode === 'delivery') {
@@ -5296,7 +5330,12 @@ async function fetchOrderTracking(orderId, isBackgroundPoll = false) {
       ...(isDelivery ? [order.out_at ? formatTimeShort(order.out_at) : '', (order.delivered_at || (order.status === 'Served' ? order.served_at : '')) ? formatTimeShort(order.delivered_at || order.served_at) : ''] : [order.served_at ? formatTimeShort(order.served_at) : ''])
     ];
 
-    const pickupSummary = !isDelivery ? String(order.notes || '').match(/^\[Pickup: ([^\]]+)\]/)?.[1] : '';
+    const rawNoteStr = String(order.notes || '').replace(/\s+Philippine time(?=\])/gi, '');
+    const pickupMatch = rawNoteStr.match(/\[Pickup:\s*([^\]]+)\]/i);
+    const deliverySchedMatch = rawNoteStr.match(/\[Delivery:\s*([^\]]+)\]/i);
+    const pickupSummary = !isDelivery
+      ? (pickupMatch ? pickupMatch[1].trim() : '')
+      : (deliverySchedMatch ? deliverySchedMatch[1].trim() : '');
     const progress = cancelled
       ? `<div class="tracking-cancelled-banner"><i class="bi bi-x-circle"></i> This order is ${escapeHtml(order.status.toLowerCase())}.</div>`
       : `<div class="tracking-steps ${isDelivery ? 'delivery' : 'pickup'}">
@@ -5350,10 +5389,16 @@ async function fetchOrderTracking(orderId, isBackgroundPoll = false) {
     const editingInlineInPanel = panel && activeEl && panel.contains(activeEl) && activeEl.classList?.contains('kk-inline-tracking-input');
     if (panel && !editingInlineInPanel) {
       const isOrderPaid = String(order.payment_status || '').toLowerCase() === 'paid';
+      const hasAdvanceItems = (items || []).some(isAdvanceBilaoOrderItem);
+      const prepSubCopy = hasAdvanceItems
+        ? 'Scheduled advance order. Our kitchen prepares your Bilao platter fresh for your selected date and time.'
+        : (isDelivery
+          ? 'This covers food preparation only. Delivery time depends on courier availability, travel distance, and traffic.'
+          : 'Check your order status before collecting. Preparation may vary with kitchen volume.');
       const prepEstimateBanner = (order.status === 'Pending' || order.status === 'Preparing')
         ? `<div style="margin: 10px 0; padding: 9px 12px; border-radius: 8px; background: #fffaf0; border: 1px solid #e7d9b8; font-size: 0.82rem; color: var(--dark);">
              <i class="bi bi-clock-history" style="color: #866018;"></i> <strong>Estimated Kitchen Preparation: ${escapeHtml(computeEstimatedPrepTime(items || []))}</strong>
-             <div style="font-size:0.75rem;color:var(--muted);margin-top:2px;">${isDelivery ? 'This covers food preparation only. Delivery time depends on courier availability, travel distance, and traffic.' : 'Check your order status before collecting. Preparation may vary with kitchen volume.'}</div>
+             <div style="font-size:0.75rem;color:var(--muted);margin-top:2px;">${prepSubCopy}</div>
            </div>`
         : '';
       const orderReviewInviteHtml = (completed && !isOrderReviewDismissed(order.id))
@@ -5391,7 +5436,7 @@ async function fetchOrderTracking(orderId, isBackgroundPoll = false) {
             </div>
           </div>
           ${prepEstimateBanner}
-          ${pickupSummary ? `<p class="pickup-order-time"><strong>Pickup:</strong> ${escapeHtml(pickupSummary)}</p>` : ''}${progress}
+          ${pickupSummary ? `<p class="pickup-order-time"><strong>${isDelivery ? 'Scheduled Delivery:' : 'Pickup:'}</strong> ${escapeHtml(pickupSummary)}</p>` : ''}${progress}
           ${externalTrackingHtml}
           <ul class="tracking-items">${itemsHtml}</ul>
           ${orderReviewInviteHtml}

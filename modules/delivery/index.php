@@ -385,7 +385,7 @@ include ROOT_PATH . '/includes/header.php';
         $foodPaid = strcasecmp((string)($order['payment_method'] ?? ''), 'GCash') === 0 && ($order['payment_status'] ?? '') === 'Paid';
         $isOutForDelivery = ($order['dispatch_status'] === 'Out for Delivery');
         $tpFee = (float)($order['tp_fee'] ?? 0);
-        $cleanOrderNotes = trim((string)preg_replace('/^\[Courier booking:[^\]]+\]\s*/i', '', (string)($order['order_notes'] ?? '')));
+        $cleanOrderNotes = trim((string)preg_replace('/\s+Philippine time(?=\])/i', '', (string)preg_replace('/^\[Courier booking:[^\]]+\]\s*/i', '', (string)($order['order_notes'] ?? ''))));
         $trackBadgeClass = $trackVerifyStatus === 'Verified' ? 'badge-success' : ($trackVerifyStatus === 'Rejected' ? 'badge-danger' : ($trackVerifyStatus === 'Pending' ? 'badge-warning' : 'badge-muted'));
 
         if ($isOutForDelivery) {

@@ -1520,19 +1520,19 @@ body.pos-page .kk-toast-close:focus-visible {
     outline-offset: 2px;
 }
 
-/* Keep POS toasts clear of topbar and the right-hand receipt/checkout panel */
+/* Keep POS toasts positioned cleanly on the top-right */
 body.pos-page .kk-toast-container {
     top: 76px;
-    left: 270px;
-    right: auto;
-    width: min(380px, calc(100vw - 290px - 390px));
+    right: 20px;
+    left: auto;
+    width: min(380px, calc(100vw - 32px));
 }
 
 @media (max-width: 1024px) {
     body.pos-page .kk-toast-container {
         top: 72px;
-        left: 16px;
-        right: auto;
+        right: 16px;
+        left: auto;
         width: min(380px, calc(100vw - 32px));
     }
 }
@@ -1584,12 +1584,13 @@ body.pos-page .kk-toast-container {
     display: flex;
     align-items: flex-start;
     gap: 12px;
-    padding: 14px 16px;
+    padding: 13px 15px;
     border-radius: 14px;
-    background: #FFFFFF;
+    background: #fffdf8;
     color: #1F2937;
-    border: 1px solid #E5E7EB;
-    border-left: 5px solid var(--primary);
+    border: 1px solid #e6dfd0;
+    border-top: 3px solid #F2C12E;
+    border-left: 1px solid #e6dfd0;
     box-shadow: 0 14px 36px rgba(17, 24, 39, 0.16);
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     font-size: 0.88rem;
@@ -1599,25 +1600,35 @@ body.pos-page .kk-toast-container {
     transition: transform 0.2s ease, opacity 0.2s ease;
 }
 
+.kk-toast-brand {
+    display: block;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #9a6b00;
+    margin-bottom: 2px;
+}
+
 .kk-toast.show {
     transform: translateY(0);
     opacity: 1;
 }
 
 .kk-toast.kk-toast-success {
-    border-left-color: #10B981;
+    border-top-color: #10B981;
 }
 
 .kk-toast.kk-toast-error {
-    border-left-color: #EF4444;
+    border-top-color: #EF4444;
 }
 
 .kk-toast.kk-toast-warning {
-    border-left-color: #F59E0B;
+    border-top-color: #F59E0B;
 }
 
 .kk-toast.kk-toast-info {
-    border-left-color: #F2C12E;
+    border-top-color: #F2C12E;
 }
 
 .kk-toast-icon {

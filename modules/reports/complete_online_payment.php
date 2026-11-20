@@ -86,7 +86,10 @@ try {
                 'order_channel' => 'ONLINE',
             ]);
         }
-        payment_json(['ok' => true, 'message' => 'GCash proof verified and order released to kitchen.', 'order_no' => $verified['order_no'], 'payment_status' => 'Paid']);
+        $msg = !empty($verified['released_to_kitchen'])
+            ? 'GCash payment verified and sent to kitchen.'
+            : 'GCash payment verified. Waiting for tracking link approval before kitchen prep.';
+        payment_json(['ok' => true, 'message' => $msg, 'order_no' => $verified['order_no'], 'payment_status' => 'Paid']);
     }
     if ($order['status'] !== 'Served') {
         throw new RuntimeException('Cash payment can be marked as paid after the order is served or collected.');

@@ -387,7 +387,7 @@ function renderOrders() {
                                         <span>
                                             <strong>Note:</strong>
                                             ${escapeHtml(
-                                                order.notes
+                                                String(order.notes).replace(/\s+Philippine time(?=\])/gi, '')
                                             )}
                                         </span>
                                     </div>
@@ -639,7 +639,7 @@ function buildSlip(
                         ">
                             Note:
                             ${escapeHtml(
-                                order.notes
+                                String(order.notes).replace(/\s+Philippine time(?=\])/gi, '')
                             )}
                         </p>
                     `

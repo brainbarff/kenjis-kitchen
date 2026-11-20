@@ -3409,6 +3409,18 @@ function renderOnlineOrders(orders) {
         `).join('');
 
         const fulfillment = formatOnlineOrderTypeLabel(order);
+        const rawNotes = String(order.notes || '')
+            .replace(/^\[Courier booking:[^\]]+\]\s*/i, '')
+            .replace(/\s+Philippine time(?=\])/gi, '')
+            .trim();
+        const pickupSchedMatch = rawNotes.match(/\[Pickup:\s*([^\]]+)\]/i);
+        const deliverySchedMatch = rawNotes.match(/\[Delivery:\s*([^\]]+)\]/i);
+        const scheduleLabel = pickupSchedMatch
+            ? `Scheduled Pickup: ${pickupSchedMatch[1].trim()}`
+            : (deliverySchedMatch ? `Scheduled Delivery: ${deliverySchedMatch[1].trim()}` : '');
+        const extraOrderNote = rawNotes
+            .replace(/\[(?:Pickup|Delivery):\s*[^\]]+\]\s*/gi, '')
+            .trim();
         return `
             <div class="online-order-card">
                 <div class="online-order-card-head">
@@ -3421,10 +3433,23 @@ function renderOnlineOrders(orders) {
                     <span class="online-order-status ${statusClass}">${escapeHtml(order.status)}</span>
                 </div>
 
+                ${scheduleLabel ? `
+                    <div class="online-order-schedule">
+                        <i class="bi bi-calendar2-check" aria-hidden="true"></i>
+                        <span>${escapeHtml(scheduleLabel)}</span>
+                    </div>
+                ` : ''}
+
                 ${order.delivery_address ? `
                     <div class="online-order-meta" style="margin-bottom:8px;">
                         <strong>Delivery:</strong> ${escapeHtml(order.delivery_address)}
                         ${order.customer_phone ? ` · ${escapeHtml(order.customer_phone)}` : ''}
+                    </div>
+                ` : ''}
+
+                ${extraOrderNote ? `
+                    <div class="online-order-note-box">
+                        <strong>Order Note:</strong> ${escapeHtml(extraOrderNote)}
                     </div>
                 ` : ''}
 

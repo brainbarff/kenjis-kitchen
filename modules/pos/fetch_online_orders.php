@@ -34,7 +34,7 @@ try {
         LEFT JOIN payments p ON p.order_id = o.id
         LEFT JOIN receipts r ON r.order_id = o.id
         WHERE o.order_channel = 'ONLINE'
-          AND DATE(o.created_at) = CURDATE()
+          AND (DATE(o.created_at) = CURDATE() OR o.notes LIKE '%[Pickup:%' OR o.notes LIKE '%[Delivery:%')
           AND o.status IN ('Pending', 'Preparing', 'Ready')
         ORDER BY o.created_at DESC, o.id DESC
         LIMIT 20
@@ -55,7 +55,7 @@ try {
     }
     unset($order);
 
-    $pendingStmt = $conn->query("SELECT COUNT(*) FROM orders WHERE order_channel = 'ONLINE' AND DATE(created_at) = CURDATE() AND status = 'Pending'");
+    $pendingStmt = $conn->query("SELECT COUNT(*) FROM orders WHERE order_channel = 'ONLINE' AND (DATE(created_at) = CURDATE() OR notes LIKE '%[Pickup:%' OR notes LIKE '%[Delivery:%') AND status = 'Pending'");
     $pendingCount = (int)$pendingStmt->fetchColumn();
 
     echo json_encode([

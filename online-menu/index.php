@@ -211,7 +211,7 @@ require_once dirname(__DIR__) . '/includes/storefront_bestsellers.php';
           </div>
         </div>
         <p id="bilaoReservationNotice" class="kk-inline-feedback" style="display:none; margin:0 0 14px;" role="note">
-          <i class="bi bi-calendar2-event" aria-hidden="true"></i> Size M, L &amp; XL Bilao platters require <strong>1 to 2 days advance reservation</strong> for preparation.
+          <i class="bi bi-calendar2-event" aria-hidden="true"></i> Size M, L &amp; XL Bilao platters require <strong>1 to 2 days advance reservation</strong> (Delivery or Pickup) and cannot be mixed with same-day items.
         </p>
 
         <!-- Packaging Option Picker (Tray vs Bilao for Bilao Category Dishes) -->
@@ -512,12 +512,12 @@ require_once dirname(__DIR__) . '/includes/storefront_bestsellers.php';
         </div>
 
         <section id="pickupSchedule" class="pickup-schedule" hidden>
-          <label>Pickup day</label>
+          <label id="pickupDayLabel">Pickup day</label>
           <div id="pickupDayChoices" class="pickup-day-choices"></div>
           <label id="pickupTimeLabel" for="pickupTime">Pickup time</label>
           <select id="pickupTime" class="checkout-input"><option value="">Choose a time</option></select>
           <p id="pickupScheduleHelp" role="status">Choose a time at least 30 minutes from now.</p>
-          <div class="pickup-store"><strong>Pickup location · Kenji’s Kitchen</strong><span>Blk 79 Lot 34 Florante at Laura St., Greater Lagro, Quezon City</span></div>
+          <div id="pickupStoreInfo" class="pickup-store"><strong>Pickup location - Kenji’s Kitchen</strong><span>Blk 79 Lot 34 Florante at Laura St., Greater Lagro, Quezon City</span></div>
         </section>
 
         <div id="addressFieldWrap" style="display: none; margin-bottom: 14px;">
