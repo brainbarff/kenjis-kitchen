@@ -2028,10 +2028,20 @@ include ROOT_PATH . '/includes/header.php';
     .online-orders-modal button:focus-visible, #cashDrawerModalOverlay button:focus-visible { outline:2px solid #95720a; outline-offset:3px; }
 
     /* Kenji's Kitchen Warm Cream & Gold POS Theme Refinement */
-    .pos-page .pos-category-nav-btn { border-color:#dfd6c3; background:#fffdf8; color:#4b4335; }
-    .pos-page .pos-search-box { background:#fffdf9; border:1px solid #dfd6c3; height:36px; width:210px; flex-shrink:0; padding:0 13px; box-shadow:0 1px 4px rgba(36,35,30,.04); }
-    .pos-page .pos-search-box i { color:#8a7d65; font-size:0.88rem; }
-    .pos-page .pos-search-box input { color:#1f2328; font-weight:600; font-size:0.82rem; }
+    .pos-page .pos-products-header { gap:12px; margin-bottom:12px; align-items:center; flex-wrap:wrap; }
+    .pos-page .pos-category-scroller-wrap { flex:1 1 auto; min-width:0; }
+    .pos-page .pos-category-nav-btn { display:none!important; }
+    .pos-page .pos-products-header .tabs { display:flex; flex-wrap:wrap; gap:6px; overflow:visible; padding:2px 0; margin-bottom:0; cursor:default; }
+    .pos-page .pos-products-header .tabs .tab { padding:7px 13px; font-size:0.82rem; font-weight:700; border:1px solid #dfd6c3; background:#fffdf9; color:#3b352a; border-radius:999px; transition:background .15s, border-color .15s, color .15s, box-shadow .15s; }
+    .pos-page .pos-products-header .tabs .tab:hover:not(.active) { background:#fff6d6; border-color:#dfc065; color:#1f2328; }
+    .pos-page .pos-products-header .tabs .tab.active { background:#f2c12e; border-color:#dfaf1e; color:#1f2328; font-weight:800; box-shadow:0 2px 6px rgba(242,193,46,.28); }
+    .pos-page .pos-products-header .tabs .tab:focus,
+    .pos-page .pos-products-header .tabs .tab:focus-visible,
+    .pos-page .sub-tab:focus,
+    .pos-page .sub-tab:focus-visible { outline:none!important; box-shadow:0 0 0 2px rgba(242,193,46,.35); }
+    .pos-page .pos-search-box { background:#fffdf9; border:1px solid #dfd6c3; height:36px; width:195px; flex-shrink:0; padding:0 12px; box-shadow:0 1px 4px rgba(36,35,30,.04); margin-left:auto; }
+    .pos-page .pos-search-box i { color:#8a7d65; font-size:0.86rem; }
+    .pos-page .pos-search-box input { color:#1f2328; font-weight:600; font-size:0.81rem; }
     .pos-page .pos-search-box input::placeholder { color:#9a8f7a; font-weight:500; }
     .pos-page .menu-grid::-webkit-scrollbar-track,
     .pos-page .cart-items::-webkit-scrollbar-track { background:#f5f0e4; }
@@ -2055,9 +2065,9 @@ include ROOT_PATH . '/includes/header.php';
     .pos-page .btn-qty:hover:not(:disabled) { background:#f2c12e; color:#1f2328; }
     .pos-page .btn-qty:disabled { color:#cfc5b0; }
     .pos-page .qty-display { color:#1f2328; font-weight:800; }
-    .pos-page .sub-tab { border-color:#dfd6c3; background:#fffdf8; color:#5c5240; font-weight:700; }
+    .pos-page .sub-tab { border-color:#dfd6c3; background:#fffdf8; color:#5c5240; font-weight:700; padding:6px 14px; font-size:0.8rem; }
     .pos-page .sub-tab:hover { background:#fff6d6; border-color:#dfc065; color:#1f2328; }
-    .pos-page .sub-tab.active,
+    .pos-page .sub-tab.active { background:#fff3c4; color:#1f2328; border-color:#e5b422; font-weight:800; }
     .pos-page .bilao-pkg-btn.active { background:#24231e; color:#f2c12e; border-color:#24231e; }
     .pos-page .bilao-size-btn,
     .pos-page .bilao-pkg-btn { border-color:#dfd6c3; background:#fffdf9; color:#4b4335; }
@@ -2800,10 +2810,19 @@ document.addEventListener('DOMContentLoaded', function() {
             bilaoSubFilter.style.display = 'none';
         }
 
-        applySubFilters(currentCat);
+        if (typeof window.filterPosMenu === 'function') {
+            window.filterPosMenu();
+        } else {
+            applySubFilters(currentCat);
+        }
     }
+    window.syncPosSubFilterVisibility = updateSubFilterVisibility;
 
     function applySubFilters(currentCat) {
+        if (typeof window.filterPosMenu === 'function') {
+            window.filterPosMenu();
+            return;
+        }
         if (currentCat === silogCatId) {
             const activeSub = silogSubFilter.querySelector('.sub-tab.active')?.dataset.sub || 'all';
 
@@ -2847,7 +2866,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 .querySelector('[data-sub="all"]')
                 ?.classList.add('active');
 
-            setTimeout(updateSubFilterVisibility, 20);
+            updateSubFilterVisibility();
         });
     });
 

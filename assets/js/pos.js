@@ -879,12 +879,22 @@ window.clearAllOrder = async function(skipConfirm = false) {
 
 function filterMenu() {
     const activeTab =
+        document.querySelector('.tabs .tab.active') ||
         document.querySelector('.tab.active');
 
     const cat =
         activeTab
             ? activeTab.dataset.cat
             : 'all';
+
+    const silogSubFilter = document.getElementById('silogSubFilter');
+    const bilaoSubFilter = document.getElementById('bilaoSubFilter');
+    let activeSub = 'all';
+    if (silogSubFilter && silogSubFilter.style.display !== 'none') {
+        activeSub = silogSubFilter.querySelector('.sub-tab.active')?.dataset.sub || 'all';
+    } else if (bilaoSubFilter && bilaoSubFilter.style.display !== 'none') {
+        activeSub = bilaoSubFilter.querySelector('.sub-tab.active')?.dataset.sub || 'all';
+    }
 
     const searchInput =
         document.getElementById('posProductSearch') ||
@@ -902,19 +912,27 @@ function filterMenu() {
         .forEach(card => {
             const itemCat =
                 card.dataset.cat || '';
+            const itemSubcat =
+                card.dataset.subcat || '';
 
             const itemName = (
                 card.dataset.name ||
+                card.dataset.base ||
                 card.textContent
             ).toLowerCase();
 
             const itemDesc = (
-                card.querySelector('.card-desc')?.textContent || ''
+                card.querySelector('.card-desc, .bilao-desc')?.textContent || ''
             ).toLowerCase();
 
             const matchesCat =
                 cat === 'all' ||
                 itemCat === cat;
+
+            const matchesSubcat =
+                cat === 'all' ||
+                activeSub === 'all' ||
+                itemSubcat === activeSub;
 
             const matchesSearch =
                 !query ||
@@ -923,11 +941,13 @@ function filterMenu() {
 
             card.style.display =
                 matchesCat &&
+                matchesSubcat &&
                 matchesSearch
                     ? ''
                     : 'none';
         });
 }
+window.filterPosMenu = filterMenu;
 
 document
     .querySelectorAll('.tab')
@@ -942,103 +962,23 @@ document
                 });
 
             tab.classList.add('active');
-            filterMenu();
-
-            // Smoothly scroll active tab into view in scroller
-            try {
-                tab.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-            } catch (e) {}
+            const searchInput = document.getElementById('posProductSearch');
+            if (searchInput && searchInput.value) {
+                searchInput.value = '';
+            }
+            if (typeof window.syncPosSubFilterVisibility === 'function') {
+                window.syncPosSubFilterVisibility();
+            } else {
+                filterMenu();
+            }
         });
     });
 
-// Initialize horizontal category scroller navigation and mouse/trackpad drag scrolling
 (function initCategoryScroller() {
-    const tabsContainer = document.getElementById('posCategoryTabs') || document.querySelector('.pos-products-header .tabs');
     const btnLeft = document.getElementById('catScrollLeftBtn');
     const btnRight = document.getElementById('catScrollRightBtn');
-
-    if (!tabsContainer) return;
-
-    function updateNavBtnState() {
-        if (!btnLeft || !btnRight) return;
-        const maxScroll = tabsContainer.scrollWidth - tabsContainer.clientWidth;
-        if (maxScroll <= 5) {
-            btnLeft.disabled = true;
-            btnRight.disabled = true;
-            btnLeft.style.display = 'none';
-            btnRight.style.display = 'none';
-        } else {
-            btnLeft.style.display = 'inline-flex';
-            btnRight.style.display = 'inline-flex';
-            btnLeft.disabled = tabsContainer.scrollLeft <= 5;
-            btnRight.disabled = tabsContainer.scrollLeft >= maxScroll - 5;
-        }
-    }
-
-    if (btnLeft) {
-        btnLeft.addEventListener('click', () => {
-            tabsContainer.scrollBy({ left: -220, behavior: 'smooth' });
-        });
-    }
-
-    if (btnRight) {
-        btnRight.addEventListener('click', () => {
-            tabsContainer.scrollBy({ left: 220, behavior: 'smooth' });
-        });
-    }
-
-    tabsContainer.addEventListener('scroll', updateNavBtnState, { passive: true });
-    window.addEventListener('resize', updateNavBtnState, { passive: true });
-
-    // Enable horizontal mouse drag scrolling
-    let isDown = false;
-    let startX = 0;
-    let scrollLeftStart = 0;
-    let hasMoved = false;
-
-    tabsContainer.addEventListener('mousedown', (e) => {
-        // Only left button
-        if (e.button !== 0) return;
-        isDown = true;
-        hasMoved = false;
-        startX = e.pageX - tabsContainer.offsetLeft;
-        scrollLeftStart = tabsContainer.scrollLeft;
-        tabsContainer.style.scrollBehavior = 'auto';
-    });
-
-    tabsContainer.addEventListener('mouseleave', () => {
-        if (isDown) {
-            isDown = false;
-            tabsContainer.style.scrollBehavior = 'smooth';
-        }
-    });
-
-    tabsContainer.addEventListener('mouseup', () => {
-        isDown = false;
-        tabsContainer.style.scrollBehavior = 'smooth';
-    });
-
-    tabsContainer.addEventListener('mousemove', (e) => {
-        if (!isDown) return;
-        const x = e.pageX - tabsContainer.offsetLeft;
-        const walk = (x - startX) * 1.4;
-        if (Math.abs(walk) > 4) {
-            hasMoved = true;
-        }
-        tabsContainer.scrollLeft = scrollLeftStart - walk;
-    });
-
-    // Prevent accidental tab click when dragging
-    tabsContainer.addEventListener('click', (e) => {
-        if (hasMoved) {
-            e.preventDefault();
-            e.stopPropagation();
-            hasMoved = false;
-        }
-    }, true);
-
-    // Initial state check
-    setTimeout(updateNavBtnState, 100);
+    if (btnLeft) btnLeft.style.display = 'none';
+    if (btnRight) btnRight.style.display = 'none';
 })();
 
 const dedicatedPosSearch = document.getElementById('posProductSearch');
