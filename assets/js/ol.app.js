@@ -3660,6 +3660,64 @@ function selectCodChangeOption(choice) {
   updateCodChangeSummary();
 }
 
+function parseCodCustomAmount(rawVal) {
+  const cleaned = String(rawVal || '').replace(/[₱,\s]/g, '').trim();
+  if (!cleaned || !/^\d+(\.\d*)?$/.test(cleaned)) {
+    return NaN;
+  }
+  const num = Number(cleaned);
+  return Number.isFinite(num) && num > 0 ? Math.round(num * 100) / 100 : NaN;
+}
+
+function handleCodCustomInput() {
+  const input = document.getElementById('custCodChangeFor');
+  if (input) {
+    let val = String(input.value || '').replace(/[^0-9.,₱]/g, '');
+    const firstDot = val.indexOf('.');
+    if (firstDot !== -1) {
+      const before = val.slice(0, firstDot + 1);
+      const after = val.slice(firstDot + 1).replace(/\./g, '').slice(0, 2);
+      val = before + after;
+    }
+    if (val !== input.value) {
+      input.value = val;
+    }
+  }
+  updateCodChangeSummary();
+}
+
+function formatCodCustomInput() {
+  const input = document.getElementById('custCodChangeFor');
+  if (!input) return;
+  const rawVal = input.value.trim();
+  if (!rawVal) {
+    updateCodChangeSummary();
+    return;
+  }
+  const parsed = parseCodCustomAmount(rawVal);
+  if (Number.isFinite(parsed)) {
+    input.value = formatPeso(parsed);
+  }
+  updateCodChangeSummary();
+}
+
+function unformatCodCustomInput() {
+  const input = document.getElementById('custCodChangeFor');
+  if (!input) return;
+  const parsed = parseCodCustomAmount(input.value);
+  if (Number.isFinite(parsed)) {
+    input.value = Number.isInteger(parsed) ? String(parsed) : parsed.toFixed(2);
+  }
+}
+
+function handleCodCustomKeydown(event) {
+  if (event && event.key === 'Enter') {
+    event.preventDefault();
+    formatCodCustomInput();
+    event.target?.blur();
+  }
+}
+
 function updateCodChangeSummary() {
   const summaryEl = document.getElementById('codChangeSummaryText');
   if (!summaryEl) return;
@@ -3675,7 +3733,7 @@ function updateCodChangeSummary() {
       summaryEl.textContent = `Enter the cash amount (at least ${formatPeso(total)}) you will pay on delivery.`;
       return;
     }
-    const num = Number(rawVal);
+    const num = parseCodCustomAmount(rawVal);
     if (!Number.isFinite(num) || num < total) {
       summaryEl.classList.add('is-error');
       summaryEl.textContent = `Amount must be at least ${formatPeso(total)} (order total), or select Exact Amount.`;
@@ -3709,10 +3767,6 @@ function updateCodChangeUi() {
   if (!showCod) return;
 
   const total = getCartSubtotalAmount();
-  const customInput = document.getElementById('custCodChangeFor');
-  if (customInput) {
-    customInput.min = total > 0 ? total.toFixed(2) : '1';
-  }
   const exactBtn = document.querySelector('#codChangePresetGroup .cod-change-pill-btn[data-bill="exact"]');
   if (exactBtn) {
     exactBtn.textContent = `Exact (${formatPeso(total)})`;
@@ -4066,7 +4120,7 @@ async function submitOrder() {
     if (selectedCodChangeMode === 'custom') {
       const customInputEl = document.getElementById('custCodChangeFor');
       const rawCustom = customInputEl ? customInputEl.value.trim() : '';
-      const parsedCustom = Number(rawCustom);
+      const parsedCustom = parseCodCustomAmount(rawCustom);
       if (!rawCustom || !Number.isFinite(parsedCustom) || parsedCustom < currentTotal) {
         const msg = `Please enter a cash amount of at least ${formatPeso(currentTotal)}, or select Exact Amount.`;
         setCheckoutValidationError(msg);

@@ -643,7 +643,7 @@ require_once dirname(__DIR__) . '/includes/storefront_bestsellers.php';
           </div>
           <div id="codCustomChangeWrap" class="cod-change-custom-wrap" style="display: none;">
             <label for="custCodChangeFor">Cash amount you will pay (₱)</label>
-            <input type="number" id="custCodChangeFor" class="checkout-input" min="1" step="0.01" inputmode="decimal" placeholder="e.g. 500" oninput="updateCodChangeSummary()">
+            <input type="text" id="custCodChangeFor" class="checkout-input" inputmode="decimal" autocomplete="off" placeholder="e.g. ₱500.00" oninput="handleCodCustomInput()" onfocus="unformatCodCustomInput()" onblur="formatCodCustomInput()" onkeydown="handleCodCustomKeydown(event)">
           </div>
           <p id="codChangeSummaryText" class="cod-change-summary" role="status" aria-live="polite">Exact amount selected - no change needed from rider.</p>
         </div>

@@ -23,6 +23,7 @@ try {
             o.order_channel,
             o.notes,
             o.total,
+            o.change_for,
             o.status,
             o.created_at,
             p.payment_method,

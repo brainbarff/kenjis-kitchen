@@ -3421,6 +3421,19 @@ function renderOnlineOrders(orders) {
         const extraOrderNote = rawNotes
             .replace(/\[(?:Pickup|Delivery):\s*[^\]]+\]\s*/gi, '')
             .trim();
+        const payMethodLower = String(order.payment_method || '').trim().toLowerCase();
+        const isCodOrder = order.order_type === 'ONLINE' && (payMethodLower === 'cash on delivery' || payMethodLower === 'cash');
+        const orderTotalNum = Number(order.total || 0);
+        const changeForNum = Number(order.change_for || 0);
+        let codChangeBadgeHtml = '';
+        if (isCodOrder) {
+            if (changeForNum > orderTotalNum + 0.009) {
+                const changeDueNum = Math.max(0, changeForNum - orderTotalNum);
+                codChangeBadgeHtml = `<div class="online-order-cod-change"><i class="bi bi-cash-coin" aria-hidden="true"></i> Bill ${peso.format(changeForNum)} · Prepare ${peso.format(changeDueNum)} change</div>`;
+            } else {
+                codChangeBadgeHtml = `<div class="online-order-cod-exact"><i class="bi bi-check2-circle" aria-hidden="true"></i> Exact Amount (No change needed)</div>`;
+            }
+        }
         return `
             <div class="online-order-card">
                 <div class="online-order-card-head">
@@ -3464,6 +3477,7 @@ function renderOnlineOrders(orders) {
                             ${order.payment_method === 'GCash' ? (order.payment_status === 'Paid' ? '<span class="badge" style="font-size:0.72rem; background:#dcfce7; color:#15803d; border:1px solid #bbf7d0; padding:2px 8px; border-radius:999px; font-weight:700;">Verified</span>' : '<span class="badge" style="font-size:0.72rem; background:#fff3c4; color:#775600; border:1px solid #eed98a; padding:2px 8px; border-radius:999px; font-weight:700;">Pending</span>') : ''}
                             <strong class="online-order-total" style="margin-left:2px; font-size:0.98rem; color:#24231e;">${peso.format(Number(order.total || 0))}</strong>
                         </div>
+                        ${codChangeBadgeHtml}
                         ${order.payment_reference ? `<div style="margin-top:5px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:0.76rem; color:#655c4c;">
                             <span>Ref: <strong style="color:#29251f;">${escapeHtml(order.payment_reference)}</strong></span>
                             ${Number(order.has_payment_proof) === 1 ? `<a href="../online/api/payment_proof.php?order_id=${Number(order.id)}" target="_blank" rel="noopener noreferrer" class="pos-online-proof-link"><i class="bi bi-image" aria-hidden="true"></i> View Screenshot</a>` : ''}

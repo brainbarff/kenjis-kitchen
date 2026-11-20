@@ -2013,6 +2013,8 @@ include ROOT_PATH . '/includes/header.php';
     .online-order-schedule { display:flex; align-items:center; gap:7px; flex-wrap:wrap; margin:0 0 8px; padding:7px 10px; border-radius:8px; background:#fff8e1; border:1px solid #efd379; color:#5c4300; font-size:0.78rem; font-weight:700; }
     .online-order-schedule i { color:#8a6200; }
     .online-order-note-box { margin:0 0 8px; padding:6px 10px; border-radius:8px; background:#fcfbf7; border:1px solid #e6dfd0; color:#4b4639; font-size:0.77rem; }
+    .online-order-cod-change { display:inline-flex; align-items:center; gap:5px; margin-top:6px; padding:4px 10px; border-radius:999px; background:#fff4cc; border:1px solid #e5c352; color:#5c4300; font-size:0.74rem; font-weight:700; }
+    .online-order-cod-exact { display:inline-flex; align-items:center; gap:5px; margin-top:6px; padding:4px 10px; border-radius:999px; background:#dcfce7; border:1px solid #bbf7d0; color:#15803d; font-size:0.74rem; font-weight:700; }
     .pos-online-proof-link { display:inline-flex; align-items:center; gap:5px; padding:3px 9px; border-radius:999px; background:#fff8e1; border:1px solid #e2c567; color:#594113; font-size:0.74rem; font-weight:700; text-decoration:none; transition:background .15s, border-color .15s; }
     .pos-online-proof-link:hover { background:#f2c12e; border-color:#d6a81f; color:#1f2328; }
     .pos-online-verify-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; min-height:34px; padding:6px 14px; border-radius:8px; background:#f2c12e; border:1px solid #dfaf1e; color:#1f2328; font:inherit; font-size:0.8rem; font-weight:800; cursor:pointer; transition:background .15s, border-color .15s; }
