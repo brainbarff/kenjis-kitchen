@@ -626,6 +626,31 @@ require_once dirname(__DIR__) . '/includes/storefront_bestsellers.php';
           <small id="paymentMethodHelp" role="status" aria-live="polite" style="color:var(--muted);display:none;margin-top:7px;">Cash is unavailable outside Lagro. Use GCash for the food.</small>
         </div>
 
+        <div id="onlineCodChangeWrap" class="cod-change-panel" style="display: none;">
+          <div class="cod-change-panel-head">
+            <div>
+              <strong><i class="bi bi-cash-coin" aria-hidden="true"></i> Cash for Rider</strong>
+              <span class="cod-change-tag">Within Lagro COD</span>
+            </div>
+            <small>Tell us the bill you’ll hand over so our rider brings the right change.</small>
+          </div>
+          <div id="codChangePresetGroup" class="cod-change-presets" role="radiogroup" aria-label="Cash bill amount for change">
+            <button type="button" class="cod-change-pill-btn active" data-bill="exact" aria-checked="true" onclick="selectCodChangeOption('exact', this)">Exact Amount</button>
+            <button type="button" class="cod-change-pill-btn" data-bill="200" aria-checked="false" onclick="selectCodChangeOption('200', this)">₱200</button>
+            <button type="button" class="cod-change-pill-btn" data-bill="500" aria-checked="false" onclick="selectCodChangeOption('500', this)">₱500</button>
+            <button type="button" class="cod-change-pill-btn" data-bill="1000" aria-checked="false" onclick="selectCodChangeOption('1000', this)">₱1,000</button>
+            <button type="button" class="cod-change-pill-btn" data-bill="custom" aria-checked="false" onclick="selectCodChangeOption('custom', this)">Other amount</button>
+          </div>
+          <div id="codCustomChangeWrap" class="cod-change-custom-wrap" style="display: none;">
+            <label for="custCodChangeFor">Cash amount you will pay (₱)</label>
+            <div class="cod-change-input-row">
+              <span class="cod-change-peso" aria-hidden="true">₱</span>
+              <input type="number" id="custCodChangeFor" class="checkout-input" min="1" step="0.01" inputmode="decimal" placeholder="e.g. 500" oninput="updateCodChangeSummary()">
+            </div>
+          </div>
+          <p id="codChangeSummaryText" class="cod-change-summary" role="status" aria-live="polite">Exact amount selected — no change needed from rider.</p>
+        </div>
+
         <div id="onlineGcashWrap" style="display: none; margin-bottom: 14px;">
           <section class="gcash-payment-panel" aria-label="Pay by GCash QR code">
             <p class="gcash-payment-title"><i class="bi bi-qr-code-scan"></i> Scan to pay with GCash</p>

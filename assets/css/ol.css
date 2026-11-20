@@ -5323,3 +5323,180 @@ body.dark-mode .courier-fee-summary-row.total strong { color: #F2C12E; }
 #orderConfirmationTitle{font-size:1.5rem;line-height:1.25;margin:0;color:#242424}.confirmation-summary{background:#fffcf4;border:1px solid #e9dfc9;border-radius:14px;padding:18px;text-align:left;margin-bottom:16px}.confirmation-summary>div{gap:12px;flex-wrap:wrap;padding:4px 0}.confirmation-summary strong{overflow-wrap:anywhere}.confirmation-summary span{color:#746b58}
 #orderConfirmationModal .customer-secondary-action{background:#fff;border:1px solid #d9d1bf;color:#302c24;box-shadow:none}#orderConfirmationModal .customer-secondary-action:hover{background:#fff8e4}.confirmation-menu-action{background:none;border:0;color:#665e4b;padding:12px;min-height:44px;cursor:pointer;font-family:inherit;font-size:.85rem;font-weight:600;width:100%}.confirmation-menu-action:hover{text-decoration:underline}#orderConfirmationModal button:focus-visible{outline:3px solid #a37b00;outline-offset:3px}
 @media(max-width:480px){#orderConfirmationModal .modal-body{padding:22px 18px}.confirmation-summary{padding:14px}}
+
+/* Kenji's Kitchen COD Cash / Change Selector in Checkout */
+.cod-change-panel {
+  margin: 0 0 14px;
+  padding: 13px 14px;
+  background: #fffaf0;
+  border: 1px solid #f0dfae;
+  border-radius: 12px;
+}
+.cod-change-panel-head > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.cod-change-panel-head strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.86rem;
+  font-weight: 800;
+  color: #242424;
+}
+.cod-change-panel-head strong i {
+  color: #b45309;
+}
+.cod-change-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: #fff1b7;
+  border: 1px solid #efd379;
+  color: #665000;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+.cod-change-panel-head small {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.77rem;
+  color: #6b6250;
+  line-height: 1.4;
+}
+.cod-change-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 10px;
+}
+.cod-change-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 6px 12px;
+  border: 1.5px solid #e4d8b4;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #2c2820;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease;
+}
+.cod-change-pill-btn:hover {
+  background: #fff5d1;
+  border-color: #dfb637;
+}
+.cod-change-pill-btn.active {
+  background: #F2C12E;
+  color: #1F2328;
+  border-color: #d6a81f;
+  box-shadow: 0 2px 8px rgba(242, 193, 46, 0.28);
+}
+.cod-change-pill-btn:focus-visible {
+  outline: 2px solid #a37b00;
+  outline-offset: 2px;
+}
+.cod-change-custom-wrap {
+  margin-top: 10px;
+}
+.cod-change-custom-wrap label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #2c2820;
+}
+.cod-change-input-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.cod-change-peso {
+  position: absolute;
+  left: 12px;
+  font-weight: 800;
+  color: #6b6250;
+  pointer-events: none;
+}
+.cod-change-input-row input {
+  padding-left: 28px !important;
+}
+.cod-change-summary {
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #ffffff;
+  border: 1px dashed #e6d8ad;
+  font-size: 0.79rem;
+  font-weight: 600;
+  color: #4b4639;
+  line-height: 1.4;
+}
+.cod-change-summary.is-change {
+  background: #fff4cc;
+  border-style: solid;
+  border-color: #e9c44d;
+  color: #5c4300;
+}
+.cod-change-summary.is-error {
+  background: rgba(239, 68, 68, 0.1);
+  border-style: solid;
+  border-color: rgba(239, 68, 68, 0.35);
+  color: #b91c1c;
+}
+body.dark-mode .cod-change-panel {
+  background: #303943;
+  border-color: #454F5B;
+}
+body.dark-mode .cod-change-panel-head strong {
+  color: #F1F3F5;
+}
+body.dark-mode .cod-change-panel-head strong i {
+  color: #F59E0B;
+}
+body.dark-mode .cod-change-tag {
+  background: rgba(245, 158, 11, 0.18);
+  border-color: rgba(245, 158, 11, 0.45);
+  color: #fde68a;
+}
+body.dark-mode .cod-change-panel-head small,
+body.dark-mode .cod-change-custom-wrap label,
+body.dark-mode .cod-change-peso {
+  color: #CBD5E1;
+}
+body.dark-mode .cod-change-pill-btn {
+  background: #272E36;
+  border-color: #454F5B;
+  color: #E7E9EC;
+}
+body.dark-mode .cod-change-pill-btn:hover {
+  background: #3B4652;
+  border-color: #F59E0B;
+  color: #F59E0B;
+}
+body.dark-mode .cod-change-pill-btn.active {
+  background: #F59E0B;
+  border-color: #F59E0B;
+  color: #1F2328;
+}
+body.dark-mode .cod-change-summary {
+  background: #272E36;
+  border-color: #454F5B;
+  color: #E7E9EC;
+}
+body.dark-mode .cod-change-summary.is-change {
+  background: rgba(245, 158, 11, 0.16);
+  border-color: rgba(245, 158, 11, 0.45);
+  color: #fde68a;
+}
+body.dark-mode .cod-change-summary.is-error {
+  color: #fca5a5;
+}

@@ -3606,6 +3606,115 @@ function computeEstimatedPrepTime(cartItems = appState.cart) {
   return '15 - 25 minutes';
 }
 
+let selectedCodChangeMode = 'exact';
+
+function resetCodChangeUi() {
+  selectedCodChangeMode = 'exact';
+  const customInput = document.getElementById('custCodChangeFor');
+  if (customInput) customInput.value = '';
+  const buttons = document.querySelectorAll('#codChangePresetGroup .cod-change-pill-btn');
+  buttons.forEach(btn => {
+    const isExact = btn.dataset.bill === 'exact';
+    btn.classList.toggle('active', isExact);
+    btn.setAttribute('aria-checked', isExact ? 'true' : 'false');
+  });
+  const customWrap = document.getElementById('codCustomChangeWrap');
+  if (customWrap) customWrap.style.display = 'none';
+}
+
+function selectCodChangeOption(choice) {
+  selectedCodChangeMode = String(choice || 'exact');
+  const buttons = document.querySelectorAll('#codChangePresetGroup .cod-change-pill-btn');
+  buttons.forEach(btn => {
+    const active = btn.dataset.bill === selectedCodChangeMode;
+    btn.classList.toggle('active', active);
+    btn.setAttribute('aria-checked', active ? 'true' : 'false');
+  });
+  const customWrap = document.getElementById('codCustomChangeWrap');
+  if (customWrap) {
+    customWrap.style.display = selectedCodChangeMode === 'custom' ? 'block' : 'none';
+    if (selectedCodChangeMode === 'custom') {
+      document.getElementById('custCodChangeFor')?.focus();
+    }
+  }
+  updateCodChangeSummary();
+}
+
+function updateCodChangeSummary() {
+  const summaryEl = document.getElementById('codChangeSummaryText');
+  if (!summaryEl) return;
+  const total = getCartSubtotalAmount();
+  summaryEl.classList.remove('is-change', 'is-error');
+  if (selectedCodChangeMode === 'exact') {
+    summaryEl.textContent = `Exact amount (${formatPeso(total)}) selected — no change needed from rider.`;
+    return;
+  }
+  if (selectedCodChangeMode === 'custom') {
+    const rawVal = document.getElementById('custCodChangeFor')?.value?.trim() || '';
+    if (!rawVal) {
+      summaryEl.textContent = `Enter the cash amount (at least ${formatPeso(total)}) you will pay on delivery.`;
+      return;
+    }
+    const num = Number(rawVal);
+    if (!Number.isFinite(num) || num < total) {
+      summaryEl.classList.add('is-error');
+      summaryEl.textContent = `Amount must be at least ${formatPeso(total)} (order total), or select Exact Amount.`;
+      return;
+    }
+    const change = Math.max(0, num - total);
+    if (change <= 0.009) {
+      summaryEl.textContent = `Exact amount (${formatPeso(total)}) — no change needed from rider.`;
+      return;
+    }
+    summaryEl.classList.add('is-change');
+    summaryEl.textContent = `Paying with ${formatPeso(num)} · Rider will prepare ${formatPeso(change)} change.`;
+    return;
+  }
+  const presetBill = Number(selectedCodChangeMode);
+  if (Number.isFinite(presetBill) && presetBill > total) {
+    summaryEl.classList.add('is-change');
+    summaryEl.textContent = `Paying with ${formatPeso(presetBill)} · Rider will prepare ${formatPeso(presetBill - total)} change.`;
+  } else {
+    summaryEl.textContent = `Exact amount (${formatPeso(total)}) selected — no change needed from rider.`;
+  }
+}
+
+function updateCodChangeUi() {
+  const wrap = document.getElementById('onlineCodChangeWrap');
+  if (!wrap) return;
+  const selectedEl = document.querySelector('input[name="paymentMethod"]:checked');
+  const method = selectedEl ? selectedEl.value.toLowerCase() : '';
+  const showCod = appState.fulfillmentMode === 'delivery' && method === 'cash' && !getUnavailableCashReason();
+  wrap.style.display = showCod ? 'block' : 'none';
+  if (!showCod) return;
+
+  const total = getCartSubtotalAmount();
+  const customInput = document.getElementById('custCodChangeFor');
+  if (customInput) {
+    customInput.min = total > 0 ? total.toFixed(2) : '1';
+  }
+  const exactBtn = document.querySelector('#codChangePresetGroup .cod-change-pill-btn[data-bill="exact"]');
+  if (exactBtn) {
+    exactBtn.textContent = `Exact (${formatPeso(total)})`;
+  }
+  let activePresetStillValid = true;
+  document.querySelectorAll('#codChangePresetGroup .cod-change-pill-btn').forEach(btn => {
+    const val = btn.dataset.bill;
+    if (val === '200' || val === '500' || val === '1000') {
+      const valid = Number(val) > (total + 0.009);
+      btn.style.display = valid ? 'inline-flex' : 'none';
+      if (!valid && selectedCodChangeMode === val) {
+        activePresetStillValid = false;
+      }
+    }
+  });
+  if (!activePresetStillValid) {
+    selectCodChangeOption('exact');
+  } else {
+    updateCodChangeSummary();
+  }
+}
+
 function toggleOnlinePaymentMethod() {
   if (appState.fulfillmentMode === 'delivery' && document.getElementById('deliveryModeSelect')?.value === 'CUSTOMER_BOOKED') {
     const gcash = document.querySelector('input[name="paymentMethod"][value="GCash"]');
@@ -3618,6 +3727,7 @@ function toggleOnlinePaymentMethod() {
     gcashWrap.style.display = method.toLowerCase() === 'gcash' ? 'block' : 'none';
     if (method.toLowerCase() === 'gcash') loadOnlineGcashSettings();
   }
+  updateCodChangeUi();
 }
 
 function handleGcashProofSelection(event) {
@@ -3711,6 +3821,7 @@ function openCheckoutModal() {
   document.querySelectorAll('input[name="paymentMethod"]').forEach(radio => {
     radio.checked = false;
   });
+  resetCodChangeUi();
   const prepEl = document.getElementById('checkoutPrepEstimateText');
   const advCheck = validateCartAdvancePrep();
   if (prepEl) {
@@ -3938,6 +4049,39 @@ async function submitOrder() {
     document.getElementById('pickupTime')?.focus();
     return;
   }
+
+  let codChangeFor = null;
+  if (appState.fulfillmentMode === 'delivery' && paymentMethod.toLowerCase() === 'cash' && !getUnavailableCashReason()) {
+    const currentTotal = getCartSubtotalAmount();
+    if (selectedCodChangeMode === 'custom') {
+      const customInputEl = document.getElementById('custCodChangeFor');
+      const rawCustom = customInputEl ? customInputEl.value.trim() : '';
+      const parsedCustom = Number(rawCustom);
+      if (!rawCustom || !Number.isFinite(parsedCustom) || parsedCustom < currentTotal) {
+        const msg = `Please enter a cash amount of at least ${formatPeso(currentTotal)}, or select Exact Amount.`;
+        setCheckoutValidationError(msg);
+        window.kkNotify(msg, 'warning');
+        if (customInputEl) customInputEl.focus();
+        return;
+      }
+      if (parsedCustom > 100000) {
+        const msg = 'Cash amount for change is too large.';
+        setCheckoutValidationError(msg);
+        window.kkNotify(msg, 'warning');
+        if (customInputEl) customInputEl.focus();
+        return;
+      }
+      if (parsedCustom > currentTotal + 0.009) {
+        codChangeFor = Math.round(parsedCustom * 100) / 100;
+      }
+    } else if (selectedCodChangeMode !== 'exact') {
+      const presetAmount = Number(selectedCodChangeMode);
+      if (Number.isFinite(presetAmount) && presetAmount > currentTotal + 0.009) {
+        codChangeFor = presetAmount;
+      }
+    }
+  }
+
   const payload = {
     pickup_at: pickupAt,
     customer_name: name,
@@ -3954,6 +4098,7 @@ async function submitOrder() {
     order_type: appState.fulfillmentMode,
     payment_method: paymentMethod,
     payment_reference: paymentMethod.toLowerCase() === 'gcash' ? gcashRef : null,
+    change_for: codChangeFor,
     notes: orderNotes,
     items: appState.cart.map(i => ({
       menu_item_id: i.id,

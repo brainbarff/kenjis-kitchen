@@ -810,7 +810,19 @@ try {
     $codApprovalStatus = ($isCod && $fulfillment === 'DELIVERY') ? 'Pending' : 'None';
     $orderType = $fulfillment === 'DELIVERY' ? 'ONLINE' : 'TAKE-OUT';
     $fulfillmentMode = $fulfillment === 'DELIVERY' ? ($deliveryMode === 'CUSTOMER_BOOKED' ? 'OUTSIDE' : 'LAGRO') : 'PICKUP';
-    $changeFor = ($isCod && isset($data['change_for']) && (float)$data['change_for'] >= $total) ? round((float)$data['change_for'], 2) : null;
+    $changeFor = null;
+    if ($isCod && $fulfillment === 'DELIVERY' && isset($data['change_for']) && $data['change_for'] !== '' && $data['change_for'] !== null) {
+        $rawChangeFor = filter_var($data['change_for'], FILTER_VALIDATE_FLOAT);
+        if ($rawChangeFor === false || $rawChangeFor < $total) {
+            throw new InvalidArgumentException('Cash amount for change must be at least ₱' . number_format($total, 2) . '.');
+        }
+        if ($rawChangeFor > 100000) {
+            throw new InvalidArgumentException('Cash amount for change is too large.');
+        }
+        if ($rawChangeFor > ($total + 0.009)) {
+            $changeFor = round((float)$rawChangeFor, 2);
+        }
+    }
     $kitchenQueuedAt = ($isGcash || $codApprovalStatus === 'Pending') ? null : date('Y-m-d H:i:s');
 
     $courierTrackingStatus = ($fulfillment === 'DELIVERY' && $deliveryMode === 'CUSTOMER_BOOKED' && $courierBookingBy === 'CUSTOMER' && $trackingUrl !== null) ? 'Pending' : 'None';

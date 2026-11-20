@@ -271,7 +271,7 @@ $ordersStmt = $conn->prepare("
            o.status AS order_status, o.kitchen_queued_at, o.cod_approval_status,
            o.payment_verification_status, o.delivered_by_user_id,
            ur.full_name AS preassigned_rider_name, ur.phone AS preassigned_rider_phone,
-           o.total, o.subtotal, o.ready_at, o.created_at,
+           o.total, o.subtotal, o.change_for, o.ready_at, o.created_at,
            p.payment_method, p.payment_status,
            d.rider_name, d.rider_phone, d.status AS dispatch_status, d.notes, d.assigned_at, d.out_at, d.delivered_at, d.failed_at,
            tpd.booking_service, tpd.delivery_fee AS tp_fee, tpd.tracking_reference, tpd.fee_paid, tpd.status AS tp_status,
@@ -440,6 +440,16 @@ include ROOT_PATH . '/includes/header.php';
                 <span class="delivery-meta-label">Order &amp; Payment</span>
                 <strong><?= money($order['total']) ?></strong>
                 <span class="delivery-meta-sub"><?= e($order['payment_method'] ?: 'Not set') ?> (<?= e($order['payment_status'] ?: 'Pending') ?>)</span>
+                <?php if (($order['payment_method'] ?? '') === 'Cash on Delivery' && ($order['payment_status'] ?? '') !== 'Paid'):
+                    $orderChangeFor = (float)($order['change_for'] ?? 0);
+                    $orderChangeAmt = $orderChangeFor > (float)$order['total'] ? ($orderChangeFor - (float)$order['total']) : 0.0;
+                ?>
+                    <?php if ($orderChangeAmt > 0): ?>
+                        <span class="delivery-cod-change-pill"><i class="bi bi-cash-stack" aria-hidden="true"></i> Bill <?= e(money($orderChangeFor)) ?> · Bring <?= e(money($orderChangeAmt)) ?> change</span>
+                    <?php else: ?>
+                        <span class="delivery-cod-change-pill is-exact"><i class="bi bi-check-circle-fill" aria-hidden="true"></i> Exact Amount (No change needed)</span>
+                    <?php endif; ?>
+                <?php endif; ?>
             </div>
         </div>
 
@@ -622,12 +632,12 @@ include ROOT_PATH . '/includes/header.php';
                 <input type="hidden" name="order_id" value="<?= (int)$order['id'] ?>">
                 <input type="hidden" name="action" value="delivered">
                 <?php if ($order['payment_status'] !== 'Paid'): ?>
-                <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:10px;background:#fffbeb;border:1px solid #f59e0b;font-weight:600;cursor:pointer;">
-                    <input type="checkbox" name="cash_collected" value="1" class="cod-collected-checkbox" style="width:18px;height:18px;accent-color:#d97706;">
+                <label class="cod-confirm-check">
+                    <input type="checkbox" name="cash_collected" value="1" class="cod-collected-checkbox">
                     <span>I confirm cash (<?= e(money($order['total'])) ?>) was collected on delivery.</span>
                 </label>
                 <?php endif; ?>
-                <button class="btn btn-primary cod-deliver-btn" type="submit" style="min-height:42px;padding:8px 18px;" <?= $order['payment_status'] !== 'Paid' ? 'disabled style="min-height:42px;padding:8px 18px;opacity:0.55;cursor:not-allowed;"' : '' ?>>
+                <button class="btn btn-primary cod-deliver-btn<?= $order['payment_status'] !== 'Paid' ? ' is-locked' : '' ?>" type="submit" style="min-height:42px;padding:8px 18px;" aria-disabled="<?= $order['payment_status'] !== 'Paid' ? 'true' : 'false' ?>">
                     <i class="bi bi-check2-circle"></i> Confirm Delivered to Customer
                 </button>
             </form>
@@ -786,6 +796,14 @@ include ROOT_PATH . '/includes/header.php';
 .delivery-page .btn { min-height:40px; border-radius:9px; font-size:14px; }
 .delivery-page .btn-primary { background:#f2c12e; color:#1f2328; border-color:#dfaf1e; font-weight:800; }
 .delivery-page .btn-primary:hover { background:#e5b420; border-color:#c69814; }
+.delivery-page .cod-deliver-btn.is-locked,
+.delivery-page .cod-deliver-btn.is-locked:hover,
+.delivery-page .cod-deliver-btn.is-locked:focus-visible { background:#ece8dd; color:#787162; border-color:#d6d0bf; box-shadow:none; opacity:0.78; cursor:not-allowed; font-weight:700; transform:none; }
+.delivery-cod-change-pill { display:inline-flex; align-items:center; gap:5px; align-self:flex-start; margin-top:4px; padding:3px 9px; border-radius:999px; font-size:11.5px; font-weight:700; background:#fff3c4; border:1px solid #eed98a; color:#775600; }
+.delivery-cod-change-pill.is-exact { background:#dcfce7; border-color:#bbf7d0; color:#15803d; }
+.cod-confirm-check { display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:10px; background:#fffbeb; border:1px solid #f59e0b; font-weight:600; color:#242424; cursor:pointer; transition:box-shadow .2s ease, border-color .2s ease, background-color .2s ease; }
+.cod-confirm-check input[type=checkbox] { width:18px; height:18px; accent-color:#d97706; flex-shrink:0; }
+.cod-confirm-check.is-attention { background:#fef3c7; border-color:#d97706; box-shadow:0 0 0 3px rgba(242, 193, 46, 0.35); }
 .delivery-page .delivery-handoff-btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:42px; padding:9px 20px; border-radius:10px; box-shadow:0 2px 8px rgba(242,193,46,0.28); }
 .delivery-page input:focus, .delivery-page select:focus, .delivery-page textarea:focus { outline:2px solid #b48b12; outline-offset:2px; }
 .delivery-page input[type=checkbox] { accent-color:#c49a19!important; }
@@ -889,10 +907,13 @@ document.addEventListener('change', function (e) {
     if (!chk) return;
     var form = chk.closest('.cod-deliver-form');
     var btn = form ? form.querySelector('.cod-deliver-btn') : null;
+    var box = chk.closest('.cod-confirm-check');
+    if (box && chk.checked) {
+        box.classList.remove('is-attention');
+    }
     if (btn) {
-        btn.disabled = !chk.checked;
-        btn.style.opacity = chk.checked ? '1' : '0.55';
-        btn.style.cursor = chk.checked ? 'pointer' : 'not-allowed';
+        btn.classList.toggle('is-locked', !chk.checked);
+        btn.setAttribute('aria-disabled', chk.checked ? 'false' : 'true');
     }
 });
 
@@ -901,22 +922,33 @@ document.addEventListener('submit', async function (e) {
     if (!form) return;
     var chk = form.querySelector('.cod-collected-checkbox');
     var btn = form.querySelector('.cod-deliver-btn');
+    var orderNo = form.dataset.orderNo || 'Order';
+    var orderTotal = form.dataset.orderTotal || '';
     if (form.dataset.kkConfirmed === '1') {
         delete form.dataset.kkConfirmed;
         return;
     }
     if (chk && !chk.checked) {
         e.preventDefault();
+        var box = chk.closest('.cod-confirm-check');
+        if (box) {
+            box.classList.remove('is-attention');
+            void box.offsetWidth;
+            box.classList.add('is-attention');
+        }
+        chk.focus();
         if (window.kkNotify) {
-            window.kkNotify('Please check the confirmation box that Cash on Delivery was collected before marking this order delivered.', 'warning', { title: 'COD Collection Required' });
+            window.kkNotify(
+                'Please check "I confirm cash (' + orderTotal + ') was collected on delivery." before marking ' + orderNo + ' as delivered.',
+                'warning',
+                { title: 'COD Collection Required' }
+            );
         }
         return;
     }
     if (window.kkConfirm) {
         e.preventDefault();
         var isPaid = form.dataset.isPaid === '1';
-        var orderNo = form.dataset.orderNo || 'Order';
-        var orderTotal = form.dataset.orderTotal || '';
         var payMethod = form.dataset.paymentMethod || 'Cash on Delivery';
         var confirmed = await window.kkConfirm({
             title: isPaid ? 'Complete Delivery Order?' : 'Confirm COD Collection & Complete Delivery?',
