@@ -246,14 +246,14 @@ try {
     $discountIdNumber = !empty($data['discountIdNumber']) ? trim((string)$data['discountIdNumber']) : null;
     $discountCustomerName = !empty($data['discountCustomerName']) ? trim((string)$data['discountCustomerName']) : null;
 
-    if ($discountType !== null && !in_array($discountType, ['Senior Citizen', 'PWD'], true)) {
+    if ($discountType !== null && !in_array($discountType, ['Senior Citizen', 'PWD', 'Student'], true)) {
         throw new InvalidArgumentException('Unsupported discount type.');
     }
     if ($discountType !== null && ($discountIdNumber === null || $discountCustomerName === null)) {
-        throw new InvalidArgumentException('Senior/PWD discounts require the customer name and ID number.');
+        throw new InvalidArgumentException('Student/Senior/PWD discounts require the customer name and ID number.');
     }
 
-    if ($discountType && in_array($discountType, ['Senior Citizen', 'PWD'], true)) {
+    if ($discountType && in_array($discountType, ['Senior Citizen', 'PWD', 'Student'], true)) {
         // BIR 20% discount applies to individual personal eligible items
         // In Kenji's Kitchen, Bilao Favorites (category 6) is catering/bulk party size, thus excluded
         $eligibleSubtotal = 0.0;

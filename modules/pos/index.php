@@ -82,6 +82,48 @@ foreach ($raw_items as $item) {
     $regular_items[] = $item;
 }
 
+require_once ROOT_PATH . '/includes/storefront_bestsellers.php';
+$posBestsellerById = [];
+$posBestsellerBilaoDish = [];
+foreach ($storeBestsellers as $idx => $bs) {
+    $bsId = (int)($bs['id'] ?? 0);
+    if ($bsId > 0) {
+        $posBestsellerById[$bsId] = '#' . ($idx + 1) . ' Best Seller';
+    }
+}
+try {
+    $paidOrdersSql = kk_report_paid_orders_sql();
+    $catTopRows = $conn->query("
+        SELECT m.id, m.item_name, m.category_id, c.category_name,
+               SUM(oi.quantity - COALESCE(oi.voided_quantity, 0)) AS sold
+        FROM order_items oi
+        JOIN ($paidOrdersSql) o ON o.id = oi.order_id
+        JOIN menu_items m ON m.id = oi.menu_item_id
+        JOIN categories c ON c.id = m.category_id
+        WHERE o.report_paid_at IS NOT NULL
+          AND o.status NOT IN ('Cancelled','Voided','Refunded')
+          AND m.is_archived = 0 AND c.status = 'Active'
+          AND LOWER(TRIM(c.category_name)) NOT IN ('add-ons', 'drinks')
+          AND (oi.quantity - COALESCE(oi.voided_quantity, 0)) > 0
+        GROUP BY m.id, m.item_name, m.category_id, c.category_name
+        ORDER BY sold DESC, m.id ASC
+    ")->fetchAll(PDO::FETCH_ASSOC);
+    $seenCatCount = [];
+    foreach ($catTopRows as $r) {
+        $cid = (int)$r['category_id'];
+        $mid = (int)$r['id'];
+        $seenCatCount[$cid] = ($seenCatCount[$cid] ?? 0) + 1;
+        if ($bilaoCatId && $cid === (int)$bilaoCatId) {
+            $baseDish = trim((string)preg_replace('/\s+(Small|Medium|Large|XL|Extra\s+Large|\([SMLXL]+\))$/i', '', (string)$r['item_name']));
+            if ($baseDish !== '' && count($posBestsellerBilaoDish) < 2 && !isset($posBestsellerBilaoDish[$baseDish])) {
+                $posBestsellerBilaoDish[$baseDish] = 'Best Seller';
+            }
+        } elseif ($seenCatCount[$cid] <= 2 && !isset($posBestsellerById[$mid])) {
+            $posBestsellerById[$mid] = 'Best Seller';
+        }
+    }
+} catch (Throwable $e) {}
+
 include ROOT_PATH . '/includes/header.php';
 ?>
 <style>
@@ -2053,17 +2095,21 @@ include ROOT_PATH . '/includes/header.php';
     .pos-page .food-card img { background-color:#faf6ec; border:1px solid #f2ece0; }
     .pos-page .stock-badge { background:rgba(255,252,244,.96); color:#5c5240; border:1px solid #e5dcc4; box-shadow:0 2px 5px rgba(0,0,0,.04); }
     .pos-page .stock-badge.low-stock { background:#fff3c4; color:#8a5200; border-color:#e8c455; }
+    .pos-page .bestseller-badge { position:absolute; top:8px; left:8px; z-index:2; display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:999px; background:#f2c12e; color:#1f2328; border:1px solid #d9a316; font-size:0.64rem; font-weight:800; box-shadow:0 2px 6px rgba(36,35,30,.12); pointer-events:none; }
+    .pos-page .bestseller-badge i { color:#784d00; font-size:0.62rem; }
+    .pos-page .pos-products-header .tabs .tab { padding:6px 11px; font-size:0.8rem; }
     .pos-page .card-info h3 { color:#1f2328; font-weight:800; }
     .pos-page .card-desc { color:#6e6555; }
     .pos-page .card-footer-price,
     .pos-page .bilao-price { color:#1f2328; }
-    .pos-page .qty-stepper { height:32px; background:#f8f4e8; border:1px solid #e5dcc4; border-radius:9px; transition:background .15s, border-color .15s; }
+    .pos-page .qty-stepper { height:32px; padding:0!important; background:#f8f4e8; border:1px solid #e5dcc4; border-radius:9px; transition:background .15s, border-color .15s; }
     .pos-page .food-card.in-cart .qty-stepper { background:#fff3c4; border-color:#e2b93b; }
-    .pos-page .btn-qty { color:#5c5240; font-size:1.05rem; transition:background .15s, color .15s; }
+    .pos-page .btn-qty { height:100%!important; padding:0!important; margin:0!important; background:transparent!important; color:#5c5240; font-size:1.05rem; line-height:1; transition:background .15s, color .15s; }
     .pos-page .btn-qty:focus,
-    .pos-page .btn-qty:focus-visible { outline:none!important; box-shadow:none!important; }
-    .pos-page .btn-qty:hover:not(:disabled) { background:#f2c12e; color:#1f2328; }
-    .pos-page .btn-qty:disabled { color:#cfc5b0; }
+    .pos-page .btn-qty:focus-visible,
+    .pos-page .btn-qty:active { outline:none!important; box-shadow:none!important; background:transparent!important; }
+    .pos-page .btn-qty:hover:not(:disabled) { background:rgba(242,193,46,.28)!important; color:#1f2328; }
+    .pos-page .btn-qty:disabled { color:#cfc5b0; background:transparent!important; }
     .pos-page .qty-display { color:#1f2328; font-weight:800; }
     .pos-page .sub-tab { border-color:#dfd6c3; background:#fffdf8; color:#5c5240; font-weight:700; padding:6px 14px; font-size:0.8rem; }
     .pos-page .sub-tab:hover { background:#fff6d6; border-color:#dfc065; color:#1f2328; }
@@ -2112,10 +2158,13 @@ include ROOT_PATH . '/includes/header.php';
     .pos-page .note-pill-display { background:#fffaf0; border-color:#e5c352; color:#4b4335; }
     .pos-page .totals { color:#3b352a; }
     .pos-page .totals .grand { border-top-color:#dfd6c3; color:#1f2328; font-size:1.04rem; padding-top:5px; }
-    .pos-page .pos-disc-btn { border-color:#dfd6c3; background:#fcfaf4; color:#4b4335; border-radius:7px; }
-    .pos-page .discount-control input { border-color:#dfd6c3; background:#fcfaf4; color:#1f2328; font-weight:700; border-radius:5px; }
+    .pos-page .pos-discount-quick-btns { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:5px; margin:5px 0 6px; }
+    .pos-page .pos-disc-btn { border-color:#dfd6c3; background:#fcfaf4; color:#4b4335; border-radius:7px; padding:5px 4px; font-size:0.71rem; white-space:nowrap; }
+    .pos-page .discount-line { display:flex!important; align-items:center; justify-content:space-between; gap:8px; }
+    .pos-page .discount-line-left { display:inline-flex; align-items:center; gap:6px; }
+    .pos-page .discount-control input { width:46px; height:22px; border-color:#dfd6c3; background:#fcfaf4; color:#1f2328; font-weight:700; border-radius:5px; text-align:center; padding:1px 4px; }
     .pos-page .discount-control span,
-    .pos-page .discount-amount { color:#5c5240; }
+    .pos-page .discount-amount { color:#5c5240; min-width:0; }
     .pos-page .receipt-cash-row { background:#fcfaf3; border:1px solid #e6dec8; border-radius:8px; padding:6px 10px; }
     .pos-page .receipt-cash-row label { color:#5c5240; }
     .pos-page .receipt-cash-row input { border-color:#dfd6c3; color:#1f2328; font-weight:700; border-radius:6px; }
@@ -2140,6 +2189,7 @@ include ROOT_PATH . '/includes/header.php';
             <div class="pos-category-scroller-wrap">
                 <div class="tabs" id="posCategoryTabs">
                     <button class="tab active" data-cat="all">All</button>
+                    <button class="tab" data-cat="bestsellers" title="View Kenji's Kitchen best-selling dishes"><i class="bi bi-star-fill" style="color:#b47d12; margin-right:4px;"></i>Best Sellers</button>
                     <?php foreach ($categories as $cat): ?>
                         <button class="tab" data-cat="<?= e($cat['id']) ?>"><?= e(['add-ons' => 'Add-ons', 'silog meals' => 'Silog'][strtolower($cat['category_name'])] ?? $cat['category_name']) ?></button>
                     <?php endforeach; ?>
@@ -2182,16 +2232,22 @@ include ROOT_PATH . '/includes/header.php';
                 $stock = max(0, (int)($item['stock'] ?? 0));
                 $availability = $item['availability'] ?? 'Available';
                 $isUnavailable = ($stock <= 0 || $availability !== 'Available');
+                $bsLabel = $posBestsellerById[(int)$item['id']] ?? '';
                 ?>
 
                 <article class="food-card <?= $isUnavailable ? 'unavailable' : '' ?>"
                          data-cat="<?= e($item['category_id']) ?>"
                          data-subcat="<?= $subcat ?>"
+                         data-bestseller="<?= $bsLabel !== '' ? '1' : '0' ?>"
                          data-id="<?= e($item['id']) ?>"
                          data-name="<?= e($item['item_name']) ?>"
                          data-price="<?= e($price) ?>"
                          data-stock="<?= e($stock) ?>"
                          data-availability="<?= e($availability) ?>">
+
+                    <?php if ($bsLabel !== ''): ?>
+                        <span class="bestseller-badge"><i class="bi bi-star-fill" aria-hidden="true"></i> <?= e($bsLabel) ?></span>
+                    <?php endif; ?>
 
                     <span class="stock-badge <?= ($stock <= 0 || $availability !== 'Available') ? 'out-of-stock' : ($stock <= 5 ? 'low-stock' : '') ?>">
                         <?= $availability !== 'Available' ? 'Unavailable' : ($stock <= 0 ? 'Out of Stock' : ($stock <= 5 ? 'Only ' . e($stock) . ' left' : e($stock) . ' pcs left')) ?>
@@ -2242,11 +2298,13 @@ include ROOT_PATH . '/includes/header.php';
                     $tray_img_url = $info['tray_image_url'] ?: menu_image_url($info['tray_image'] ?? $info['image'] ?? '');
                     $bilao_img_url = $info['bilao_image_url'] ?: menu_image_url($info['bilao_image'] ?? $info['image'] ?? '');
                     $default_img_url = $bilao_img_url ?: ($tray_img_url ?: (BASE_URL . '/assets/img/food-placeholder.svg'));
+                    $bilaoBsLabel = $posBestsellerBilaoDish[$dish] ?? '';
                     ?>
 
                     <article class="food-card bilao-card bilao-centered-card <?= $init_unavailable ? 'unavailable' : '' ?>"
                              data-cat="<?= e($bilaoCatId) ?>"
                              data-subcat="<?= e($info['subcat']) ?>"
+                             data-bestseller="<?= $bilaoBsLabel !== '' ? '1' : '0' ?>"
                              data-id="<?= e($init_id) ?>"
                              data-name="<?= e($init_name) ?>"
                              data-price="<?= e($init_price) ?>"
@@ -2258,6 +2316,10 @@ include ROOT_PATH . '/includes/header.php';
                              data-tray-img="<?= e($tray_img_url) ?>"
                              data-bilao-img="<?= e($bilao_img_url) ?>"
                              data-variants='<?= $json_variants ?>'>
+
+                        <?php if ($bilaoBsLabel !== ''): ?>
+                            <span class="bestseller-badge"><i class="bi bi-star-fill" aria-hidden="true"></i> <?= e($bilaoBsLabel) ?></span>
+                        <?php endif; ?>
 
                         <span class="stock-badge <?= ($init_stock <= 0 || $init_availability !== 'Available') ? 'out-of-stock' : ($init_stock <= 5 ? 'low-stock' : '') ?>">
                             <?= $init_availability !== 'Available' ? 'Unavailable' : ($init_stock <= 0 ? 'Out of Stock' : ($init_stock <= 5 ? 'Only ' . e($init_stock) . ' left' : e($init_stock) . ' pcs left')) ?>
@@ -2400,12 +2462,15 @@ include ROOT_PATH . '/includes/header.php';
                     <strong id="subtotal">₱0.00</strong>
                 </div>
 
-                <!-- Automatic Senior Citizen & PWD Discount Selector -->
+                <!-- Automatic Student, Senior Citizen & PWD Discount Selector -->
                 <div class="pos-discount-quick-btns">
-                    <button type="button" class="pos-disc-btn" id="btnDiscountSenior" onclick="toggleQuickDiscount('Senior')">
+                    <button type="button" class="pos-disc-btn" id="btnDiscountStudent" onclick="toggleQuickDiscount('Student')" title="Apply 20% Student Discount">
+                        <i class="bi bi-mortarboard-fill"></i> Student (20%)
+                    </button>
+                    <button type="button" class="pos-disc-btn" id="btnDiscountSenior" onclick="toggleQuickDiscount('Senior')" title="Apply 20% Senior Citizen Discount">
                         <i class="bi bi-person-heart"></i> Senior (20%)
                     </button>
-                    <button type="button" class="pos-disc-btn" id="btnDiscountPwd" onclick="toggleQuickDiscount('PWD')">
+                    <button type="button" class="pos-disc-btn" id="btnDiscountPwd" onclick="toggleQuickDiscount('PWD')" title="Apply 20% PWD Discount">
                         <i class="bi bi-universal-access"></i> PWD (20%)
                     </button>
                 </div>
@@ -2418,19 +2483,22 @@ include ROOT_PATH . '/includes/header.php';
                 </div>
 
                 <div class="discount-line">
-                    <span>Discount</span>
-                    <div class="discount-control">
-                        <input
-                            id="discount"
-                            type="number"
-                            min="0"
-                            max="100"
-                            step="0.01"
-                            value="0"
-                            inputmode="decimal"
-                            aria-label="Discount percentage"
-                        >
-                        <span>%</span>
+                    <div class="discount-line-left">
+                        <span>Discount</span>
+                        <div class="discount-control">
+                            <input
+                                id="discount"
+                                type="number"
+                                min="0"
+                                max="100"
+                                step="0.01"
+                                value="0"
+                                inputmode="decimal"
+                                aria-label="Custom discount percentage"
+                                title="Custom discount percentage"
+                            >
+                            <span>%</span>
+                        </div>
                     </div>
                     <strong class="discount-amount" id="discountAmount">-₱0.00</strong>
                 </div>
@@ -2596,7 +2664,7 @@ include ROOT_PATH . '/includes/header.php';
                 <i class="bi bi-person-badge-fill"></i>
             </div>
             <h3 id="spModalTitle" style="margin:0 0 4px; font-size:1.25rem; font-weight:800; color:#1f2328;">Senior Citizen Verification</h3>
-            <p style="margin:0; font-size:0.83rem; color:#655c4c;">Verify the customer's ID under R.A. 9994 / 10754 (20% Discount).</p>
+            <p id="spModalSubtitle" style="margin:0; font-size:0.83rem; color:#655c4c;">Verify the customer's ID under R.A. 9994 / 10754 (20% Discount).</p>
         </div>
 
         <form id="seniorPwdForm" onsubmit="event.preventDefault(); confirmSeniorPwdDiscount();" style="text-align:left;">

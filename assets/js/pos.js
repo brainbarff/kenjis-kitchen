@@ -927,10 +927,11 @@ function filterMenu() {
 
             const matchesCat =
                 cat === 'all' ||
-                itemCat === cat;
+                (cat === 'bestsellers' ? card.dataset.bestseller === '1' : itemCat === cat);
 
             const matchesSubcat =
                 cat === 'all' ||
+                cat === 'bestsellers' ||
                 activeSub === 'all' ||
                 itemSubcat === activeSub;
 
@@ -1305,7 +1306,7 @@ document
         );
     });
 
-let currentDiscountType = null; // 'Senior Citizen' | 'PWD' | null
+let currentDiscountType = null; // 'Student' | 'Senior Citizen' | 'PWD' | null
 let currentDiscountIdNumber = '';
 let currentDiscountCustomerName = '';
 
@@ -1321,10 +1322,10 @@ function totals() {
     let discountPercent = 0;
     let discount = 0;
 
-    if (currentDiscountType === 'Senior Citizen' || currentDiscountType === 'PWD') {
+    if (currentDiscountType === 'Senior Citizen' || currentDiscountType === 'PWD' || currentDiscountType === 'Student') {
         discountPercent = 20;
-        // Philippine RA 9994 / RA 10754: 20% discount applies to individual personal consumption meals.
-        // Bilao Favorites (category 6) is bulk/catering party size, excluded from senior/PWD discount.
+        // 20% discount applies to individual personal consumption meals.
+        // Bilao Favorites (category 6) is bulk/catering party size, excluded from Student/Senior/PWD discount.
         const eligibleSubtotal = cart.reduce((sum, item) => {
             const isBilao = String(item.catId) === '6' ||
                             Boolean(item.packaging) ||
@@ -1457,12 +1458,14 @@ function updateTotalsDisplay() {
         }
     }
 
-    // Synchronize Senior Citizen & PWD quick discount UI
+    // Synchronize Student, Senior Citizen & PWD quick discount UI
+    const btnStudent = document.getElementById('btnDiscountStudent');
     const btnSenior = document.getElementById('btnDiscountSenior');
     const btnPwd = document.getElementById('btnDiscountPwd');
     const badgeRow = document.getElementById('posDiscBadgeRow');
     const badgeText = document.getElementById('posDiscBadgeText');
 
+    if (btnStudent) btnStudent.classList.toggle('active', data.discountType === 'Student');
     if (btnSenior) btnSenior.classList.toggle('active', data.discountType === 'Senior Citizen');
     if (btnPwd) btnPwd.classList.toggle('active', data.discountType === 'PWD');
 
@@ -1828,7 +1831,7 @@ if (discountInput) {
 let pendingQuickDiscountType = null;
 
 window.toggleQuickDiscount = function(type) {
-    const fullType = type === 'Senior' ? 'Senior Citizen' : 'PWD';
+    const fullType = type === 'Senior' ? 'Senior Citizen' : (type === 'Student' ? 'Student' : 'PWD');
 
     if (currentDiscountType === fullType) {
         // Cashier clicked the active one again: remove discount
@@ -1856,6 +1859,7 @@ window.removeQuickDiscount = function() {
 function openSeniorPwdModal(type) {
     const modal = document.getElementById('seniorPwdModalOverlay');
     const title = document.getElementById('spModalTitle');
+    const subtitle = document.getElementById('spModalSubtitle');
     const label = document.getElementById('spIdLabel');
     const iconWrap = document.getElementById('spModalIconWrap');
     const errBox = document.getElementById('spModalErrorMsg');
@@ -1868,18 +1872,32 @@ function openSeniorPwdModal(type) {
 
     if (type === 'Senior Citizen') {
         if (title) title.textContent = 'Senior Citizen Verification';
+        if (subtitle) subtitle.textContent = 'Verify the customer\'s ID under R.A. 9994 (20% Discount).';
         if (label) label.textContent = 'Senior Citizen ID / OSCA #';
+        if (idInp) idInp.placeholder = 'e.g. OSCA-2024-12345';
         if (iconWrap) {
-            iconWrap.style.background = '#fef3c7';
-            iconWrap.style.color = '#d97706';
+            iconWrap.style.background = '#fff4c9';
+            iconWrap.style.color = '#9a6b00';
             iconWrap.innerHTML = '<i class="bi bi-person-badge-fill"></i>';
+        }
+    } else if (type === 'Student') {
+        if (title) title.textContent = 'Student Discount Verification';
+        if (subtitle) subtitle.textContent = 'Verify the customer\'s valid School / Student ID (20% Discount).';
+        if (label) label.textContent = 'Student ID / School ID #';
+        if (idInp) idInp.placeholder = 'e.g. 2024-00123-QC';
+        if (iconWrap) {
+            iconWrap.style.background = '#fff4c9';
+            iconWrap.style.color = '#9a6b00';
+            iconWrap.innerHTML = '<i class="bi bi-mortarboard-fill"></i>';
         }
     } else {
         if (title) title.textContent = 'PWD Verification';
+        if (subtitle) subtitle.textContent = 'Verify the customer\'s ID under R.A. 10754 (20% Discount).';
         if (label) label.textContent = 'PWD ID / Card #';
+        if (idInp) idInp.placeholder = 'e.g. PWD-QC-2024-001';
         if (iconWrap) {
-            iconWrap.style.background = '#e0e7ff';
-            iconWrap.style.color = '#4338ca';
+            iconWrap.style.background = '#fff4c9';
+            iconWrap.style.color = '#9a6b00';
             iconWrap.innerHTML = '<i class="bi bi-universal-access"></i>';
         }
     }
